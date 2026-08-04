@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,14 +41,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun CoachApp(trainingEngine: TrainingEngine) {
-    var routines by remember { mutableStateOf(Routines.all) }
+fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepository) {
+    var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
+    var isLoadingRoutines by remember { mutableStateOf(true) }
     var selectedRoutineId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(routineRepository) {
+        routines = routineRepository.load()
+        isLoadingRoutines = false
+    }
 
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             when (val state = trainingEngine.state) {
                 TrainingUiState.Home -> {
+                    if (isLoadingRoutines) {
+                        LoadingRoutinesScreen()
+                        return@Surface
+                    }
                     val selectedRoutine = selectedRoutineId?.let { id ->
                         routines.firstOrNull { it.id == id }
                     }
@@ -60,8 +71,14 @@ fun CoachApp(trainingEngine: TrainingEngine) {
                             onStart = trainingEngine::start,
                             isVoiceReady = trainingEngine.isVoiceReady,
                             onSave = { updatedRoutine ->
-                                routines = routines.map { routine ->
+                                val updatedRoutines = routines.map { routine ->
                                     if (routine.id == updatedRoutine.id) updatedRoutine else routine
+                                }
+                                if (routineRepository.save(updatedRoutines)) {
+                                    routines = updatedRoutines
+                                    true
+                                } else {
+                                    false
                                 }
                             }
                         )
@@ -79,6 +96,17 @@ fun CoachApp(trainingEngine: TrainingEngine) {
                 TrainingUiState.Completed -> CompletionScreen(onFinish = trainingEngine::finish)
             }
         }
+    }
+}
+
+@Composable
+private fun LoadingRoutinesScreen() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Cargando rutinas...")
     }
 }
 
@@ -153,7 +181,7 @@ private fun RoutineDetailScreen(
     onBack: () -> Unit,
     onStart: (Routine) -> Unit,
     isVoiceReady: Boolean,
-    onSave: (Routine) -> Unit
+    onSave: (Routine) -> Boolean
 ) {
     var isEditing by rememberSaveable(routine.id) { mutableStateOf(false) }
     var draft by remember(routine.id) { mutableStateOf(routine.toDraft()) }
@@ -168,10 +196,11 @@ private fun RoutineDetailScreen(
                 val validation = draft.validate(routine.isCustom)
                 if (validation.routine == null) {
                     validationMessage = validation.message
-                } else {
-                    onSave(validation.routine)
+                } else if (onSave(validation.routine)) {
                     validationMessage = null
                     isEditing = false
+                } else {
+                    validationMessage = "No se pudo guardar la rutina. Inténtalo de nuevo."
                 }
             },
             onCancel = {

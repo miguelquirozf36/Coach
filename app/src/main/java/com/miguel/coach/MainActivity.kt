@@ -9,15 +9,24 @@ class MainActivity : ComponentActivity() {
     private lateinit var beepPlayer: BeepPlayer
     private lateinit var voiceCoach: VoiceCoach
     private lateinit var trainingEngine: TrainingEngine
+    private lateinit var routineRepository: RoutineRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         beepPlayer = BeepPlayer()
         voiceCoach = VoiceCoach(applicationContext)
         trainingEngine = TrainingEngine(voiceCoach, beepPlayer)
+        routineRepository = RoutineRepository(
+            SharedPreferencesRoutineStorage(
+                getSharedPreferences("coach_routines", MODE_PRIVATE)
+            )
+        )
         enableEdgeToEdge()
         setContent {
-            CoachApp(trainingEngine = trainingEngine)
+            CoachApp(
+                trainingEngine = trainingEngine,
+                routineRepository = routineRepository
+            )
         }
     }
 
