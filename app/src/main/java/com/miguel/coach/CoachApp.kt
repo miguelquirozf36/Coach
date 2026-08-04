@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -17,12 +18,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -40,12 +44,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -252,9 +262,10 @@ private fun RoutineDetailScreen(
     var validationMessage by remember(routine.id) { mutableStateOf<String?>(null) }
 
     if (isEditing) {
+        val originalDraft = remember(routine) { routine.toDraft() }
         RoutineEditorScreen(
             draft = draft,
-            isCustom = routine.isCustom,
+            originalDraft = originalDraft,
             validationMessage = validationMessage,
             onDraftChange = { draft = it },
             onSave = {
@@ -343,14 +354,63 @@ private fun ExerciseSummary(exercise: Exercise) {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun RoutineEditorScreen(
     draft: RoutineDraft,
-    isCustom: Boolean,
+    originalDraft: RoutineDraft,
     validationMessage: String?,
     onDraftChange: (RoutineDraft) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
-    Scaffold(topBar = { TopAppBar(title = { Text("Editar rutina") }) }) { innerPadding ->
+    var expandedExerciseId by rememberSaveable(draft.id) { mutableStateOf<String?>(null) }
+    var showSaveDialog by rememberSaveable(draft.id) { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val requestExit = {
+        if (draft.hasChangesFrom(originalDraft)) showSaveDialog = true else onCancel()
+    }
+
+    BackHandler(onBack = requestExit)
+    if (showSaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDialog = false },
+            title = { Text("Guardar cambios") },
+            text = { Text("¿Deseas guardar los cambios antes de salir?") },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { showSaveDialog = false }) { Text("CANCELAR") }
+                    TextButton(onClick = {
+                        showSaveDialog = false
+                        onCancel()
+                    }) { Text("DESCARTAR") }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSaveDialog = false
+                    onSave()
+                }) { Text("GUARDAR") }
+            }
+        )
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("Editar rutina") },
+            navigationIcon = {
+                IconButton(
+                    onClick = requestExit,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = ArrowBackIcon,
+                        contentDescription = "Volver",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            },
+            actions = { TextButton(onClick = onSave) { Text("GUARDAR") } }
+        )
+    }) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -376,46 +436,40 @@ private fun RoutineEditorScreen(
             itemsIndexed(draft.exercises, key = { _, exercise -> exercise.id }) { index, exerciseDraft ->
                 ExerciseEditor(
                     exercise = exerciseDraft,
+                    expanded = expandedExerciseId == exerciseDraft.id,
+                    onToggle = {
+                        expandedExerciseId = toggledExpandedExercise(expandedExerciseId, exerciseDraft.id)
+                    },
                     onChange = { updatedExercise ->
-                        onDraftChange(
-                            draft.copy(
-                                exercises = draft.exercises.map { exercise ->
-                                    if (exercise.id == updatedExercise.id) updatedExercise else exercise
-                                }
-                            )
-                        )
+                        onDraftChange(draft.updateExercise(updatedExercise))
                     }
                 )
-                if (isCustom) {
+                if (expandedExerciseId == exerciseDraft.id) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
                     TextButton(
+                        modifier = Modifier.weight(1f),
                         enabled = index > 0,
-                        onClick = {
-                            val reordered = draft.exercises.toMutableList()
-                            val current = reordered.removeAt(index)
-                            reordered.add(index - 1, current)
-                            onDraftChange(draft.copy(exercises = reordered))
-                        }
+                        onClick = { onDraftChange(draft.moveExercise(exerciseDraft.id, -1)) }
                     ) { Text("SUBIR") }
                     TextButton(
+                        modifier = Modifier.weight(1f),
                         enabled = index < draft.exercises.lastIndex,
-                        onClick = {
-                            val reordered = draft.exercises.toMutableList()
-                            val current = reordered.removeAt(index)
-                            reordered.add(index + 1, current)
-                            onDraftChange(draft.copy(exercises = reordered))
-                        }
+                        onClick = { onDraftChange(draft.moveExercise(exerciseDraft.id, 1)) }
                     ) { Text("BAJAR") }
+                    }
                     TextButton(onClick = {
-                        onDraftChange(draft.copy(exercises = draft.exercises.filterIndexed { position, _ -> position != index }))
+                        expandedExerciseId = null
+                        onDraftChange(draft.removeExercise(exerciseDraft.id))
                     }) { Text("ELIMINAR EJERCICIO") }
                 }
             }
-            if (isCustom) item {
+            item(key = "add-exercise") {
                 Button(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         val id = "${draft.id}-exercise-${System.nanoTime()}"
-                        onDraftChange(draft.copy(exercises = draft.exercises + emptyCustomExercise(id).toDraft()))
+                        onDraftChange(draft.addExercise(emptyCustomExercise(id).toDraft()))
+                        expandedExerciseId = id
                     }
                 ) { Text("AÑADIR EJERCICIO") }
             }
@@ -424,30 +478,57 @@ private fun RoutineEditorScreen(
                     Text(message, color = MaterialTheme.colorScheme.error)
                 }
             }
-            item {
-                Button(modifier = Modifier.fillMaxWidth(), onClick = onSave) { Text("GUARDAR") }
-            }
-            item {
-                TextButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("CANCELAR") }
-            }
         }
     }
 }
 
+private val ArrowBackIcon: ImageVector = ImageVector.Builder(
+    name = "ArrowBack",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(20f, 11f)
+        horizontalLineTo(7.83f)
+        lineTo(13.42f, 5.41f)
+        lineTo(12f, 4f)
+        lineTo(4f, 12f)
+        lineTo(12f, 20f)
+        lineTo(13.41f, 18.59f)
+        lineTo(7.83f, 13f)
+        horizontalLineTo(20f)
+        close()
+    }
+}.build()
+
 @Composable
-private fun ExerciseEditor(exercise: ExerciseDraft, onChange: (ExerciseDraft) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun ExerciseEditor(
+    exercise: ExerciseDraft,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onChange: (ExerciseDraft) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Ejercicio", style = MaterialTheme.typography.titleMedium)
-            DraftTextField(exercise.name, "Nombre", onValueChange = { onChange(exercise.copy(name = it)) })
-            DraftTextField(exercise.sets, "Series", KeyboardType.Number, { onChange(exercise.copy(sets = it)) })
-            DraftTextField(exercise.repetitions, "Repeticiones", KeyboardType.Number, { onChange(exercise.copy(repetitions = it)) })
-            DraftTextField(exercise.concentricSeconds, "Tiempo concéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(concentricSeconds = it)) })
-            DraftTextField(exercise.eccentricSeconds, "Tiempo excéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(eccentricSeconds = it)) })
-            DraftTextField(exercise.restSeconds, "Descanso entre series (segundos)", KeyboardType.Number, { onChange(exercise.copy(restSeconds = it)) })
+            Text(
+                text = exercise.name,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text("✏ Editar", color = MaterialTheme.colorScheme.primary)
+            if (expanded) {
+                DraftTextField(exercise.name, "Nombre", onValueChange = { onChange(exercise.copy(name = it)) })
+                DraftTextField(exercise.sets, "Series", KeyboardType.Number, { onChange(exercise.copy(sets = it)) })
+                DraftTextField(exercise.repetitions, "Repeticiones", KeyboardType.Number, { onChange(exercise.copy(repetitions = it)) })
+                DraftTextField(exercise.concentricSeconds, "Tiempo concéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(concentricSeconds = it)) })
+                DraftTextField(exercise.eccentricSeconds, "Tiempo excéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(eccentricSeconds = it)) })
+                DraftTextField(exercise.restSeconds, "Descanso entre series (segundos)", KeyboardType.Number, { onChange(exercise.copy(restSeconds = it)) })
+            }
         }
     }
 }

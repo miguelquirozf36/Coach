@@ -55,6 +55,45 @@ data class RoutineDraftValidation(
     val message: String?
 )
 
+enum class EditorExitChoice { CANCEL, DISCARD, SAVE }
+
+enum class EditorExitResult { STAY, EXIT_WITHOUT_SAVING, SAVE_AND_EXIT }
+
+fun RoutineDraft.hasChangesFrom(original: RoutineDraft): Boolean = this != original
+
+fun editorExitResult(choice: EditorExitChoice): EditorExitResult = when (choice) {
+    EditorExitChoice.CANCEL -> EditorExitResult.STAY
+    EditorExitChoice.DISCARD -> EditorExitResult.EXIT_WITHOUT_SAVING
+    EditorExitChoice.SAVE -> EditorExitResult.SAVE_AND_EXIT
+}
+
+fun toggledExpandedExercise(currentId: String?, selectedId: String): String? =
+    selectedId.takeUnless { it == currentId }
+
+fun RoutineDraft.addExercise(exercise: ExerciseDraft): RoutineDraft =
+    copy(exercises = exercises + exercise)
+
+fun RoutineDraft.removeExercise(exerciseId: String): RoutineDraft =
+    copy(exercises = exercises.filterNot { it.id == exerciseId })
+
+fun RoutineDraft.updateExercise(updated: ExerciseDraft): RoutineDraft {
+    val index = exercises.indexOfFirst { it.id == updated.id }
+    if (index < 0 || exercises[index] == updated) return this
+    val changed = exercises.toMutableList()
+    changed[index] = updated
+    return copy(exercises = changed)
+}
+
+fun RoutineDraft.moveExercise(exerciseId: String, offset: Int): RoutineDraft {
+    val fromIndex = exercises.indexOfFirst { it.id == exerciseId }
+    val toIndex = fromIndex + offset
+    if (fromIndex < 0 || toIndex !in exercises.indices) return this
+    val reordered = exercises.toMutableList()
+    val exercise = reordered.removeAt(fromIndex)
+    reordered.add(toIndex, exercise)
+    return copy(exercises = reordered)
+}
+
 fun Routine.toDraft() = RoutineDraft(
     id = id,
     name = name,
