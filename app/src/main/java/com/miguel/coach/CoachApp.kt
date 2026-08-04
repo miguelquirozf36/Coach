@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -23,6 +24,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -51,6 +54,7 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
     var isLoadingRoutines by remember { mutableStateOf(true) }
     var selectedRoutineId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
 
     LaunchedEffect(routineRepository) {
         routines = routineRepository.load()
@@ -69,7 +73,25 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                         routines.firstOrNull { it.id == id }
                     }
                     if (selectedRoutine == null) {
-                        HomeScreen(routines = routines, onOpen = { selectedRoutineId = it.id })
+                        HomeScreen(
+                            routines = routines.filter { it.isCustom == (selectedTab == 1) },
+                            isCustomTab = selectedTab == 1,
+                            onOpen = { selectedRoutineId = it.id },
+                            onCreate = {
+                                val newRoutine = emptyCustomRoutine("custom-${System.nanoTime()}")
+                                val updated = routines + newRoutine
+                                if (routineRepository.save(updated)) {
+                                    routines = updated
+                                    selectedRoutineId = newRoutine.id
+                                }
+                            },
+                            onDelete = { routine ->
+                                val updated = routines.filterNot { it.id == routine.id }
+                                if (routineRepository.save(updated)) routines = updated
+                            },
+                            selectedTab = selectedTab,
+                            onTabSelected = { selectedTab = it }
+                        )
                     } else {
                         RoutineDetailScreen(
                             routine = selectedRoutine,
@@ -142,9 +164,32 @@ fun CompletionScreen(onFinish: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 fun HomeScreen(
     routines: List<Routine>,
-    onOpen: (Routine) -> Unit
+    isCustomTab: Boolean,
+    onOpen: (Routine) -> Unit,
+    onCreate: () -> Unit,
+    onDelete: (Routine) -> Unit,
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
 ) {
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { innerPadding ->
+    var routinePendingDeletion by remember { mutableStateOf<Routine?>(null) }
+    routinePendingDeletion?.let { routine ->
+        AlertDialog(
+            onDismissRequest = { routinePendingDeletion = null },
+            title = { Text("¿Eliminar rutina?") },
+            text = { Text("Esta acción no se puede deshacer.") },
+            dismissButton = { TextButton(onClick = { routinePendingDeletion = null }) { Text("CANCELAR") } },
+            confirmButton = { TextButton(onClick = { onDelete(routine); routinePendingDeletion = null }) { Text("ELIMINAR") } }
+        )
+    }
+    Scaffold(
+        topBar = { TopAppBar(title = { Text(if (isCustomTab) "PERSONALIZADO" else stringResource(R.string.app_name)) }) },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(selected = selectedTab == 0, onClick = { onTabSelected(0) }, icon = {}, label = { Text("MI RUTINA") })
+                NavigationBarItem(selected = selectedTab == 1, onClick = { onTabSelected(1) }, icon = {}, label = { Text("PERSONALIZADO") })
+            }
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -153,10 +198,14 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = stringResource(R.string.select_routine),
+                text = if (isCustomTab) "Crea, edita o inicia tus rutinas." else stringResource(R.string.select_routine),
                 style = MaterialTheme.typography.headlineSmall
             )
-            LazyColumn(
+            if (isCustomTab && routines.isEmpty()) {
+                Text("Crea tu primera rutina personalizada.")
+                Button(modifier = Modifier.fillMaxWidth(), onClick = onCreate) { Text("+ CREAR RUTINA") }
+            } else LazyColumn(
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -176,8 +225,14 @@ fun HomeScreen(
                             },
                             trailingContent = { Text("VER") }
                         )
+                        if (isCustomTab) {
+                            TextButton(onClick = { routinePendingDeletion = routine }) { Text("ELIMINAR") }
+                        }
                     }
                 }
+            }
+            if (isCustomTab && routines.isNotEmpty()) {
+                Button(modifier = Modifier.fillMaxWidth(), onClick = onCreate) { Text("CREAR RUTINA") }
             }
         }
     }
@@ -199,6 +254,7 @@ private fun RoutineDetailScreen(
     if (isEditing) {
         RoutineEditorScreen(
             draft = draft,
+            isCustom = routine.isCustom,
             validationMessage = validationMessage,
             onDraftChange = { draft = it },
             onSave = {
@@ -287,6 +343,7 @@ private fun ExerciseSummary(exercise: Exercise) {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun RoutineEditorScreen(
     draft: RoutineDraft,
+    isCustom: Boolean,
     validationMessage: String?,
     onDraftChange: (RoutineDraft) -> Unit,
     onSave: () -> Unit,
@@ -316,7 +373,7 @@ private fun RoutineEditorScreen(
                     onValueChange = { onDraftChange(draft.copy(restBetweenExercisesSeconds = it)) }
                 )
             }
-            items(draft.exercises, key = ExerciseDraft::id) { exerciseDraft ->
+            itemsIndexed(draft.exercises, key = { _, exercise -> exercise.id }) { index, exerciseDraft ->
                 ExerciseEditor(
                     exercise = exerciseDraft,
                     onChange = { updatedExercise ->
@@ -329,6 +386,38 @@ private fun RoutineEditorScreen(
                         )
                     }
                 )
+                if (isCustom) {
+                    TextButton(
+                        enabled = index > 0,
+                        onClick = {
+                            val reordered = draft.exercises.toMutableList()
+                            val current = reordered.removeAt(index)
+                            reordered.add(index - 1, current)
+                            onDraftChange(draft.copy(exercises = reordered))
+                        }
+                    ) { Text("SUBIR") }
+                    TextButton(
+                        enabled = index < draft.exercises.lastIndex,
+                        onClick = {
+                            val reordered = draft.exercises.toMutableList()
+                            val current = reordered.removeAt(index)
+                            reordered.add(index + 1, current)
+                            onDraftChange(draft.copy(exercises = reordered))
+                        }
+                    ) { Text("BAJAR") }
+                    TextButton(onClick = {
+                        onDraftChange(draft.copy(exercises = draft.exercises.filterIndexed { position, _ -> position != index }))
+                    }) { Text("ELIMINAR EJERCICIO") }
+                }
+            }
+            if (isCustom) item {
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val id = "${draft.id}-exercise-${System.nanoTime()}"
+                        onDraftChange(draft.copy(exercises = draft.exercises + emptyCustomExercise(id).toDraft()))
+                    }
+                ) { Text("AÑADIR EJERCICIO") }
             }
             validationMessage?.let { message ->
                 item {

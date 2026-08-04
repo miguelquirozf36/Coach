@@ -74,11 +74,15 @@ fun Exercise.toDraft() = ExerciseDraft(
 
 fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
     val errors = mutableListOf<String>()
+    val identifiers = mutableSetOf<String>()
     val validatedName = name.trim()
     if (validatedName.isEmpty()) errors += "El nombre de la rutina es obligatorio."
+    if (exercises.isEmpty()) errors += "La rutina debe tener al menos un ejercicio."
+    if (id.isBlank() || !identifiers.add(id)) errors += "La rutina debe tener un identificador único."
     val routineRest = restBetweenExercisesSeconds.toNonNegativeInt("El descanso entre ejercicios", errors)
     val validatedExercises = exercises.map { exercise ->
         val exerciseName = exercise.name.trim()
+        if (exercise.id.isBlank() || !identifiers.add(exercise.id)) errors += "Los ejercicios deben tener identificadores únicos."
         if (exerciseName.isEmpty()) errors += "Cada ejercicio debe tener un nombre."
         val sets = exercise.sets.toPositiveInt("Las series", errors)
         val repetitions = exercise.repetitions.toPositiveInt("Las repeticiones", errors)
@@ -113,6 +117,24 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
         message = null
     )
 }
+
+fun emptyCustomRoutine(id: String): Routine = Routine(
+    id = id,
+    name = "Nueva rutina",
+    isCustom = true,
+    exercises = listOf(emptyCustomExercise("$id-exercise-1")),
+    restBetweenExercisesSeconds = 60
+)
+
+fun emptyCustomExercise(id: String): Exercise = Exercise(
+    id = id,
+    name = "Nuevo ejercicio",
+    sets = 1,
+    repetitions = 1,
+    concentricSeconds = 1,
+    eccentricSeconds = 1,
+    restSeconds = 60
+)
 
 private fun String.toPositiveInt(label: String, errors: MutableList<String>): Int? {
     val value = toIntOrNull()
