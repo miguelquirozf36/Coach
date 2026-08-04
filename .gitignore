@@ -1,6 +1,7 @@
 *.iml
 .gradle/
 .gradle-codex-check/
+.android/
 .idea/
 **/build/
 local.properties

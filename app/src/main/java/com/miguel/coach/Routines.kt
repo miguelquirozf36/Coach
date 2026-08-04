@@ -5,7 +5,8 @@ import androidx.annotation.StringRes
 data class Routine(
     val id: String,
     @param:StringRes val nameRes: Int,
-    val exercises: List<Exercise>
+    val exercises: List<Exercise>,
+    val restBetweenExercisesMillis: Long
 )
 
 data class Exercise(
@@ -47,7 +48,8 @@ object Routines {
                     eccentricDurationMillis = 3_000,
                     restDurationMillis = 60_000
                 )
-            )
+            ),
+            restBetweenExercisesMillis = 60_000
         ),
         Routine(
             id = "upper_body",
@@ -69,7 +71,8 @@ object Routines {
                     eccentricDurationMillis = 3_000,
                     restDurationMillis = 60_000
                 )
-            )
+            ),
+            restBetweenExercisesMillis = 60_000
         )
     )
 }

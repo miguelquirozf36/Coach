@@ -39,7 +39,7 @@ class TrainingEngineTest {
     }
 
     @Test
-    fun lastSeriesAdvancesToTheNextExerciseAndLastExerciseCompletesTheWorkout() {
+    fun lastSeriesStartsAnExerciseRestBeforeTheNextExerciseAndThenCompletesTheWorkout() {
         val fixture = Fixture(
             listOf(
                 seriesExercise(sets = 1, restMillis = 4_000),
@@ -49,6 +49,12 @@ class TrainingEngineTest {
         fixture.startFirstConcentricPhase()
 
         fixture.completeCurrentRepetition()
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 12, 1, 1, 1, false)
+        assertEquals("Descansa y prepárate para el siguiente ejercicio.", fixture.voice.phrases.last())
+
+        fixture.engine.skip()
+        assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
+        fixture.voice.completeLatest()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
 
         fixture.completeCurrentRepetition()
@@ -117,14 +123,162 @@ class TrainingEngineTest {
         assertTrue(fixture.beep.stopCalls > 0)
     }
 
-    private class Fixture(exercises: List<Exercise>) {
+    @Test
+    fun pauseAtThreeTwoOneAndZeroInvalidatesOldTimersAndResumesCoherently() {
+        listOf(3, 2, 1, 0).forEach { seconds ->
+            val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+            fixture.engine.start(fixture.routine)
+            repeat(10 - seconds) { fixture.scheduler.advance() }
+            fixture.assertWorkout(TrainingPhase.COUNTDOWN, seconds, 0, 1, 1, false)
+
+            fixture.engine.pause()
+            fixture.scheduler.advanceCancelled()
+            fixture.assertWorkout(TrainingPhase.COUNTDOWN, seconds, 0, 1, 1, true)
+
+            fixture.engine.resume()
+            if (seconds == 0) {
+                assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
+                fixture.voice.completeLatest()
+                fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+            } else {
+                fixture.scheduler.advance()
+                fixture.assertWorkout(TrainingPhase.COUNTDOWN, seconds - 1, 0, 1, 1, false)
+            }
+            assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
+        }
+    }
+
+    @Test
+    fun resumeDuringRepetitionAnnouncementReplaysOnlyTheCurrentAnnouncement() {
+        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        val phrasesBeforePause = fixture.voice.phrases.size
+
+        fixture.engine.pause()
+        fixture.voice.completeLatest()
+        fixture.assertWorkout(TrainingPhase.REPETITION_ANNOUNCEMENT, 0, 0, 1, 1, true)
+
+        fixture.engine.resume()
+
+        assertEquals(phrasesBeforePause + 1, fixture.voice.phrases.size)
+        assertEquals("1", fixture.voice.phrases.last())
+        fixture.voice.completeLatest()
+        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, 1, false)
+    }
+
+    @Test
+    fun finishDuringVamosPreventsAnyLaterPhaseTransition() {
+        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        fixture.engine.start(fixture.routine)
+        repeat(10) { fixture.scheduler.advance() }
+        assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
+
+        fixture.engine.finish()
+        fixture.voice.completeLatest()
+        fixture.scheduler.advanceCancelled()
+
+        assertEquals(TrainingUiState.Home, fixture.engine.state)
+        assertEquals(0, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun restAnnouncesTenSecondsOnlyOnceEvenWhenPausedAndResumed() {
+        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 12_000))
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+
+        repeat(2) { fixture.scheduler.advance() }
+        fixture.assertWorkout(TrainingPhase.REST, 10, 0, 1, 1, false)
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+
+        fixture.engine.pause()
+        fixture.engine.resume()
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.REST, 9, 0, 1, 1, false)
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+    }
+
+    @Test
+    fun exerciseRestShowsTheNextExerciseAndStartsItAfterTheCountdown() {
+        val fixture = Fixture(
+            listOf(
+                seriesExercise(sets = 1, restMillis = 4_000),
+                seriesExercise(sets = 1, restMillis = 4_000)
+            )
+        )
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 12, 1, 1, 1, false)
+        repeat(2) { fixture.scheduler.advance() }
+        assertEquals("Quedan diez segundos.", fixture.voice.phrases.last())
+        repeat(10) { fixture.scheduler.advance() }
+        assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
+
+        fixture.voice.completeLatest()
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
+    }
+
+    @Test
+    fun pauseResumeAndSkipWorkDuringTheExerciseRest() {
+        val fixture = Fixture(
+            listOf(
+                seriesExercise(sets = 1, restMillis = 4_000),
+                seriesExercise(sets = 1, restMillis = 4_000)
+            )
+        )
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+
+        fixture.engine.pause()
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 12, 1, 1, 1, true)
+        fixture.scheduler.advanceCancelled()
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 12, 1, 1, 1, true)
+
+        fixture.engine.resume()
+        fixture.scheduler.advance()
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 11, 1, 1, 1, false)
+
+        fixture.engine.skip()
+        assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
+        fixture.voice.completeLatest()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
+    }
+
+    @Test
+    fun cancelingFinishConfirmationLeavesTheEngineUntouchedAndConfirmingFinishesIt() {
+        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        fixture.startFirstConcentricPhase()
+        val stateBeforeConfirmation = fixture.engine.state
+
+        assertEquals(stateBeforeConfirmation, fixture.engine.state)
+
+        fixture.engine.finish()
+
+        assertEquals(TrainingUiState.Home, fixture.engine.state)
+        assertTrue(fixture.voice.stopCalls > 0)
+        assertTrue(fixture.beep.stopCalls > 0)
+    }
+
+    private class Fixture(
+        exercises: List<Exercise>,
+        private val restBetweenExercisesMillis: Long = 12_000
+    ) {
         constructor(exercise: Exercise) : this(listOf(exercise))
 
         val voice = FakeVoiceSpeaker()
         val beep = FakeBeepPlayer()
         val scheduler = FakeTrainingScheduler()
         val engine = TrainingEngine(voice, beep, scheduler)
-        val routine = Routine("test", R.string.routine_full_body, exercises)
+        val routine = Routine(
+            id = "test",
+            nameRes = R.string.routine_full_body,
+            exercises = exercises,
+            restBetweenExercisesMillis = restBetweenExercisesMillis
+        )
 
         fun startFirstConcentricPhase() {
             engine.start(routine)
@@ -199,18 +353,31 @@ class TrainingEngineTest {
 
     private class FakeTrainingScheduler : TrainingScheduler {
         private var pendingAction: (() -> Unit)? = null
+        private var cancelledAction: (() -> Unit)? = null
+        var overlappingScheduleRequests = 0
+            private set
 
         override fun schedule(delayMillis: Long, action: () -> Unit) {
+            if (pendingAction != null) {
+                overlappingScheduleRequests += 1
+            }
             pendingAction = action
         }
 
         override fun cancelAll() {
+            cancelledAction = pendingAction
             pendingAction = null
         }
 
         fun advance() {
             val action = pendingAction ?: return
             pendingAction = null
+            action()
+        }
+
+        fun advanceCancelled() {
+            val action = cancelledAction ?: return
+            cancelledAction = null
             action()
         }
     }

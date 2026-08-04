@@ -30,7 +30,7 @@ class TrainingEngine(
 
     fun pause() {
         val workout = state as? TrainingUiState.Workout ?: return
-        if (workout.isPaused || workout.phase == TrainingPhase.SERIES_COMPLETE) return
+        if (workout.isPaused) return
 
         invalidatePendingWork()
         state = workout.copy(isPaused = true)
@@ -48,9 +48,7 @@ class TrainingEngine(
 
     fun skip() {
         val workout = state as? TrainingUiState.Workout ?: return
-        if (workout.isPaused || workout.phase == TrainingPhase.COUNTDOWN ||
-            workout.phase == TrainingPhase.SERIES_COMPLETE
-        ) return
+        if (workout.isPaused || workout.phase == TrainingPhase.COUNTDOWN) return
 
         invalidatePendingWork()
         sessionId += 1
@@ -64,8 +62,8 @@ class TrainingEngine(
             TrainingPhase.REPETITION_ANNOUNCEMENT -> startEccentricPhase(activeSession)
             TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
             TrainingPhase.REST -> announceNextSeries(activeSession)
-            TrainingPhase.COUNTDOWN,
-            TrainingPhase.SERIES_COMPLETE -> Unit
+            TrainingPhase.REST_BETWEEN_EXERCISES -> announceNextExercise(activeSession)
+            TrainingPhase.COUNTDOWN -> Unit
         }
     }
 
@@ -101,7 +99,10 @@ class TrainingEngine(
                 if (workout.secondsRemaining == 0) announceNextSeries(activeSession)
                 else scheduleRestTick(activeSession)
             }
-            TrainingPhase.SERIES_COMPLETE -> Unit
+            TrainingPhase.REST_BETWEEN_EXERCISES -> {
+                if (workout.secondsRemaining == 0) announceNextExercise(activeSession)
+                else scheduleRestTick(activeSession)
+            }
         }
     }
 
@@ -135,7 +136,8 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.COUNTDOWN &&
             workout.phase != TrainingPhase.ECCENTRIC &&
-            workout.phase != TrainingPhase.REST
+            workout.phase != TrainingPhase.REST &&
+            workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES
         ) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
@@ -194,7 +196,7 @@ class TrainingEngine(
             TrainingPhase.COUNTDOWN,
             TrainingPhase.REPETITION_ANNOUNCEMENT,
             TrainingPhase.REST,
-            TrainingPhase.SERIES_COMPLETE -> Unit
+            TrainingPhase.REST_BETWEEN_EXERCISES -> Unit
         }
     }
 
@@ -204,13 +206,13 @@ class TrainingEngine(
 
         beepPlayer.play()
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.repetitionNumber != exercise.repetitions) {
+        if (workout.repetitionNumber < exercise.repetitions) {
             state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
             startConcentricPhase(activeSession)
             return
         }
 
-        if (workout.seriesNumber != exercise.sets) {
+        if (workout.seriesNumber < exercise.sets) {
             state = workout.copy(
                 phase = TrainingPhase.REST,
                 secondsRemaining = secondsFor(exercise.restDurationMillis)
@@ -220,13 +222,16 @@ class TrainingEngine(
             return
         }
 
-        if (workout.exerciseIndex != workout.routine.exercises.lastIndex) {
+        if (workout.exerciseIndex < workout.routine.exercises.lastIndex) {
             state = workout.copy(
                 exerciseIndex = workout.exerciseIndex + 1,
                 seriesNumber = 1,
-                repetitionNumber = 1
+                repetitionNumber = 1,
+                phase = TrainingPhase.REST_BETWEEN_EXERCISES,
+                secondsRemaining = secondsFor(workout.routine.restBetweenExercisesMillis)
             )
-            startConcentricPhase(activeSession)
+            voiceSpeaker.speak(REST_BETWEEN_EXERCISES_ANNOUNCEMENT)
+            scheduleRestTick(activeSession)
             return
         }
 
@@ -239,16 +244,23 @@ class TrainingEngine(
 
     private fun advanceRest(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        if (workout.phase != TrainingPhase.REST) return
+        if (workout.phase != TrainingPhase.REST &&
+            workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES
+        ) return
 
         val secondsRemaining = (workout.secondsRemaining - 1).coerceAtLeast(0)
         state = workout.copy(secondsRemaining = secondsRemaining)
         when (secondsRemaining) {
+            10 -> voiceSpeaker.speak(TEN_SECONDS_ANNOUNCEMENT)
             3 -> voiceSpeaker.speak("Tres")
             2 -> voiceSpeaker.speak("Dos")
             1 -> voiceSpeaker.speak("Uno")
             0 -> {
-                announceNextSeries(activeSession)
+                when (workout.phase) {
+                    TrainingPhase.REST -> announceNextSeries(activeSession)
+                    TrainingPhase.REST_BETWEEN_EXERCISES -> announceNextExercise(activeSession)
+                    else -> Unit
+                }
                 return
             }
         }
@@ -261,16 +273,28 @@ class TrainingEngine(
         voiceSpeaker.speak("\u00A1Vamos!") { startNextSeries(activeSession) }
     }
 
+    private fun announceNextExercise(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES) return
+        voiceSpeaker.speak("\u00A1Vamos!") { startNextExercise(activeSession) }
+    }
+
     private fun startNextSeries(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.seriesNumber == exercise.sets) return
+        if (workout.seriesNumber >= exercise.sets) return
 
         state = workout.copy(
             seriesNumber = workout.seriesNumber + 1,
             repetitionNumber = 1
         )
+        startConcentricPhase(activeSession)
+    }
+
+    private fun startNextExercise(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES) return
         startConcentricPhase(activeSession)
     }
 
@@ -292,6 +316,9 @@ class TrainingEngine(
         const val ONE_SECOND_MILLIS = 1_000L
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
         const val REST_ANNOUNCEMENT = "Descansa."
+        const val REST_BETWEEN_EXERCISES_ANNOUNCEMENT =
+            "Descansa y prepárate para el siguiente ejercicio."
+        const val TEN_SECONDS_ANNOUNCEMENT = "Quedan diez segundos."
         const val TRAINING_COMPLETE_ANNOUNCEMENT = "Entrenamiento finalizado."
     }
 }
@@ -324,7 +351,7 @@ enum class TrainingPhase {
     REPETITION_ANNOUNCEMENT,
     ECCENTRIC,
     REST,
-    SERIES_COMPLETE
+    REST_BETWEEN_EXERCISES
 }
 
 sealed interface TrainingUiState {
