@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -362,9 +363,23 @@ private fun RoutineEditorScreen(
 ) {
     var expandedExerciseId by rememberSaveable(draft.id) { mutableStateOf<String?>(null) }
     var showSaveDialog by rememberSaveable(draft.id) { mutableStateOf(false) }
+    var exerciseBeingSelectedId by rememberSaveable(draft.id) { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val requestExit = {
         if (draft.hasChangesFrom(originalDraft)) showSaveDialog = true else onCancel()
+    }
+
+    exerciseBeingSelectedId?.let { exerciseId ->
+        ExercisePickerScreen(
+            onBack = { exerciseBeingSelectedId = null },
+            onSelect = { definition ->
+                draft.exercises.firstOrNull { it.id == exerciseId }?.let { exercise ->
+                    onDraftChange(draft.updateExercise(selectExerciseDefinition(exercise, definition)))
+                }
+                exerciseBeingSelectedId = null
+            }
+        )
+        return
     }
 
     BackHandler(onBack = requestExit)
@@ -440,6 +455,7 @@ private fun RoutineEditorScreen(
                     onToggle = {
                         expandedExerciseId = toggledExpandedExercise(expandedExerciseId, exerciseDraft.id)
                     },
+                    onSelectExercise = { exerciseBeingSelectedId = exerciseDraft.id },
                     onChange = { updatedExercise ->
                         onDraftChange(draft.updateExercise(updatedExercise))
                     }
@@ -508,6 +524,7 @@ private fun ExerciseEditor(
     exercise: ExerciseDraft,
     expanded: Boolean,
     onToggle: () -> Unit,
+    onSelectExercise: () -> Unit,
     onChange: (ExerciseDraft) -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
@@ -522,7 +539,19 @@ private fun ExerciseEditor(
             )
             Text("✏ Editar", color = MaterialTheme.colorScheme.primary)
             if (expanded) {
-                DraftTextField(exercise.name, "Nombre", onValueChange = { onChange(exercise.copy(name = it)) })
+                Text("Nombre del ejercicio", style = MaterialTheme.typography.labelLarge)
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onSelectExercise
+                ) {
+                    Text(
+                        if (exercise.name == "Nuevo ejercicio" || exercise.name.isBlank()) {
+                            "Seleccionar ejercicio"
+                        } else {
+                            exercise.name
+                        }
+                    )
+                }
                 DraftTextField(exercise.sets, "Series", KeyboardType.Number, { onChange(exercise.copy(sets = it)) })
                 DraftTextField(exercise.repetitions, "Repeticiones", KeyboardType.Number, { onChange(exercise.copy(repetitions = it)) })
                 DraftTextField(exercise.concentricSeconds, "Tiempo concéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(concentricSeconds = it)) })
