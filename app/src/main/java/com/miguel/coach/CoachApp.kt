@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -35,11 +35,14 @@ fun CoachApp(trainingEngine: TrainingEngine) {
             when (val state = trainingEngine.state) {
                 TrainingUiState.Home -> HomeScreen(
                     routines = Routines.all,
-                    onStart = trainingEngine::start
+                    onStart = trainingEngine::start,
+                    isVoiceReady = trainingEngine.isVoiceReady
                 )
 
                 is TrainingUiState.Workout -> WorkoutScreen(
                     state = state,
+                    onPause = trainingEngine::pause,
+                    onResume = trainingEngine::resume,
                     onFinish = trainingEngine::finish
                 )
             }
@@ -51,16 +54,13 @@ fun CoachApp(trainingEngine: TrainingEngine) {
 @OptIn(ExperimentalMaterial3Api::class)
 fun HomeScreen(
     routines: List<Routine>,
-    onStart: (Routine) -> Unit
+    onStart: (Routine) -> Unit,
+    isVoiceReady: Boolean
 ) {
     var selectedRoutineId by rememberSaveable { mutableStateOf(routines.first().id) }
     val selectedRoutine = routines.first { it.id == selectedRoutineId }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.app_name)) })
-        }
-    ) { innerPadding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -104,10 +104,12 @@ fun HomeScreen(
             }
             Button(
                 modifier = Modifier.fillMaxWidth(),
+                enabled = isVoiceReady,
                 onClick = { onStart(selectedRoutine) }
             ) {
                 Text(stringResource(R.string.start_workout))
             }
+            if (!isVoiceReady) Text("Inicializando voz")
         }
     }
 }
@@ -116,15 +118,13 @@ fun HomeScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 fun WorkoutScreen(
     state: TrainingUiState.Workout,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
     onFinish: () -> Unit
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.workout_title)) })
-        }
-    ) { innerPadding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.workout_title)) }) }) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -138,17 +138,26 @@ fun WorkoutScreen(
             )
             Text(stringResource(R.string.current_series, state.seriesNumber, exercise.sets))
             Text(stringResource(R.string.current_repetition, state.repetitionNumber, exercise.repetitions))
-            Text(stringResource(R.string.phase_ready))
+            Text("Fase: ${state.phase.label}")
             Text(
-                text = stringResource(R.string.timer_initial),
+                text = "Segundos restantes: ${state.secondsRemaining}",
                 style = MaterialTheme.typography.displayLarge
             )
             Button(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = onFinish
+                onClick = if (state.isPaused) onResume else onPause
             ) {
+                Text(if (state.isPaused) "REANUDAR" else "PAUSA")
+            }
+            Button(modifier = Modifier.fillMaxWidth(), onClick = onFinish) {
                 Text(stringResource(R.string.finish_workout))
             }
         }
     }
 }
+
+private val TrainingPhase.label: String
+    get() = when (this) {
+        TrainingPhase.COUNTDOWN -> "Cuenta regresiva"
+        TrainingPhase.CONCENTRIC -> "Concéntrica"
+    }
