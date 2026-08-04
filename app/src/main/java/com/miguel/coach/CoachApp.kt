@@ -163,7 +163,10 @@ fun HomeScreen(
                         ListItem(
                             headlineContent = { Text(routine.name) },
                             supportingContent = {
-                                Text("${routine.exercises.size} ejercicios")
+                                Text(
+                                    "${routine.exercises.size} ejercicios · " +
+                                        "${routine.estimatedDurationMinutes()} min"
+                                )
                             },
                             trailingContent = { Text("VER") }
                         )

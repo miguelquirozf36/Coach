@@ -6,6 +6,38 @@ import org.junit.Test
 
 class TrainingEngineTest {
     @Test
+    fun estimatedRoutineDurationUsesPhasesRepetitionsAndAllApplicableRests() {
+        val routine = Routine(
+            id = "estimate",
+            name = "Estimación",
+            isCustom = false,
+            exercises = listOf(
+                Exercise("first", "Primero", 2, 3, 10, 5, 20),
+                Exercise("second", "Segundo", 1, 2, 8, 2, 30)
+            ),
+            restBetweenExercisesSeconds = 40
+        )
+
+        assertEquals(3, routine.estimatedDurationMinutes())
+    }
+
+    @Test
+    fun estimatedRoutineDurationRoundsToTheNearestMinuteAfterEditing() {
+        val routine = Routine(
+            id = "edited-estimate",
+            name = "Estimación editada",
+            isCustom = false,
+            exercises = listOf(Exercise("only", "Único", 1, 1, 20, 9, 0)),
+            restBetweenExercisesSeconds = 0
+        )
+
+        assertEquals(1, routine.estimatedDurationMinutes())
+        assertEquals(2, routine.copy(exercises = listOf(
+            routine.exercises.single().copy(repetitions = 3)
+        )).estimatedDurationMinutes())
+    }
+
+    @Test
     fun validRoutineDraftAppliesAllEditableValues() {
         val original = Routines.all.first()
         val editedExercise = original.exercises.first().toDraft().copy(

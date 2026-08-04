@@ -1,5 +1,7 @@
 package com.miguel.coach
 
+import kotlin.math.roundToInt
+
 data class Routine(
     val id: String,
     val name: String,
@@ -17,6 +19,19 @@ data class Exercise(
     val eccentricSeconds: Int,
     val restSeconds: Int
 )
+
+fun Routine.estimatedDurationMinutes(): Int {
+    val exerciseSeconds = exercises.sumOf { exercise ->
+        val repetitionSeconds = exercise.concentricSeconds + exercise.eccentricSeconds
+        val repetitionsSeconds = exercise.sets * exercise.repetitions * repetitionSeconds
+        val seriesRestSeconds = (exercise.sets - 1).coerceAtLeast(0) * exercise.restSeconds
+        repetitionsSeconds + seriesRestSeconds
+    }
+    val exerciseRestSeconds = (exercises.size - 1).coerceAtLeast(0) * restBetweenExercisesSeconds
+    return ((INITIAL_COUNTDOWN_SECONDS + exerciseSeconds + exerciseRestSeconds) / 60.0).roundToInt()
+}
+
+private const val INITIAL_COUNTDOWN_SECONDS = 10
 
 data class RoutineDraft(
     val id: String,
