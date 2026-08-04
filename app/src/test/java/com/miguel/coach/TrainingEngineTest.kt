@@ -6,6 +6,86 @@ import org.junit.Test
 
 class TrainingEngineTest {
     @Test
+    fun validRoutineDraftAppliesAllEditableValues() {
+        val original = Routines.all.first()
+        val editedExercise = original.exercises.first().toDraft().copy(
+            name = "Press editado",
+            sets = "5",
+            repetitions = "8",
+            concentricSeconds = "2",
+            eccentricSeconds = "4",
+            restSeconds = "75"
+        )
+        val editedDraft = original.toDraft().copy(
+            name = "Rutina editada",
+            restBetweenExercisesSeconds = "90",
+            exercises = listOf(editedExercise) + original.exercises.drop(1).map(Exercise::toDraft)
+        )
+
+        val result = editedDraft.validate(original.isCustom)
+
+        val editedRoutine = result.routine ?: error("La rutina válida no se creó.")
+        assertEquals("Rutina editada", editedRoutine.name)
+        assertEquals(90, editedRoutine.restBetweenExercisesSeconds)
+        assertEquals("Press editado", editedRoutine.exercises.first().name)
+        assertEquals(5, editedRoutine.exercises.first().sets)
+        assertEquals(8, editedRoutine.exercises.first().repetitions)
+        assertEquals(2, editedRoutine.exercises.first().concentricSeconds)
+        assertEquals(4, editedRoutine.exercises.first().eccentricSeconds)
+        assertEquals(75, editedRoutine.exercises.first().restSeconds)
+    }
+
+    @Test
+    fun cancelingAnEditLeavesTheOriginalRoutineUntouched() {
+        val original = Routines.all.first()
+        val discardedDraft = original.toDraft().copy(
+            name = "Cambio descartado",
+            restBetweenExercisesSeconds = "0"
+        )
+
+        assertEquals("Cambio descartado", discardedDraft.name)
+        assertEquals(Routines.all.first(), original)
+        assertEquals("DÍA 1 — PECHO Y TRÍCEPS", original.name)
+        assertEquals(60, original.restBetweenExercisesSeconds)
+    }
+
+    @Test
+    fun invalidRoutineDraftDoesNotCreateARoutine() {
+        val original = Routines.all.first()
+        val invalidExercise = original.exercises.first().toDraft().copy(
+            sets = "0",
+            repetitions = "-1",
+            concentricSeconds = "-1",
+            eccentricSeconds = "-1",
+            restSeconds = "-1"
+        )
+        val result = original.toDraft().copy(
+            restBetweenExercisesSeconds = "-1",
+            exercises = listOf(invalidExercise) + original.exercises.drop(1).map(Exercise::toDraft)
+        ).validate(original.isCustom)
+
+        assertEquals(null, result.routine)
+        assertTrue(result.message.orEmpty().contains("series"))
+        assertTrue(result.message.orEmpty().contains("repeticiones"))
+    }
+
+    @Test
+    fun engineUsesTheCurrentEditedRoutineWhenStarting() {
+        val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 4))
+        val editedRoutine = fixture.routine.toDraft().copy(
+            exercises = listOf(
+                fixture.routine.exercises.single().toDraft().copy(concentricSeconds = "2")
+            )
+        ).validate(isCustom = false).routine ?: error("La rutina válida no se creó.")
+
+        fixture.engine.start(editedRoutine)
+        repeat(10) { fixture.scheduler.advance() }
+        fixture.voice.completeLatest()
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 2, 0, 1, 1, false)
+    }
+
+    @Test
     fun seedRoutinesUseTheApprovedSecondBasedDurations() {
         assertEquals(6, Routines.all.size)
         Routines.all.forEach { routine ->
@@ -405,8 +485,7 @@ class TrainingEngineTest {
             repetitions = 1,
             concentricSeconds = 1,
             eccentricSeconds = 1,
-            restSeconds = restSeconds,
-            weightKg = null
+            restSeconds = restSeconds
         )
     }
 }

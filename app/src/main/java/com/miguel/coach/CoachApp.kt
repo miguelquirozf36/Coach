@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,26 +28,45 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
 fun CoachApp(trainingEngine: TrainingEngine) {
+    var routines by remember { mutableStateOf(Routines.all) }
+    var selectedRoutineId by rememberSaveable { mutableStateOf<String?>(null) }
+
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             when (val state = trainingEngine.state) {
-                TrainingUiState.Home -> HomeScreen(
-                    routines = Routines.all,
-                    onStart = trainingEngine::start,
-                    isVoiceReady = trainingEngine.isVoiceReady
-                )
+                TrainingUiState.Home -> {
+                    val selectedRoutine = selectedRoutineId?.let { id ->
+                        routines.firstOrNull { it.id == id }
+                    }
+                    if (selectedRoutine == null) {
+                        HomeScreen(routines = routines, onOpen = { selectedRoutineId = it.id })
+                    } else {
+                        RoutineDetailScreen(
+                            routine = selectedRoutine,
+                            onBack = { selectedRoutineId = null },
+                            onStart = trainingEngine::start,
+                            isVoiceReady = trainingEngine.isVoiceReady,
+                            onSave = { updatedRoutine ->
+                                routines = routines.map { routine ->
+                                    if (routine.id == updatedRoutine.id) updatedRoutine else routine
+                                }
+                            }
+                        )
+                    }
+                }
 
                 is TrainingUiState.Workout -> WorkoutScreen(
                     state = state,
@@ -87,12 +108,8 @@ fun CompletionScreen(onFinish: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 fun HomeScreen(
     routines: List<Routine>,
-    onStart: (Routine) -> Unit,
-    isVoiceReady: Boolean
+    onOpen: (Routine) -> Unit
 ) {
-    var selectedRoutineId by rememberSaveable { mutableStateOf(routines.first().id) }
-    val selectedRoutine = routines.first { it.id == selectedRoutineId }
-
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { innerPadding ->
         Column(
             modifier = Modifier
@@ -113,38 +130,216 @@ fun HomeScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { selectedRoutineId = routine.id }
+                            .clickable { onOpen(routine) }
                     ) {
                         ListItem(
                             headlineContent = { Text(routine.name) },
                             supportingContent = {
-                                Text(
-                                    text = pluralStringResource(
-                                        R.plurals.exercise_count,
-                                        routine.exercises.size,
-                                        routine.exercises.size
-                                    )
-                                )
+                                Text("${routine.exercises.size} ejercicios")
                             },
-                            trailingContent = {
-                                if (routine.id == selectedRoutine.id) {
-                                    Text(stringResource(R.string.routine_selected))
-                                }
-                            }
+                            trailingContent = { Text("VER") }
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun RoutineDetailScreen(
+    routine: Routine,
+    onBack: () -> Unit,
+    onStart: (Routine) -> Unit,
+    isVoiceReady: Boolean,
+    onSave: (Routine) -> Unit
+) {
+    var isEditing by rememberSaveable(routine.id) { mutableStateOf(false) }
+    var draft by remember(routine.id) { mutableStateOf(routine.toDraft()) }
+    var validationMessage by remember(routine.id) { mutableStateOf<String?>(null) }
+
+    if (isEditing) {
+        RoutineEditorScreen(
+            draft = draft,
+            validationMessage = validationMessage,
+            onDraftChange = { draft = it },
+            onSave = {
+                val validation = draft.validate(routine.isCustom)
+                if (validation.routine == null) {
+                    validationMessage = validation.message
+                } else {
+                    onSave(validation.routine)
+                    validationMessage = null
+                    isEditing = false
+                }
+            },
+            onCancel = {
+                draft = routine.toDraft()
+                validationMessage = null
+                isEditing = false
+            }
+        )
+        return
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Detalle de rutina") },
+                navigationIcon = { TextButton(onClick = onBack) { Text("VOLVER") } }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(routine.name, style = MaterialTheme.typography.headlineSmall)
+            Text("Descanso entre ejercicios: ${routine.restBetweenExercisesSeconds.toClockFormat()}")
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(routine.exercises, key = Exercise::id) { exercise ->
+                    ExerciseSummary(exercise)
                 }
             }
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = isVoiceReady,
-                onClick = { onStart(selectedRoutine) }
+                onClick = { onStart(routine) }
             ) {
-                Text(stringResource(R.string.start_workout))
+                Text("COMENZAR")
             }
             if (!isVoiceReady) Text("Inicializando voz")
+            TextButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    draft = routine.toDraft()
+                    validationMessage = null
+                    isEditing = true
+                }
+            ) {
+                Text("EDITAR")
+            }
         }
     }
+}
+
+@Composable
+private fun ExerciseSummary(exercise: Exercise) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(exercise.name, style = MaterialTheme.typography.titleMedium)
+            Text("${exercise.sets} series · ${exercise.repetitions} repeticiones")
+            Text("Concéntrica: ${exercise.concentricSeconds.toClockFormat()} · Excéntrica: ${exercise.eccentricSeconds.toClockFormat()}")
+            Text("Descanso: ${exercise.restSeconds.toClockFormat()}")
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun RoutineEditorScreen(
+    draft: RoutineDraft,
+    validationMessage: String?,
+    onDraftChange: (RoutineDraft) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Scaffold(topBar = { TopAppBar(title = { Text("Editar rutina") }) }) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                DraftTextField(
+                    value = draft.name,
+                    label = "Nombre de la rutina",
+                    onValueChange = { onDraftChange(draft.copy(name = it)) }
+                )
+            }
+            item {
+                DraftTextField(
+                    value = draft.restBetweenExercisesSeconds,
+                    label = "Descanso entre ejercicios (segundos)",
+                    keyboardType = KeyboardType.Number,
+                    onValueChange = { onDraftChange(draft.copy(restBetweenExercisesSeconds = it)) }
+                )
+            }
+            items(draft.exercises, key = ExerciseDraft::id) { exerciseDraft ->
+                ExerciseEditor(
+                    exercise = exerciseDraft,
+                    onChange = { updatedExercise ->
+                        onDraftChange(
+                            draft.copy(
+                                exercises = draft.exercises.map { exercise ->
+                                    if (exercise.id == updatedExercise.id) updatedExercise else exercise
+                                }
+                            )
+                        )
+                    }
+                )
+            }
+            validationMessage?.let { message ->
+                item {
+                    Text(message, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            item {
+                Button(modifier = Modifier.fillMaxWidth(), onClick = onSave) { Text("GUARDAR") }
+            }
+            item {
+                TextButton(modifier = Modifier.fillMaxWidth(), onClick = onCancel) { Text("CANCELAR") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExerciseEditor(exercise: ExerciseDraft, onChange: (ExerciseDraft) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Ejercicio", style = MaterialTheme.typography.titleMedium)
+            DraftTextField(exercise.name, "Nombre", onValueChange = { onChange(exercise.copy(name = it)) })
+            DraftTextField(exercise.sets, "Series", KeyboardType.Number, { onChange(exercise.copy(sets = it)) })
+            DraftTextField(exercise.repetitions, "Repeticiones", KeyboardType.Number, { onChange(exercise.copy(repetitions = it)) })
+            DraftTextField(exercise.concentricSeconds, "Tiempo concéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(concentricSeconds = it)) })
+            DraftTextField(exercise.eccentricSeconds, "Tiempo excéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(eccentricSeconds = it)) })
+            DraftTextField(exercise.restSeconds, "Descanso entre series (segundos)", KeyboardType.Number, { onChange(exercise.copy(restSeconds = it)) })
+        }
+    }
+}
+
+@Composable
+private fun DraftTextField(
+    value: String,
+    label: String,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType)
+    )
 }
 
 @Composable
