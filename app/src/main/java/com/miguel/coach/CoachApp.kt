@@ -43,6 +43,7 @@ fun CoachApp(trainingEngine: TrainingEngine) {
                     state = state,
                     onPause = trainingEngine::pause,
                     onResume = trainingEngine::resume,
+                    onSkip = trainingEngine::skip,
                     onFinish = trainingEngine::finish
                 )
             }
@@ -120,6 +121,7 @@ fun WorkoutScreen(
     state: TrainingUiState.Workout,
     onPause: () -> Unit,
     onResume: () -> Unit,
+    onSkip: () -> Unit,
     onFinish: () -> Unit
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
@@ -149,6 +151,15 @@ fun WorkoutScreen(
             ) {
                 Text(if (state.isPaused) "REANUDAR" else "PAUSA")
             }
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isPaused &&
+                    state.phase != TrainingPhase.COUNTDOWN &&
+                    state.phase != TrainingPhase.SERIES_COMPLETE,
+                onClick = onSkip
+            ) {
+                Text("OMITIR")
+            }
             Button(modifier = Modifier.fillMaxWidth(), onClick = onFinish) {
                 Text(stringResource(R.string.finish_workout))
             }
@@ -160,4 +171,7 @@ private val TrainingPhase.label: String
     get() = when (this) {
         TrainingPhase.COUNTDOWN -> "Cuenta regresiva"
         TrainingPhase.CONCENTRIC -> "Concéntrica"
+        TrainingPhase.REPETITION_ANNOUNCEMENT -> "Locución de repetición"
+        TrainingPhase.ECCENTRIC -> "Excéntrica"
+        TrainingPhase.SERIES_COMPLETE -> "Serie completada"
     }
