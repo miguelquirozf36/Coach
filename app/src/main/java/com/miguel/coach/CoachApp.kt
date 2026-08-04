@@ -1,15 +1,19 @@
 package com.miguel.coach
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -32,8 +36,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
@@ -433,12 +439,8 @@ fun WorkoutScreen(
                 Text("Fase: $phase")
             }
             Text("Tiempo restante")
-            Text(
-                text = state.secondsRemaining.toClockFormat(),
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp)
-            )
+            TrainingTimer(state)
+            Spacer(modifier = Modifier.weight(1f))
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = if (state.isPaused) onResume else onPause
@@ -460,6 +462,59 @@ fun WorkoutScreen(
                 Text(stringResource(R.string.finish_workout))
             }
         }
+    }
+}
+
+@Composable
+private fun TrainingTimer(state: TrainingUiState.Workout) {
+    val timerText = state.secondsRemaining.toClockFormat()
+    var frameTimeMillis by remember(state.phaseStartedAtMillis, state.phasePausedAtMillis) {
+        mutableStateOf(state.phasePausedAtMillis ?: state.phaseStartedAtMillis)
+    }
+    LaunchedEffect(state.phaseStartedAtMillis, state.phasePausedAtMillis, state.isPaused) {
+        if (state.isPaused) {
+            frameTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
+        } else {
+            while (true) {
+                frameTimeMillis = withFrameNanos { it / 1_000_000L }
+            }
+        }
+    }
+    val effectiveTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
+    val durationMillis = state.phaseDurationSeconds.coerceAtLeast(0) * 1_000L
+    val elapsedMillis = (effectiveTimeMillis - state.phaseStartedAtMillis).coerceAtLeast(0L)
+    val progress = if (durationMillis > 0) {
+        ((durationMillis - elapsedMillis).toFloat() / durationMillis).coerceIn(0f, 1f)
+    } else 0f
+    val progressColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.outlineVariant
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(240.dp)) {
+            val stroke = Stroke(width = 14.dp.toPx())
+            drawArc(
+                color = trackColor,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = stroke
+            )
+            drawArc(
+                color = progressColor,
+                startAngle = -90f,
+                sweepAngle = 360f * progress,
+                useCenter = false,
+                style = stroke
+            )
+        }
+        Text(
+            text = timerText,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp)
+        )
     }
 }
 

@@ -6,6 +6,57 @@ import org.junit.Test
 
 class TrainingEngineTest {
     @Test
+    fun phaseDurationMatchesTheConcentricAndEccentricExerciseDurations() {
+        val fixture = Fixture(
+            Exercise("timed", "Temporizado", 1, 1, 2, 3, 4)
+        )
+
+        fixture.engine.start(fixture.routine)
+        repeat(10) { fixture.scheduler.advance() }
+        fixture.voice.completeLatest()
+        assertEquals(2, fixture.currentWorkout().phaseDurationSeconds)
+
+        repeat(2) { fixture.scheduler.advance() }
+        fixture.voice.completeLatest()
+
+        assertEquals(TrainingPhase.ECCENTRIC, fixture.currentWorkout().phase)
+        assertEquals(3, fixture.currentWorkout().phaseDurationSeconds)
+    }
+
+    @Test
+    fun phaseDurationMatchesBothTypesOfRest() {
+        val seriesRestFixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
+        seriesRestFixture.startFirstConcentricPhase()
+        seriesRestFixture.completeCurrentRepetition()
+
+        assertEquals(TrainingPhase.REST, seriesRestFixture.currentWorkout().phase)
+        assertEquals(4, seriesRestFixture.currentWorkout().phaseDurationSeconds)
+
+        val exerciseRestFixture = Fixture(
+            listOf(seriesExercise(sets = 1, restSeconds = 4), seriesExercise(sets = 1, restSeconds = 4)),
+            restBetweenExercisesSeconds = 12
+        )
+        exerciseRestFixture.startFirstConcentricPhase()
+        exerciseRestFixture.completeCurrentRepetition()
+
+        assertEquals(TrainingPhase.REST_BETWEEN_EXERCISES, exerciseRestFixture.currentWorkout().phase)
+        assertEquals(12, exerciseRestFixture.currentWorkout().phaseDurationSeconds)
+    }
+
+    @Test
+    fun internalAnnouncementKeepsThePreviousVisualPhaseDurationAndNeverBecomesNegative() {
+        val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 4))
+        fixture.startFirstConcentricPhase()
+
+        assertEquals(1, fixture.currentWorkout().phaseDurationSeconds)
+        fixture.scheduler.advance()
+        assertEquals(TrainingPhase.REPETITION_ANNOUNCEMENT, fixture.currentWorkout().phase)
+        assertEquals(1, fixture.currentWorkout().phaseDurationSeconds)
+        assertTrue(fixture.currentWorkout().secondsRemaining >= 0)
+        assertTrue(fixture.currentWorkout().phaseDurationSeconds >= 0)
+    }
+
+    @Test
     fun estimatedRoutineDurationUsesPhasesRepetitionsAndAllApplicableRests() {
         val routine = Routine(
             id = "estimate",
@@ -443,6 +494,7 @@ class TrainingEngineTest {
         private fun currentExerciseIndex(): Int = (engine.state as TrainingUiState.Workout).exerciseIndex
         private fun currentSeries(): Int = (engine.state as TrainingUiState.Workout).seriesNumber
         private fun currentRepetition(): Int = (engine.state as TrainingUiState.Workout).repetitionNumber
+        fun currentWorkout(): TrainingUiState.Workout = engine.state as TrainingUiState.Workout
     }
 
     private class FakeVoiceSpeaker : VoiceSpeaker {

@@ -9,7 +9,8 @@ import androidx.compose.runtime.setValue
 class TrainingEngine(
     private val voiceSpeaker: VoiceSpeaker,
     private val beepPlayer: BeepSoundPlayer,
-    private val scheduler: TrainingScheduler = AndroidTrainingScheduler()
+    private val scheduler: TrainingScheduler = AndroidTrainingScheduler(),
+    private val monotonicClock: MonotonicClock = SystemMonotonicClock
 ) {
     var state: TrainingUiState by mutableStateOf(TrainingUiState.Home)
         private set
@@ -23,7 +24,18 @@ class TrainingEngine(
         if (!voiceSpeaker.isReady) return
 
         beginNewSession()
-        state = TrainingUiState.Workout(routine, 0, 1, 1, TrainingPhase.COUNTDOWN, 10, false)
+        state = TrainingUiState.Workout(
+            routine = routine,
+            exerciseIndex = 0,
+            seriesNumber = 1,
+            repetitionNumber = 1,
+            phase = TrainingPhase.COUNTDOWN,
+            secondsRemaining = INITIAL_COUNTDOWN_SECONDS,
+            phaseDurationSeconds = INITIAL_COUNTDOWN_SECONDS,
+            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phasePausedAtMillis = null,
+            isPaused = false
+        )
         voiceSpeaker.speak(START_ANNOUNCEMENT)
         scheduleCountdownTick(sessionId)
     }
@@ -32,17 +44,25 @@ class TrainingEngine(
         val workout = state as? TrainingUiState.Workout ?: return
         if (workout.isPaused) return
 
+        val pausedAtMillis = monotonicClock.nowMillis()
         invalidatePendingWork()
-        state = workout.copy(isPaused = true)
+        state = workout.copy(isPaused = true, phasePausedAtMillis = pausedAtMillis)
     }
 
     fun resume() {
         val workout = state as? TrainingUiState.Workout ?: return
         if (!workout.isPaused) return
 
+        val resumedAtMillis = monotonicClock.nowMillis()
+        val pauseDurationMillis = (resumedAtMillis - (workout.phasePausedAtMillis ?: resumedAtMillis))
+            .coerceAtLeast(0L)
         sessionId += 1
         val activeSession = sessionId
-        state = workout.copy(isPaused = false)
+        state = workout.copy(
+            isPaused = false,
+            phaseStartedAtMillis = workout.phaseStartedAtMillis + pauseDurationMillis,
+            phasePausedAtMillis = null
+        )
         resumePhase(activeSession)
     }
 
@@ -55,7 +75,10 @@ class TrainingEngine(
         val activeSession = sessionId
         when (workout.phase) {
             TrainingPhase.CONCENTRIC -> {
-                state = workout.copy(phase = TrainingPhase.REPETITION_ANNOUNCEMENT, secondsRemaining = 0)
+                state = workout.copy(
+                    phase = TrainingPhase.REPETITION_ANNOUNCEMENT,
+                    secondsRemaining = 0
+                )
                 announceRepetition(activeSession)
             }
 
@@ -143,7 +166,10 @@ class TrainingEngine(
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         state = workout.copy(
             phase = TrainingPhase.CONCENTRIC,
-            secondsRemaining = exercise.concentricSeconds
+            secondsRemaining = exercise.concentricSeconds,
+            phaseDurationSeconds = exercise.concentricSeconds,
+            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phasePausedAtMillis = null
         )
         schedulePhaseTick(activeSession)
     }
@@ -163,7 +189,10 @@ class TrainingEngine(
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         state = workout.copy(
             phase = TrainingPhase.ECCENTRIC,
-            secondsRemaining = exercise.eccentricSeconds
+            secondsRemaining = exercise.eccentricSeconds,
+            phaseDurationSeconds = exercise.eccentricSeconds,
+            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phasePausedAtMillis = null
         )
         schedulePhaseTick(activeSession)
     }
@@ -215,7 +244,10 @@ class TrainingEngine(
         if (workout.seriesNumber < exercise.sets) {
             state = workout.copy(
                 phase = TrainingPhase.REST,
-                secondsRemaining = exercise.restSeconds
+                secondsRemaining = exercise.restSeconds,
+                phaseDurationSeconds = exercise.restSeconds,
+                phaseStartedAtMillis = monotonicClock.nowMillis(),
+                phasePausedAtMillis = null
             )
             voiceSpeaker.speak(REST_ANNOUNCEMENT)
             scheduleRestTick(activeSession)
@@ -228,7 +260,10 @@ class TrainingEngine(
                 seriesNumber = 1,
                 repetitionNumber = 1,
                 phase = TrainingPhase.REST_BETWEEN_EXERCISES,
-                secondsRemaining = workout.routine.restBetweenExercisesSeconds
+                secondsRemaining = workout.routine.restBetweenExercisesSeconds,
+                phaseDurationSeconds = workout.routine.restBetweenExercisesSeconds,
+                phaseStartedAtMillis = monotonicClock.nowMillis(),
+                phasePausedAtMillis = null
             )
             voiceSpeaker.speak(REST_BETWEEN_EXERCISES_ANNOUNCEMENT)
             scheduleRestTick(activeSession)
@@ -312,6 +347,7 @@ class TrainingEngine(
 
     private companion object {
         const val ONE_SECOND_MILLIS = 1_000L
+        const val INITIAL_COUNTDOWN_SECONDS = 10
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
         const val REST_ANNOUNCEMENT = "Descansa."
         const val REST_BETWEEN_EXERCISES_ANNOUNCEMENT =
@@ -319,6 +355,14 @@ class TrainingEngine(
         const val TEN_SECONDS_ANNOUNCEMENT = "Quedan diez segundos."
         const val TRAINING_COMPLETE_ANNOUNCEMENT = "Entrenamiento finalizado."
     }
+}
+
+fun interface MonotonicClock {
+    fun nowMillis(): Long
+}
+
+private object SystemMonotonicClock : MonotonicClock {
+    override fun nowMillis(): Long = System.nanoTime() / 1_000_000L
 }
 
 interface TrainingScheduler {
@@ -363,6 +407,9 @@ sealed interface TrainingUiState {
         val repetitionNumber: Int,
         val phase: TrainingPhase,
         val secondsRemaining: Int,
+        val phaseDurationSeconds: Int,
+        val phaseStartedAtMillis: Long,
+        val phasePausedAtMillis: Long?,
         val isPaused: Boolean
     ) : TrainingUiState
 }
