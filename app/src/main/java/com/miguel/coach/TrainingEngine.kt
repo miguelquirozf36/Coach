@@ -63,6 +63,7 @@ class TrainingEngine(
 
             TrainingPhase.REPETITION_ANNOUNCEMENT -> startEccentricPhase(activeSession)
             TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
+            TrainingPhase.REST -> announceNextSeries(activeSession)
             TrainingPhase.COUNTDOWN,
             TrainingPhase.SERIES_COMPLETE -> Unit
         }
@@ -96,6 +97,10 @@ class TrainingEngine(
             TrainingPhase.CONCENTRIC -> schedulePhaseTick(activeSession)
             TrainingPhase.REPETITION_ANNOUNCEMENT -> announceRepetition(activeSession)
             TrainingPhase.ECCENTRIC -> schedulePhaseTick(activeSession)
+            TrainingPhase.REST -> {
+                if (workout.secondsRemaining == 0) announceNextSeries(activeSession)
+                else scheduleRestTick(activeSession)
+            }
             TrainingPhase.SERIES_COMPLETE -> Unit
         }
     }
@@ -128,7 +133,10 @@ class TrainingEngine(
 
     private fun startConcentricPhase(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        if (workout.phase != TrainingPhase.COUNTDOWN && workout.phase != TrainingPhase.ECCENTRIC) return
+        if (workout.phase != TrainingPhase.COUNTDOWN &&
+            workout.phase != TrainingPhase.ECCENTRIC &&
+            workout.phase != TrainingPhase.REST
+        ) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         state = workout.copy(
@@ -185,6 +193,7 @@ class TrainingEngine(
             TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
             TrainingPhase.COUNTDOWN,
             TrainingPhase.REPETITION_ANNOUNCEMENT,
+            TrainingPhase.REST,
             TrainingPhase.SERIES_COMPLETE -> Unit
         }
     }
@@ -195,13 +204,80 @@ class TrainingEngine(
 
         beepPlayer.play()
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.repetitionNumber == exercise.repetitions) {
-            state = workout.copy(phase = TrainingPhase.SERIES_COMPLETE, secondsRemaining = 0)
+        if (workout.repetitionNumber != exercise.repetitions) {
+            state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
+            startConcentricPhase(activeSession)
             return
         }
 
-        state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
+        if (workout.seriesNumber != exercise.sets) {
+            state = workout.copy(
+                phase = TrainingPhase.REST,
+                secondsRemaining = secondsFor(exercise.restDurationMillis)
+            )
+            voiceSpeaker.speak(REST_ANNOUNCEMENT)
+            scheduleRestTick(activeSession)
+            return
+        }
+
+        if (workout.exerciseIndex != workout.routine.exercises.lastIndex) {
+            state = workout.copy(
+                exerciseIndex = workout.exerciseIndex + 1,
+                seriesNumber = 1,
+                repetitionNumber = 1
+            )
+            startConcentricPhase(activeSession)
+            return
+        }
+
+        completeTraining()
+    }
+
+    private fun scheduleRestTick(activeSession: Long) {
+        scheduler.schedule(ONE_SECOND_MILLIS) { advanceRest(activeSession) }
+    }
+
+    private fun advanceRest(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.REST) return
+
+        val secondsRemaining = (workout.secondsRemaining - 1).coerceAtLeast(0)
+        state = workout.copy(secondsRemaining = secondsRemaining)
+        when (secondsRemaining) {
+            3 -> voiceSpeaker.speak("Tres")
+            2 -> voiceSpeaker.speak("Dos")
+            1 -> voiceSpeaker.speak("Uno")
+            0 -> {
+                announceNextSeries(activeSession)
+                return
+            }
+        }
+        scheduleRestTick(activeSession)
+    }
+
+    private fun announceNextSeries(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.REST) return
+        voiceSpeaker.speak("\u00A1Vamos!") { startNextSeries(activeSession) }
+    }
+
+    private fun startNextSeries(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.REST) return
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (workout.seriesNumber == exercise.sets) return
+
+        state = workout.copy(
+            seriesNumber = workout.seriesNumber + 1,
+            repetitionNumber = 1
+        )
         startConcentricPhase(activeSession)
+    }
+
+    private fun completeTraining() {
+        invalidatePendingWork()
+        state = TrainingUiState.Completed
+        voiceSpeaker.speak(TRAINING_COMPLETE_ANNOUNCEMENT)
     }
 
     private fun activeWorkout(activeSession: Long): TrainingUiState.Workout? {
@@ -215,6 +291,8 @@ class TrainingEngine(
     private companion object {
         const val ONE_SECOND_MILLIS = 1_000L
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
+        const val REST_ANNOUNCEMENT = "Descansa."
+        const val TRAINING_COMPLETE_ANNOUNCEMENT = "Entrenamiento finalizado."
     }
 }
 
@@ -245,11 +323,13 @@ enum class TrainingPhase {
     CONCENTRIC,
     REPETITION_ANNOUNCEMENT,
     ECCENTRIC,
+    REST,
     SERIES_COMPLETE
 }
 
 sealed interface TrainingUiState {
     data object Home : TrainingUiState
+    data object Completed : TrainingUiState
 
     data class Workout(
         val routine: Routine,

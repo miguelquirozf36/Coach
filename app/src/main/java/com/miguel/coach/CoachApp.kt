@@ -46,6 +46,28 @@ fun CoachApp(trainingEngine: TrainingEngine) {
                     onSkip = trainingEngine::skip,
                     onFinish = trainingEngine::finish
                 )
+
+                TrainingUiState.Completed -> CompletionScreen(onFinish = trainingEngine::finish)
+            }
+        }
+    }
+}
+
+@Composable
+fun CompletionScreen(onFinish: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Entrenamiento finalizado",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Button(modifier = Modifier.fillMaxWidth(), onClick = onFinish) {
+                Text("VOLVER AL INICIO")
             }
         }
     }
@@ -140,7 +162,9 @@ fun WorkoutScreen(
             )
             Text(stringResource(R.string.current_series, state.seriesNumber, exercise.sets))
             Text(stringResource(R.string.current_repetition, state.repetitionNumber, exercise.repetitions))
-            Text("Fase: ${state.phase.label}")
+            state.phase.label?.let { phase ->
+                Text("Fase: $phase")
+            }
             Text(
                 text = "Segundos restantes: ${state.secondsRemaining}",
                 style = MaterialTheme.typography.displayLarge
@@ -167,11 +191,12 @@ fun WorkoutScreen(
     }
 }
 
-private val TrainingPhase.label: String
+private val TrainingPhase.label: String?
     get() = when (this) {
-        TrainingPhase.COUNTDOWN -> "Cuenta regresiva"
+        TrainingPhase.COUNTDOWN -> null
         TrainingPhase.CONCENTRIC -> "Concéntrica"
-        TrainingPhase.REPETITION_ANNOUNCEMENT -> "Locución de repetición"
+        TrainingPhase.REPETITION_ANNOUNCEMENT -> "Concéntrica"
         TrainingPhase.ECCENTRIC -> "Excéntrica"
-        TrainingPhase.SERIES_COMPLETE -> "Serie completada"
+        TrainingPhase.REST -> "Descanso"
+        TrainingPhase.SERIES_COMPLETE -> null
     }
