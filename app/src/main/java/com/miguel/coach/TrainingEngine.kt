@@ -143,7 +143,7 @@ class TrainingEngine(
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         state = workout.copy(
             phase = TrainingPhase.CONCENTRIC,
-            secondsRemaining = secondsFor(exercise.concentricDurationMillis)
+            secondsRemaining = exercise.concentricSeconds
         )
         schedulePhaseTick(activeSession)
     }
@@ -163,7 +163,7 @@ class TrainingEngine(
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         state = workout.copy(
             phase = TrainingPhase.ECCENTRIC,
-            secondsRemaining = secondsFor(exercise.eccentricDurationMillis)
+            secondsRemaining = exercise.eccentricSeconds
         )
         schedulePhaseTick(activeSession)
     }
@@ -215,7 +215,7 @@ class TrainingEngine(
         if (workout.seriesNumber < exercise.sets) {
             state = workout.copy(
                 phase = TrainingPhase.REST,
-                secondsRemaining = secondsFor(exercise.restDurationMillis)
+                secondsRemaining = exercise.restSeconds
             )
             voiceSpeaker.speak(REST_ANNOUNCEMENT)
             scheduleRestTick(activeSession)
@@ -228,7 +228,7 @@ class TrainingEngine(
                 seriesNumber = 1,
                 repetitionNumber = 1,
                 phase = TrainingPhase.REST_BETWEEN_EXERCISES,
-                secondsRemaining = secondsFor(workout.routine.restBetweenExercisesMillis)
+                secondsRemaining = workout.routine.restBetweenExercisesSeconds
             )
             voiceSpeaker.speak(REST_BETWEEN_EXERCISES_ANNOUNCEMENT)
             scheduleRestTick(activeSession)
@@ -309,8 +309,6 @@ class TrainingEngine(
         val workout = state as? TrainingUiState.Workout ?: return null
         return workout.takeUnless { it.isPaused }
     }
-
-    private fun secondsFor(durationMillis: Long): Int = ((durationMillis + 999) / 1_000).toInt()
 
     private companion object {
         const val ONE_SECOND_MILLIS = 1_000L

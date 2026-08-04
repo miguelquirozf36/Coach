@@ -6,8 +6,22 @@ import org.junit.Test
 
 class TrainingEngineTest {
     @Test
+    fun seedRoutinesUseTheApprovedSecondBasedDurations() {
+        assertEquals(6, Routines.all.size)
+        Routines.all.forEach { routine ->
+            assertEquals(false, routine.isCustom)
+            assertEquals(60, routine.restBetweenExercisesSeconds)
+            routine.exercises.forEach { exercise ->
+                assertEquals(1, exercise.concentricSeconds)
+                assertEquals(3, exercise.eccentricSeconds)
+                assertEquals(60, exercise.restSeconds)
+            }
+        }
+    }
+
+    @Test
     fun lastRepetitionOfASeriesBeepsAnnouncesRestAndStartsTheRestTimer() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
 
         fixture.completeCurrentRepetition()
@@ -19,7 +33,7 @@ class TrainingEngineTest {
 
     @Test
     fun restCountsDownWithTheLastThreeAnnouncementsAndStartsTheNextSeriesAfterVamos() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
         fixture.completeCurrentRepetition()
 
@@ -42,8 +56,8 @@ class TrainingEngineTest {
     fun lastSeriesStartsAnExerciseRestBeforeTheNextExerciseAndThenCompletesTheWorkout() {
         val fixture = Fixture(
             listOf(
-                seriesExercise(sets = 1, restMillis = 4_000),
-                seriesExercise(sets = 1, restMillis = 4_000)
+                seriesExercise(sets = 1, restSeconds = 4),
+                seriesExercise(sets = 1, restSeconds = 4)
             )
         )
         fixture.startFirstConcentricPhase()
@@ -66,7 +80,7 @@ class TrainingEngineTest {
 
     @Test
     fun pauseAndResumePreserveTheExactRestSecond() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
         fixture.completeCurrentRepetition()
 
@@ -84,7 +98,7 @@ class TrainingEngineTest {
 
     @Test
     fun skipAdvancesThroughRestAndExerciseTransitionsWithoutDuplicatingAnnouncements() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
         fixture.completeCurrentRepetition()
 
@@ -109,7 +123,7 @@ class TrainingEngineTest {
 
     @Test
     fun finishInvalidatesPendingVoiceCallbacksTimersAndBeeps() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
         fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.REPETITION_ANNOUNCEMENT, 0, 0, 1, 1, false)
@@ -126,7 +140,7 @@ class TrainingEngineTest {
     @Test
     fun pauseAtThreeTwoOneAndZeroInvalidatesOldTimersAndResumesCoherently() {
         listOf(3, 2, 1, 0).forEach { seconds ->
-            val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+            val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
             fixture.engine.start(fixture.routine)
             repeat(10 - seconds) { fixture.scheduler.advance() }
             fixture.assertWorkout(TrainingPhase.COUNTDOWN, seconds, 0, 1, 1, false)
@@ -150,7 +164,7 @@ class TrainingEngineTest {
 
     @Test
     fun resumeDuringRepetitionAnnouncementReplaysOnlyTheCurrentAnnouncement() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
         fixture.scheduler.advance()
         val phrasesBeforePause = fixture.voice.phrases.size
@@ -169,7 +183,7 @@ class TrainingEngineTest {
 
     @Test
     fun finishDuringVamosPreventsAnyLaterPhaseTransition() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.engine.start(fixture.routine)
         repeat(10) { fixture.scheduler.advance() }
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
@@ -184,7 +198,7 @@ class TrainingEngineTest {
 
     @Test
     fun restAnnouncesTenSecondsOnlyOnceEvenWhenPausedAndResumed() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 12_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 12))
         fixture.startFirstConcentricPhase()
         fixture.completeCurrentRepetition()
 
@@ -204,8 +218,8 @@ class TrainingEngineTest {
     fun exerciseRestShowsTheNextExerciseAndStartsItAfterTheCountdown() {
         val fixture = Fixture(
             listOf(
-                seriesExercise(sets = 1, restMillis = 4_000),
-                seriesExercise(sets = 1, restMillis = 4_000)
+                seriesExercise(sets = 1, restSeconds = 4),
+                seriesExercise(sets = 1, restSeconds = 4)
             )
         )
         fixture.startFirstConcentricPhase()
@@ -226,8 +240,8 @@ class TrainingEngineTest {
     fun pauseResumeAndSkipWorkDuringTheExerciseRest() {
         val fixture = Fixture(
             listOf(
-                seriesExercise(sets = 1, restMillis = 4_000),
-                seriesExercise(sets = 1, restMillis = 4_000)
+                seriesExercise(sets = 1, restSeconds = 4),
+                seriesExercise(sets = 1, restSeconds = 4)
             )
         )
         fixture.startFirstConcentricPhase()
@@ -250,7 +264,7 @@ class TrainingEngineTest {
 
     @Test
     fun cancelingFinishConfirmationLeavesTheEngineUntouchedAndConfirmingFinishesIt() {
-        val fixture = Fixture(seriesExercise(sets = 2, restMillis = 4_000))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
         val stateBeforeConfirmation = fixture.engine.state
 
@@ -265,7 +279,7 @@ class TrainingEngineTest {
 
     private class Fixture(
         exercises: List<Exercise>,
-        private val restBetweenExercisesMillis: Long = 12_000
+        private val restBetweenExercisesSeconds: Int = 12
     ) {
         constructor(exercise: Exercise) : this(listOf(exercise))
 
@@ -275,9 +289,10 @@ class TrainingEngineTest {
         val engine = TrainingEngine(voice, beep, scheduler)
         val routine = Routine(
             id = "test",
-            nameRes = R.string.routine_full_body,
+            name = "Test",
+            isCustom = false,
             exercises = exercises,
-            restBetweenExercisesMillis = restBetweenExercisesMillis
+            restBetweenExercisesSeconds = restBetweenExercisesSeconds
         )
 
         fun startFirstConcentricPhase() {
@@ -383,13 +398,15 @@ class TrainingEngineTest {
     }
 
     private companion object {
-        fun seriesExercise(sets: Int, restMillis: Long) = Exercise(
-            nameRes = R.string.exercise_squat,
+        fun seriesExercise(sets: Int, restSeconds: Int) = Exercise(
+            id = "test-exercise",
+            name = "Test exercise",
             sets = sets,
             repetitions = 1,
-            concentricDurationMillis = 1_000,
-            eccentricDurationMillis = 1_000,
-            restDurationMillis = restMillis
+            concentricSeconds = 1,
+            eccentricSeconds = 1,
+            restSeconds = restSeconds,
+            weightKg = null
         )
     }
 }

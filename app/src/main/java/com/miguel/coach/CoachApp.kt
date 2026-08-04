@@ -116,7 +116,7 @@ fun HomeScreen(
                             .clickable { selectedRoutineId = routine.id }
                     ) {
                         ListItem(
-                            headlineContent = { Text(stringResource(routine.nameRes)) },
+                            headlineContent = { Text(routine.name) },
                             supportingContent = {
                                 Text(
                                     text = pluralStringResource(
@@ -193,10 +193,10 @@ fun WorkoutScreen(
                     text = "Descanso entre ejercicios",
                     style = MaterialTheme.typography.headlineMedium
                 )
-                Text("Siguiente: ${stringResource(exercise.nameRes)}")
+                Text("Siguiente: ${exercise.name}")
             } else {
                 Text(
-                    text = stringResource(exercise.nameRes),
+                    text = exercise.name,
                     style = MaterialTheme.typography.headlineMedium
                 )
             }
