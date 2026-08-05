@@ -564,6 +564,111 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun workoutStateStartsWithTheFirstExerciseNoteFromTheSessionRoutineCopy() {
+        val exercises = mutableListOf(
+            seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)
+                .copy(notes = "Nota inicial")
+        )
+        val fixture = Fixture(exercises)
+
+        fixture.engine.start(fixture.routine)
+        exercises.clear()
+
+        fixture.assertWorkout(TrainingPhase.COUNTDOWN, 10, 0, 1, 1, false)
+        assertEquals("Nota inicial", fixture.currentWorkout().currentExerciseNotes)
+        assertEquals(1, fixture.currentWorkout().routine.exercises.size)
+    }
+
+    @Test
+    fun workoutStateKeepsAnEmptyExerciseNoteEmpty() {
+        val fixture = Fixture(
+            seriesExercise(sets = 1, repetitions = 1, restSeconds = 1).copy(notes = "")
+        )
+
+        fixture.engine.start(fixture.routine)
+
+        assertEquals("", fixture.currentWorkout().currentExerciseNotes)
+    }
+
+    @Test
+    fun exerciseNoteRemainsVisibleWhileWorkoutIsPaused() {
+        val fixture = Fixture(
+            seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)
+                .copy(notes = "Conservar durante pausa")
+        )
+        fixture.startFirstConcentricPhase()
+
+        fixture.engine.pause()
+
+        assertEquals(true, fixture.currentWorkout().isPaused)
+        assertEquals("Conservar durante pausa", fixture.currentWorkout().currentExerciseNotes)
+    }
+
+    @Test
+    fun exerciseNoteRemainsVisibleDuringRestBetweenSeries() {
+        val fixture = Fixture(
+            seriesExercise(sets = 2, repetitions = 1, restSeconds = 2)
+                .copy(notes = "Conservar durante descanso")
+        )
+        fixture.startFirstConcentricPhase()
+
+        fixture.completeCurrentRepetition()
+
+        fixture.assertWorkout(TrainingPhase.REST, 2, 0, 1, 1, false)
+        assertEquals("Conservar durante descanso", fixture.currentWorkout().currentExerciseNotes)
+    }
+
+    @Test
+    fun completedExerciseNoteRemainsDuringRestBetweenExercises() {
+        val first = seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)
+            .copy(id = "first-note", notes = "Nota del primero")
+        val second = seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)
+            .copy(id = "second-note", notes = "Nota del segundo")
+        val fixture = Fixture(listOf(first, second), restBetweenExercisesSeconds = 2)
+        fixture.startFirstConcentricPhase()
+
+        fixture.completeCurrentRepetition()
+
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 2, 1, 1, 1, false)
+        assertEquals("Nota del primero", fixture.currentWorkout().currentExerciseNotes)
+    }
+
+    @Test
+    fun noteUpdatesExactlyWhenTheNextExerciseStarts() {
+        val first = seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)
+            .copy(id = "first-update", notes = "Nota anterior")
+        val second = seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)
+            .copy(id = "second-update", notes = "Nota nueva")
+        val fixture = Fixture(listOf(first, second), restBetweenExercisesSeconds = 2)
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+
+        repeat(2) { fixture.scheduler.advance() }
+        assertEquals("Nota anterior", fixture.currentWorkout().currentExerciseNotes)
+        fixture.voice.completeLatest()
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
+        assertEquals("Nota nueva", fixture.currentWorkout().currentExerciseNotes)
+    }
+
+    @Test
+    fun exerciseNotesDoNotChangeVoiceAnnouncementsOrTrainingTransitions() {
+        val note = "Esta nota nunca debe pronunciarse"
+        val fixture = Fixture(
+            seriesExercise(sets = 1, repetitions = 1, restSeconds = 1).copy(notes = note)
+        )
+        fixture.startFirstConcentricPhase()
+
+        fixture.completeCurrentRepetition()
+
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertEquals(1, fixture.beep.playCalls)
+        assertEquals(1, fixture.voice.phrases.count { it == "1" })
+        assertEquals(1, fixture.voice.phrases.count { it == "Entrenamiento finalizado." })
+        assertEquals(0, fixture.voice.phrases.count { it.contains(note) })
+    }
+
+    @Test
     fun cancelingFinishConfirmationLeavesTheEngineUntouchedAndConfirmingFinishesIt() {
         val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()

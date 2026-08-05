@@ -24,8 +24,9 @@ class TrainingEngine(
         if (!voiceSpeaker.isReady) return
 
         beginNewSession()
+        val sessionRoutine = routine.copy(exercises = routine.exercises.toList())
         state = TrainingUiState.Workout(
-            routine = routine,
+            routine = sessionRoutine,
             exerciseIndex = 0,
             seriesNumber = 1,
             repetitionNumber = 1,
@@ -34,7 +35,8 @@ class TrainingEngine(
             phaseDurationSeconds = INITIAL_COUNTDOWN_SECONDS,
             phaseStartedAtMillis = monotonicClock.nowMillis(),
             phasePausedAtMillis = null,
-            isPaused = false
+            isPaused = false,
+            currentExerciseNotes = sessionRoutine.exercises.first().notes
         )
         voiceSpeaker.speak(START_ANNOUNCEMENT)
         scheduleCountdownTick(sessionId)
@@ -169,7 +171,8 @@ class TrainingEngine(
             secondsRemaining = exercise.concentricSeconds,
             phaseDurationSeconds = exercise.concentricSeconds,
             phaseStartedAtMillis = monotonicClock.nowMillis(),
-            phasePausedAtMillis = null
+            phasePausedAtMillis = null,
+            currentExerciseNotes = exercise.notes
         )
         schedulePhaseTick(activeSession)
     }
@@ -410,6 +413,7 @@ sealed interface TrainingUiState {
         val phaseDurationSeconds: Int,
         val phaseStartedAtMillis: Long,
         val phasePausedAtMillis: Long?,
-        val isPaused: Boolean
+        val isPaused: Boolean,
+        val currentExerciseNotes: String
     ) : TrainingUiState
 }

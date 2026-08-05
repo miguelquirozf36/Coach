@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -692,6 +693,15 @@ fun WorkoutScreen(
                 Text(
                     text = exercise.name,
                     style = MaterialTheme.typography.headlineMedium
+                )
+            }
+            if (state.currentExerciseNotes.isNotBlank()) {
+                Text(
+                    text = state.currentExerciseNotes,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Text(stringResource(R.string.current_series, state.seriesNumber, exercise.sets))
