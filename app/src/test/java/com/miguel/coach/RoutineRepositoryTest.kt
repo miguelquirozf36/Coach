@@ -32,6 +32,77 @@ class RoutineRepositoryTest {
     }
 
     @Test
+    fun oldRoutineJsonWithoutNotesLoadsWithAnEmptyNote() {
+        val storage = InMemoryStorage().apply {
+            values[PRIMARY] = """{"routines":[{"id":"old","name":"Anterior","isCustom":false,"restBetweenExercisesSeconds":60,"exercises":[{"id":"old-exercise","name":"Ejercicio anterior","sets":1,"repetitions":1,"concentricSeconds":1,"eccentricSeconds":1,"restSeconds":60}]}]}"""
+        }
+
+        val loaded = RoutineRepository(storage).load()
+
+        assertEquals(1, loaded.size)
+        assertEquals("", loaded.single().exercises.single().notes)
+    }
+
+    @Test
+    fun routineExerciseNotesAreTrimmedSavedAndReloadedAfterRestart() {
+        val storage = InMemoryStorage()
+        val repository = RoutineRepository(storage)
+        val routines = repository.load()
+        val target = routines.first()
+        val edited = target.toDraft().copy(
+            exercises = target.toDraft().exercises.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(notes = "  Usar banda azul.\nMantener tensión.  ") else exercise
+            }
+        ).validate(isCustom = false).routine!!
+        val updated = routines.map { if (it.id == target.id) edited else it }
+
+        assertTrue(repository.save(updated))
+
+        val reloaded = RoutineRepository(storage).load().first { it.id == target.id }
+        assertEquals("Usar banda azul.\nMantener tensión.", reloaded.exercises.first().notes)
+    }
+
+    @Test
+    fun emptyExerciseNotesAreValidAndThreeHundredCharactersIsTheLimit() {
+        val original = Routines.all.first().toDraft()
+        val empty = original.copy(
+            exercises = original.exercises.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(notes = "") else exercise
+            }
+        )
+        val atLimit = empty.copy(
+            exercises = empty.exercises.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(notes = "n".repeat(300)) else exercise
+            }
+        )
+        val overLimit = atLimit.copy(
+            exercises = atLimit.exercises.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(notes = "n".repeat(301)) else exercise
+            }
+        )
+
+        assertNotNull(empty.validate(isCustom = false).routine)
+        assertEquals(300, atLimit.validate(isCustom = false).routine!!.exercises.first().notes.length)
+        assertNull(overLimit.validate(isCustom = false).routine)
+        assertTrue(overLimit.validate(isCustom = false).message.orEmpty().contains("300"))
+    }
+
+    @Test
+    fun cancelingANoteEditLeavesTheStoredRoutineUntouched() {
+        val storage = InMemoryStorage()
+        val repository = RoutineRepository(storage)
+        val original = repository.load()
+        val discarded = original.first().toDraft().copy(
+            exercises = original.first().toDraft().exercises.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(notes = "No guardar") else exercise
+            }
+        )
+
+        assertEquals("No guardar", discarded.exercises.first().notes)
+        assertEquals("", RoutineRepository(storage).load().first().exercises.first().notes)
+    }
+
+    @Test
     fun savingKeepsThePreviousValidDocumentAsBackup() {
         val storage = InMemoryStorage()
         val repository = RoutineRepository(storage)

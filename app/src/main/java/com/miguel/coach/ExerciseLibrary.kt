@@ -6,7 +6,8 @@ import java.util.Collections
 data class ExerciseDefinition(
     val id: String,
     val name: String,
-    val category: String
+    val category: String,
+    val notes: String = ""
 )
 
 object ExerciseLibrary {

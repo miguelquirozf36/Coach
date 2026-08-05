@@ -113,11 +113,11 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                             onStart = trainingEngine::start,
                             isVoiceReady = trainingEngine.isVoiceReady,
                             customExercises = customExercises,
-                            onSaveCustomExercise = { id, name, category ->
+                            onSaveCustomExercise = { id, name, category, notes ->
                                 val result = if (id == null) {
-                                    routineRepository.createCustomExercise(name, category)
+                                    routineRepository.createCustomExercise(name, category, notes)
                                 } else {
-                                    routineRepository.editCustomExercise(id, name, category)
+                                    routineRepository.editCustomExercise(id, name, category, notes)
                                 }
                                 if (result.success) {
                                     customExercises = result.exercises
@@ -281,7 +281,7 @@ private fun RoutineDetailScreen(
     onStart: (Routine) -> Unit,
     isVoiceReady: Boolean,
     customExercises: List<ExerciseDefinition>,
-    onSaveCustomExercise: (String?, String, String) -> String?,
+    onSaveCustomExercise: (String?, String, String, String) -> String?,
     onDeleteCustomExercise: (ExerciseDefinition) -> String?,
     onSave: (Routine) -> Boolean
 ) {
@@ -381,6 +381,13 @@ private fun ExerciseSummary(exercise: Exercise) {
             Text("${exercise.sets} series · ${exercise.repetitions} repeticiones")
             Text("Concéntrica: ${exercise.concentricSeconds.toClockFormat()} · Excéntrica: ${exercise.eccentricSeconds.toClockFormat()}")
             Text("Descanso entre series: ${exercise.restSeconds.toClockFormat()} min")
+            if (exercise.notes.isNotBlank()) {
+                Text(
+                    text = exercise.notes,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -391,7 +398,7 @@ private fun RoutineEditorScreen(
     draft: RoutineDraft,
     originalDraft: RoutineDraft,
     customExercises: List<ExerciseDefinition>,
-    onSaveCustomExercise: (String?, String, String) -> String?,
+    onSaveCustomExercise: (String?, String, String, String) -> String?,
     onDeleteCustomExercise: (ExerciseDefinition) -> String?,
     validationMessage: String?,
     onDraftChange: (RoutineDraft) -> Unit,
@@ -597,6 +604,21 @@ private fun ExerciseEditor(
                 DraftTextField(exercise.concentricSeconds, "Tiempo concéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(concentricSeconds = it)) })
                 DraftTextField(exercise.eccentricSeconds, "Tiempo excéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(eccentricSeconds = it)) })
                 DraftTextField(exercise.restSeconds, "Descanso entre series (minutos)", KeyboardType.Number, { onChange(exercise.copy(restSeconds = it)) })
+                OutlinedTextField(
+                    value = exercise.notes,
+                    onValueChange = {
+                        if (it.length <= MAX_EXERCISE_NOTES_LENGTH) {
+                            onChange(exercise.copy(notes = it))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Notas (opcional)") },
+                    minLines = 3,
+                    maxLines = 5,
+                    supportingText = {
+                        Text("${exercise.notes.length}/$MAX_EXERCISE_NOTES_LENGTH")
+                    }
+                )
             }
         }
     }

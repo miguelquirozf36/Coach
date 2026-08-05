@@ -24,11 +24,18 @@ class RoutineRepository(
 
     fun loadCustomExercises(): List<ExerciseDefinition> = customExerciseRepository.load()
 
-    fun createCustomExercise(name: String, category: String): CustomExerciseOperationResult =
-        customExerciseRepository.create(name, category)
+    fun createCustomExercise(
+        name: String,
+        category: String,
+        notes: String = ""
+    ): CustomExerciseOperationResult = customExerciseRepository.create(name, category, notes)
 
-    fun editCustomExercise(id: String, name: String, category: String): CustomExerciseOperationResult =
-        customExerciseRepository.edit(id, name, category)
+    fun editCustomExercise(
+        id: String,
+        name: String,
+        category: String,
+        notes: String = ""
+    ): CustomExerciseOperationResult = customExerciseRepository.edit(id, name, category, notes)
 
     fun deleteCustomExercise(id: String, routines: List<Routine>): CustomExerciseOperationResult =
         customExerciseRepository.delete(id, routines)
@@ -106,6 +113,7 @@ private object RoutineValidator {
                         exercise.concentricSeconds >= 0 &&
                         exercise.eccentricSeconds >= 0 &&
                         exercise.restSeconds >= 0 &&
+                        exercise.notes.length <= MAX_EXERCISE_NOTES_LENGTH &&
                         identifiers.add(exercise.id)
                 }
         }
@@ -134,7 +142,10 @@ private object RoutineJsonCodec {
                 append(",\"repetitions\":${exercise.repetitions}")
                 append(",\"concentricSeconds\":${exercise.concentricSeconds}")
                 append(",\"eccentricSeconds\":${exercise.eccentricSeconds}")
-                append(",\"restSeconds\":${exercise.restSeconds}}")
+                append(",\"restSeconds\":${exercise.restSeconds}")
+                append(",\"notes\":")
+                appendQuoted(exercise.notes)
+                append('}')
             }
             append("]}")
         }
@@ -171,7 +182,8 @@ private object RoutineJsonCodec {
             repetitions = fields.requiredInt("repetitions"),
             concentricSeconds = fields.requiredInt("concentricSeconds"),
             eccentricSeconds = fields.requiredInt("eccentricSeconds"),
-            restSeconds = fields.requiredInt("restSeconds")
+            restSeconds = fields.requiredInt("restSeconds"),
+            notes = fields.optionalString("notes")
         )
     }
 
@@ -180,6 +192,9 @@ private object RoutineJsonCodec {
 
     private fun MutableMap<String, JsonValue>.requiredString(name: String): String =
         (required(name) as? JsonValue.StringValue)?.value ?: throw IllegalArgumentException()
+
+    private fun MutableMap<String, JsonValue>.optionalString(name: String): String =
+        (this[name] as? JsonValue.StringValue)?.value.orEmpty()
 
     private fun MutableMap<String, JsonValue>.requiredBoolean(name: String): Boolean =
         (required(name) as? JsonValue.BooleanValue)?.value ?: throw IllegalArgumentException()

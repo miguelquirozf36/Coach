@@ -17,7 +17,8 @@ data class Exercise(
     val repetitions: Int,
     val concentricSeconds: Int,
     val eccentricSeconds: Int,
-    val restSeconds: Int
+    val restSeconds: Int,
+    val notes: String = ""
 )
 
 fun Routine.estimatedDurationMinutes(): Int {
@@ -47,7 +48,8 @@ data class ExerciseDraft(
     val repetitions: String,
     val concentricSeconds: String,
     val eccentricSeconds: String,
-    val restSeconds: String
+    val restSeconds: String,
+    val notes: String = ""
 )
 
 data class RoutineDraftValidation(
@@ -108,7 +110,8 @@ fun Exercise.toDraft() = ExerciseDraft(
     repetitions = repetitions.toString(),
     concentricSeconds = concentricSeconds.toString(),
     eccentricSeconds = eccentricSeconds.toString(),
-    restSeconds = restSeconds.toWholeMinutesString()
+    restSeconds = restSeconds.toWholeMinutesString(),
+    notes = notes
 )
 
 fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
@@ -124,8 +127,12 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
     )
     val validatedExercises = exercises.map { exercise ->
         val exerciseName = exercise.name.trim()
+        val exerciseNotes = exercise.notes.trim()
         if (exercise.id.isBlank() || !identifiers.add(exercise.id)) errors += "Los ejercicios deben tener identificadores únicos."
         if (exerciseName.isEmpty()) errors += "Cada ejercicio debe tener un nombre."
+        if (exerciseNotes.length > MAX_EXERCISE_NOTES_LENGTH) {
+            errors += "Las notas no pueden superar los $MAX_EXERCISE_NOTES_LENGTH caracteres."
+        }
         val sets = exercise.sets.toPositiveInt("Las series", errors)
         val repetitions = exercise.repetitions.toPositiveInt("Las repeticiones", errors)
         val concentric = exercise.concentricSeconds.toNonNegativeInt("El tiempo concéntrico", errors)
@@ -144,7 +151,8 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
                 repetitions = repetitions!!,
                 concentricSeconds = concentric!!,
                 eccentricSeconds = eccentric!!,
-                restSeconds = rest!!
+                restSeconds = rest!!,
+                notes = exerciseNotes
             )
         }
     }
@@ -162,6 +170,8 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
         message = null
     )
 }
+
+const val MAX_EXERCISE_NOTES_LENGTH = 300
 
 fun emptyCustomRoutine(id: String): Routine = Routine(
     id = id,
