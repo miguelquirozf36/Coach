@@ -10,10 +10,16 @@ class TrainingEngine(
     private val voiceSpeaker: VoiceSpeaker,
     private val beepPlayer: BeepSoundPlayer,
     private val scheduler: TrainingScheduler = AndroidTrainingScheduler(),
-    private val monotonicClock: MonotonicClock = SystemMonotonicClock
+    private val monotonicClock: MonotonicClock = SystemMonotonicClock,
+    private val onStateChanged: (TrainingUiState) -> Unit = {}
 ) {
-    var state: TrainingUiState by mutableStateOf(TrainingUiState.Home)
-        private set
+    private var mutableState by mutableStateOf<TrainingUiState>(TrainingUiState.Home)
+    var state: TrainingUiState
+        get() = mutableState
+        private set(value) {
+            mutableState = value
+            onStateChanged(value)
+        }
 
     val isVoiceReady: Boolean
         get() = voiceSpeaker.isReady

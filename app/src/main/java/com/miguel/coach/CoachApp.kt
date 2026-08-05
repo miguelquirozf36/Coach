@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,15 +17,18 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
@@ -58,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -65,7 +70,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.min
 
 private val LocalSystemBackAction = compositionLocalOf<((() -> Unit)?) -> Unit> {
     error("System back action registrar is not available")
@@ -104,7 +111,12 @@ internal fun RegisterSystemBackAction(action: () -> Unit) {
 }
 
 @Composable
-fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepository) {
+fun CoachApp(
+    trainingEngine: TrainingEngine,
+    routineRepository: RoutineRepository,
+    onStartWorkout: (Routine) -> Unit = trainingEngine::start,
+    onFinishWorkout: () -> Unit = trainingEngine::finish
+) {
     val applicationContext = LocalContext.current.applicationContext
     val themeRepository = remember(applicationContext) {
         ThemePreferenceRepository(
@@ -200,7 +212,7 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                         RoutineDetailScreen(
                             routine = selectedRoutine,
                             onBack = { selectedRoutineId = null },
-                            onStart = trainingEngine::start,
+                            onStart = onStartWorkout,
                             isVoiceReady = trainingEngine.isVoiceReady,
                             customExercises = customExercises,
                             onSaveCustomExercise = { id, name, category, notes ->
@@ -243,10 +255,10 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                     onPause = trainingEngine::pause,
                     onResume = trainingEngine::resume,
                     onSkip = trainingEngine::skip,
-                    onFinish = trainingEngine::finish
+                    onFinish = onFinishWorkout
                 )
 
-                TrainingUiState.Completed -> CompletionScreen(onFinish = trainingEngine::finish)
+                TrainingUiState.Completed -> CompletionScreen(onFinish = onFinishWorkout)
                 }
             }
         }
@@ -300,6 +312,8 @@ fun HomeScreen(
     onTabSelected: (Int) -> Unit
 ) {
     var routinePendingDeletion by remember { mutableStateOf<Routine?>(null) }
+    val routineListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val customRoutineListState = rememberLazyListState()
     routinePendingDeletion?.let { routine ->
         AlertDialog(
             onDismissRequest = { routinePendingDeletion = null },
@@ -311,9 +325,7 @@ fun HomeScreen(
     }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(if (isCustomTab) "PERSONALIZADO" else stringResource(R.string.app_name)) }
-            )
+            if (isCustomTab) TopAppBar(title = { Text("PERSONALIZADO") })
         },
         bottomBar = { MainNavigationBar(selectedTab, onTabSelected) }
     ) { innerPadding ->
@@ -327,14 +339,32 @@ fun HomeScreen(
             if (isCustomTab) {
                 Text("Crea, edita o inicia tus rutinas.", style = MaterialTheme.typography.headlineSmall)
             } else {
-                homeGreeting(userName).forEachIndexed { index, line ->
+                Column(
+                    modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
-                        text = line,
-                        style = if (index == 0 && userName.isNotEmpty()) {
-                            MaterialTheme.typography.headlineMedium
-                        } else {
-                            MaterialTheme.typography.headlineSmall
-                        }
+                        text = "Coach",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (userName.isNotBlank()) {
+                        Text(
+                            text = "Hola, $userName",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "¿Qué quieres entrenar hoy?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Selecciona una rutina para comenzar.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -342,28 +372,69 @@ fun HomeScreen(
                 Text("Crea tu primera rutina personalizada.")
                 Button(modifier = Modifier.fillMaxWidth(), onClick = onCreate) { Text("+ CREAR RUTINA") }
             } else LazyColumn(
+                state = if (isCustomTab) customRoutineListState else routineListState,
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(if (isCustomTab) 8.dp else 14.dp)
             ) {
-                items(routines, key = Routine::id) { routine ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onOpen(routine) }
-                    ) {
-                        ListItem(
-                            headlineContent = { Text(routine.name) },
-                            supportingContent = {
-                                Text(
-                                    "${routine.exercises.size} ejercicios · " +
-                                        "${routine.estimatedDurationMinutes()} min"
-                                )
-                            },
-                            trailingContent = { Text("VER") }
-                        )
-                        if (isCustomTab) {
+                if (isCustomTab) {
+                    items(routines, key = Routine::id) { routine ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpen(routine) }
+                        ) {
+                            ListItem(
+                                headlineContent = { Text(routine.name) },
+                                supportingContent = {
+                                    Text(
+                                        "${routine.exercises.size} ejercicios · " +
+                                            "${routine.estimatedDurationMinutes()} min"
+                                    )
+                                },
+                                trailingContent = { Text("VER") }
+                            )
                             TextButton(onClick = { routinePendingDeletion = routine }) { Text("ELIMINAR") }
+                        }
+                    }
+                } else {
+                    items(routines, key = Routine::id) { routine ->
+                        val routineSummary = remember(routine) {
+                            "${routine.exercises.size} ejercicios • ${routine.estimatedDurationMinutes()} min"
+                        }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpen(routine) },
+                            shape = RoundedCornerShape(20.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = routine.name,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = routineSummary,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                OutlinedButton(onClick = { onOpen(routine) }) {
+                                    Text("VER")
+                                }
+                            }
                         }
                     }
                 }
@@ -821,14 +892,21 @@ fun WorkoutScreen(
         )
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.workout_title)) }) }) { innerPadding ->
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(WindowInsets.safeDrawing.asPaddingValues())
+    ) {
+        val ringDiameter = workoutRingDiameter(maxWidth, maxHeight)
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
             if (state.phase == TrainingPhase.WARMUP) {
                 Text(
                     text = state.routine.name,
@@ -866,9 +944,29 @@ fun WorkoutScreen(
                     Text("Fase: $phase")
                 }
             }
-            Text("Tiempo restante")
-            TrainingTimer(state)
-            Spacer(modifier = Modifier.weight(1f))
+        }
+
+        Box(
+            modifier = Modifier.align(Alignment.Center),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Tiempo restante",
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-32).dp),
+                style = MaterialTheme.typography.labelLarge
+            )
+            TrainingTimer(state, ringDiameter)
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = if (state.isPaused) onResume else onPause
@@ -893,8 +991,28 @@ fun WorkoutScreen(
     }
 }
 
+internal fun workoutRingDiameter(containerWidth: Dp, containerHeight: Dp): Dp {
+    val widthLimited = containerWidth - 32.dp
+    val verticallyClearDiameter = containerHeight - 440.dp
+    return min(widthLimited.value, verticallyClearDiameter.value)
+        .coerceIn(160f, 240f)
+        .dp
+}
+
+internal fun usefulAreaCenter(
+    screenWidth: Int,
+    screenHeight: Int,
+    leftInset: Int,
+    topInset: Int,
+    rightInset: Int,
+    bottomInset: Int
+): Pair<Float, Float> = Pair(
+    leftInset + (screenWidth - leftInset - rightInset) / 2f,
+    topInset + (screenHeight - topInset - bottomInset) / 2f
+)
+
 @Composable
-private fun TrainingTimer(state: TrainingUiState.Workout) {
+private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp) {
     val timerText = state.secondsRemaining.toClockFormat()
     var frameTimeMillis by remember(state.phaseStartedAtMillis, state.phasePausedAtMillis) {
         mutableStateOf(state.phasePausedAtMillis ?: state.phaseStartedAtMillis)
@@ -922,11 +1040,8 @@ private fun TrainingTimer(state: TrainingUiState.Workout) {
     )
     val trackColor = MaterialTheme.colorScheme.outlineVariant
 
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.size(240.dp)) {
+    Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val stroke = Stroke(width = 14.dp.toPx())
             drawArc(
                 color = trackColor,
@@ -946,7 +1061,9 @@ private fun TrainingTimer(state: TrainingUiState.Workout) {
         Text(
             text = timerText,
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp)
+            style = MaterialTheme.typography.displayLarge.copy(
+                fontSize = (diameter.value / 3f).coerceIn(52f, 80f).sp
+            )
         )
     }
 }
