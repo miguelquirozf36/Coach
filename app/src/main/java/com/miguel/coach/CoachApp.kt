@@ -418,12 +418,6 @@ fun HomeScreen(
                     modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "Coach",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
                     if (userName.isNotBlank()) {
                         Text(
                             text = "Hola, $userName",

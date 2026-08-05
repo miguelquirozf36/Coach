@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="coach_orange">#FF7A1A</color>
+    <color name="coach_black">#000000</color>
+    <color name="coach_white">#FFFFFF</color>
+    <color name="coach_icon_background">#FFFFFF</color>
+</resources>
