@@ -7,7 +7,7 @@ const val MAX_USER_NAME_LENGTH = 40
 
 interface UserPreferenceStorage {
     fun readUserName(): String?
-    fun writeUserName(name: String)
+    fun writeUserName(name: String): Boolean
 }
 
 class SharedPreferencesUserStorage(
@@ -15,16 +15,18 @@ class SharedPreferencesUserStorage(
 ) : UserPreferenceStorage {
     override fun readUserName(): String? = preferences.getString(USER_NAME, null)
 
-    override fun writeUserName(name: String) {
-        preferences.edit { putString(USER_NAME, name) }
-    }
+    override fun writeUserName(name: String): Boolean = preferences.edit().putString(USER_NAME, name).commit()
 
     private companion object {
         const val USER_NAME = "user_name"
     }
 }
 
-data class UserNameValidation(val value: String? = null, val message: String? = null)
+data class UserNameValidation(
+    val value: String? = null,
+    val message: String? = null,
+    val saved: Boolean = false
+)
 
 fun validateUserName(input: String): UserNameValidation {
     val trimmed = input.trim()
@@ -48,8 +50,12 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
 
     fun saveUserName(input: String): UserNameValidation {
         val validation = validateUserName(input)
-        validation.value?.let(storage::writeUserName)
-        return validation
+        val value = validation.value ?: return validation
+        return if (storage.writeUserName(value)) {
+            validation.copy(saved = true)
+        } else {
+            UserNameValidation(message = "No se pudo guardar el nombre.")
+        }
     }
 }
 

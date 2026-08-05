@@ -56,7 +56,8 @@ private class InMemoryThemePreferenceStorage(
 ) : ThemePreferenceStorage {
     override fun readThemeId(): String? = themeId
 
-    override fun writeThemeId(id: String) {
+    override fun writeThemeId(id: String): Boolean {
         themeId = id
+        return true
     }
 }

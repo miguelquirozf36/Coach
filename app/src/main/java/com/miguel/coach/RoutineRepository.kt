@@ -24,6 +24,14 @@ class RoutineRepository(
 
     fun loadCustomExercises(): List<ExerciseDefinition> = customExerciseRepository.load()
 
+    fun saveCustomExercises(exercises: List<ExerciseDefinition>): Boolean =
+        customExerciseRepository.save(exercises)
+
+    fun acceptsRoutines(routines: List<Routine>): Boolean = RoutineValidator.isValid(routines)
+
+    fun acceptsCustomExercises(exercises: List<ExerciseDefinition>): Boolean =
+        customExerciseRepository.isValidForImport(exercises)
+
     fun createCustomExercise(
         name: String,
         category: String,
@@ -121,7 +129,7 @@ private object RoutineValidator {
     }
 }
 
-private object RoutineJsonCodec {
+internal object RoutineJsonCodec {
     fun encode(routines: List<Routine>): String = buildString {
         append("{\"routines\":[")
         routines.forEachIndexed { index, routine ->
@@ -231,7 +239,7 @@ private object RoutineJsonCodec {
     }
 }
 
-private sealed interface JsonValue {
+internal sealed interface JsonValue {
     data class ObjectValue(val values: MutableMap<String, JsonValue>) : JsonValue
     data class ArrayValue(val values: List<JsonValue>) : JsonValue
     data class StringValue(val value: String) : JsonValue
@@ -239,7 +247,7 @@ private sealed interface JsonValue {
     data class BooleanValue(val value: Boolean) : JsonValue
 }
 
-private class JsonParser(private val source: String) {
+internal class JsonParser(private val source: String) {
     private var position = 0
 
     fun parse(): JsonValue {

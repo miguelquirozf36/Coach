@@ -1,6 +1,8 @@
 package com.miguel.coach
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +40,13 @@ fun SettingsScreen(
     currentTheme: CoachTheme,
     onSaveUserName: (String) -> String?,
     onAppearance: () -> Unit,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
+    pendingBackupImport: Boolean,
+    onConfirmImport: () -> Unit,
+    onCancelImport: () -> Unit,
+    backupMessage: String?,
+    onDismissBackupMessage: () -> Unit,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit
 ) {
@@ -54,6 +63,24 @@ fun SettingsScreen(
             }
         )
     }
+    if (pendingBackupImport) {
+        AlertDialog(
+            onDismissRequest = onCancelImport,
+            title = { Text("¿Restaurar copia de seguridad?") },
+            text = { Text("Los datos configurables actuales serán reemplazados.") },
+            dismissButton = { TextButton(onClick = onCancelImport) { Text("CANCELAR") } },
+            confirmButton = { TextButton(onClick = onConfirmImport) { Text("RESTAURAR") } }
+        )
+    }
+    backupMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onDismissBackupMessage,
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = onDismissBackupMessage) { Text("ACEPTAR") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("AJUSTES") }) },
@@ -63,7 +90,8 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("PERFIL", style = MaterialTheme.typography.titleMedium)
@@ -84,6 +112,21 @@ fun SettingsScreen(
                     openAppearanceFromSettings()
                     onAppearance()
                 }
+            )
+            Text(
+                "DATOS",
+                modifier = Modifier.padding(top = 12.dp),
+                style = MaterialTheme.typography.titleMedium
+            )
+            SettingsCard(
+                title = "EXPORTAR COPIA",
+                value = "Guardar los datos configurables en un archivo JSON.",
+                onClick = onExportBackup
+            )
+            SettingsCard(
+                title = "IMPORTAR COPIA",
+                value = "Restaurar los datos desde un archivo JSON.",
+                onClick = onImportBackup
             )
         }
     }

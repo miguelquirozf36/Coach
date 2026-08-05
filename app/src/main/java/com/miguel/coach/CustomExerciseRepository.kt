@@ -23,6 +23,8 @@ class CustomExerciseRepository(
         return storage.write(CUSTOM_EXERCISES, encode(exercises)) && load() == exercises
     }
 
+    fun isValidForImport(exercises: List<ExerciseDefinition>): Boolean = isValid(exercises)
+
     fun create(name: String, category: String, notes: String = ""): CustomExerciseOperationResult {
         val current = load()
         val validated = validateDefinition(name, category, notes, current) ?: return failure(current)

@@ -120,9 +120,10 @@ class UserPreferenceRepositoryTest {
 private class InMemoryUserStorage(var userName: String? = null) : UserPreferenceStorage {
     val writtenKeys = mutableSetOf<String>()
     override fun readUserName(): String? = userName
-    override fun writeUserName(name: String) {
+    override fun writeUserName(name: String): Boolean {
         userName = name
         writtenKeys += "user_name"
+        return true
     }
 }
 
@@ -130,8 +131,9 @@ private class SeparateThemeStorage : ThemePreferenceStorage {
     var themeId: String? = null
     val writtenKeys = mutableSetOf<String>()
     override fun readThemeId(): String? = themeId
-    override fun writeThemeId(id: String) {
+    override fun writeThemeId(id: String): Boolean {
         themeId = id
         writtenKeys += "selected_theme"
+        return true
     }
 }

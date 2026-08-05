@@ -55,6 +55,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -73,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.min
+import java.time.LocalDate
 
 private val LocalSystemBackAction = compositionLocalOf<((() -> Unit)?) -> Unit> {
     error("System back action registrar is not available")
@@ -141,6 +144,46 @@ fun CoachApp(
     var selectedRoutineId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var showAppearance by rememberSaveable { mutableStateOf(false) }
+    var backupMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingBackupImport by remember { mutableStateOf<CoachBackupDocument?>(null) }
+    val backupManager = remember(routineRepository, userPreferenceRepository, themeRepository) {
+        CoachBackupManager(routineRepository, userPreferenceRepository, themeRepository)
+    }
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) {
+            backupMessage = "Exportación cancelada."
+        } else {
+            backupMessage = runCatching {
+                val json = CoachBackupCodec.encode(backupManager.createDocument())
+                applicationContext.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use {
+                    it.write(json)
+                } ?: error("No se pudo abrir el documento.")
+                "Copia exportada correctamente."
+            }.getOrElse { "No se pudo exportar la copia." }
+        }
+    }
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) {
+            backupMessage = "Importación cancelada."
+        } else {
+            val parsed = runCatching {
+                val json = applicationContext.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.use { it.readText() }
+                    ?: error("No se pudo abrir el documento.")
+                CoachBackupCodec.decode(json)
+            }.getOrElse { CoachBackupResult(false, "No se pudo leer la copia seleccionada.") }
+            val validated = parsed.document?.let(backupManager::validate) ?: parsed
+            if (validated.success) {
+                pendingBackupImport = validated.document
+            } else {
+                backupMessage = validated.message
+            }
+        }
+    }
 
     LaunchedEffect(routineRepository) {
         routines = routineRepository.load()
@@ -183,6 +226,38 @@ fun CoachApp(
                                     validation.message
                                 },
                                 onAppearance = { showAppearance = true },
+                                onExportBackup = {
+                                    backupMessage = null
+                                    exportBackupLauncher.launch("Coach-backup-${LocalDate.now()}.json")
+                                },
+                                onImportBackup = {
+                                    backupMessage = null
+                                    if (trainingEngine.state is TrainingUiState.Workout) {
+                                        backupMessage = "No se puede importar durante un entrenamiento activo."
+                                    } else {
+                                        importBackupLauncher.launch(arrayOf("application/json"))
+                                    }
+                                },
+                                pendingBackupImport = pendingBackupImport != null,
+                                onConfirmImport = {
+                                    val result = backupManager.restore(
+                                        pendingBackupImport,
+                                        workoutActive = trainingEngine.state is TrainingUiState.Workout
+                                    )
+                                    pendingBackupImport = null
+                                    backupMessage = result.message
+                                    if (result.success) {
+                                        routines = routineRepository.load()
+                                        customExercises = routineRepository.loadCustomExercises()
+                                        ExerciseLibrary.replaceCustom(customExercises)
+                                        userName = userPreferenceRepository.loadUserName()
+                                        selectedThemeId = themeRepository.load().id
+                                        selectedRoutineId = null
+                                    }
+                                },
+                                onCancelImport = { pendingBackupImport = null },
+                                backupMessage = backupMessage,
+                                onDismissBackupMessage = { backupMessage = null },
                                 selectedTab = selectedTab,
                                 onTabSelected = { selectedTab = it }
                             )
