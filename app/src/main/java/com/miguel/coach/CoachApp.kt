@@ -113,7 +113,15 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
             )
         )
     }
+    val userPreferenceRepository = remember(applicationContext) {
+        UserPreferenceRepository(
+            SharedPreferencesUserStorage(
+                applicationContext.getSharedPreferences("coach_user", Context.MODE_PRIVATE)
+            )
+        )
+    }
     var selectedThemeId by rememberSaveable { mutableStateOf(themeRepository.load().id) }
+    var userName by rememberSaveable { mutableStateOf(userPreferenceRepository.loadUserName()) }
     val selectedTheme = remember(selectedThemeId) { CoachTheme.fromId(selectedThemeId) }
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
     var customExercises by remember { mutableStateOf<List<ExerciseDefinition>>(emptyList()) }
@@ -153,26 +161,41 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                         routines.firstOrNull { it.id == id }
                     }
                     if (selectedRoutine == null) {
-                        HomeScreen(
-                            routines = routines.filter { it.isCustom == (selectedTab == 1) },
-                            isCustomTab = selectedTab == 1,
-                            onOpen = { selectedRoutineId = it.id },
-                            onCreate = {
-                                val newRoutine = emptyCustomRoutine("custom-${System.nanoTime()}")
-                                val updated = routines + newRoutine
-                                if (routineRepository.save(updated)) {
-                                    routines = updated
-                                    selectedRoutineId = newRoutine.id
-                                }
-                            },
-                            onDelete = { routine ->
-                                val updated = routines.filterNot { it.id == routine.id }
-                                if (routineRepository.save(updated)) routines = updated
-                            },
-                            selectedTab = selectedTab,
-                            onTabSelected = { selectedTab = it },
-                            onAppearance = { showAppearance = true }
-                        )
+                        if (selectedTab == 2) {
+                            SettingsScreen(
+                                userName = userName,
+                                currentTheme = selectedTheme,
+                                onSaveUserName = { input ->
+                                    val validation = userPreferenceRepository.saveUserName(input)
+                                    validation.value?.let { userName = it }
+                                    validation.message
+                                },
+                                onAppearance = { showAppearance = true },
+                                selectedTab = selectedTab,
+                                onTabSelected = { selectedTab = it }
+                            )
+                        } else {
+                            HomeScreen(
+                                routines = routines.filter { it.isCustom == (selectedTab == 1) },
+                                isCustomTab = selectedTab == 1,
+                                userName = userName,
+                                onOpen = { selectedRoutineId = it.id },
+                                onCreate = {
+                                    val newRoutine = emptyCustomRoutine("custom-${System.nanoTime()}")
+                                    val updated = routines + newRoutine
+                                    if (routineRepository.save(updated)) {
+                                        routines = updated
+                                        selectedRoutineId = newRoutine.id
+                                    }
+                                },
+                                onDelete = { routine ->
+                                    val updated = routines.filterNot { it.id == routine.id }
+                                    if (routineRepository.save(updated)) routines = updated
+                                },
+                                selectedTab = selectedTab,
+                                onTabSelected = { selectedTab = it }
+                            )
+                        }
                     } else {
                         RoutineDetailScreen(
                             routine = selectedRoutine,
@@ -269,12 +292,12 @@ fun CompletionScreen(onFinish: () -> Unit) {
 fun HomeScreen(
     routines: List<Routine>,
     isCustomTab: Boolean,
+    userName: String,
     onOpen: (Routine) -> Unit,
     onCreate: () -> Unit,
     onDelete: (Routine) -> Unit,
     selectedTab: Int,
-    onTabSelected: (Int) -> Unit,
-    onAppearance: () -> Unit
+    onTabSelected: (Int) -> Unit
 ) {
     var routinePendingDeletion by remember { mutableStateOf<Routine?>(null) }
     routinePendingDeletion?.let { routine ->
@@ -289,18 +312,10 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isCustomTab) "PERSONALIZADO" else stringResource(R.string.app_name)) },
-                actions = {
-                    TextButton(onClick = onAppearance) { Text("APARIENCIA") }
-                }
+                title = { Text(if (isCustomTab) "PERSONALIZADO" else stringResource(R.string.app_name)) }
             )
         },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(selected = selectedTab == 0, onClick = { onTabSelected(0) }, icon = {}, label = { Text("MI RUTINA") })
-                NavigationBarItem(selected = selectedTab == 1, onClick = { onTabSelected(1) }, icon = {}, label = { Text("PERSONALIZADO") })
-            }
-        }
+        bottomBar = { MainNavigationBar(selectedTab, onTabSelected) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -309,10 +324,20 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = if (isCustomTab) "Crea, edita o inicia tus rutinas." else stringResource(R.string.select_routine),
-                style = MaterialTheme.typography.headlineSmall
-            )
+            if (isCustomTab) {
+                Text("Crea, edita o inicia tus rutinas.", style = MaterialTheme.typography.headlineSmall)
+            } else {
+                homeGreeting(userName).forEachIndexed { index, line ->
+                    Text(
+                        text = line,
+                        style = if (index == 0 && userName.isNotEmpty()) {
+                            MaterialTheme.typography.headlineMedium
+                        } else {
+                            MaterialTheme.typography.headlineSmall
+                        }
+                    )
+                }
+            }
             if (isCustomTab && routines.isEmpty()) {
                 Text("Crea tu primera rutina personalizada.")
                 Button(modifier = Modifier.fillMaxWidth(), onClick = onCreate) { Text("+ CREAR RUTINA") }
@@ -347,6 +372,27 @@ fun HomeScreen(
                 Button(modifier = Modifier.fillMaxWidth(), onClick = onCreate) { Text("CREAR RUTINA") }
             }
         }
+    }
+}
+
+@Composable
+internal fun MainNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    NavigationBar {
+        NavigationBarItem(
+            selected = selectedTab == 0,
+            onClick = { onTabSelected(0) },
+            icon = { Text("MI RUTINA", style = MaterialTheme.typography.labelMedium) }
+        )
+        NavigationBarItem(
+            selected = selectedTab == 1,
+            onClick = { onTabSelected(1) },
+            icon = { Text("PERSONALIZADO", style = MaterialTheme.typography.labelMedium) }
+        )
+        NavigationBarItem(
+            selected = selectedTab == 2,
+            onClick = { onTabSelected(2) },
+            icon = { Text("AJUSTES", style = MaterialTheme.typography.labelMedium) }
+        )
     }
 }
 
