@@ -66,7 +66,8 @@ class TrainingEngineTest {
                 Exercise("first", "Primero", 2, 3, 10, 5, 20),
                 Exercise("second", "Segundo", 1, 2, 8, 2, 30)
             ),
-            restBetweenExercisesSeconds = 40
+            restBetweenExercisesSeconds = 40,
+            warmupSeconds = 0
         )
 
         assertEquals(3, routine.estimatedDurationMinutes())
@@ -79,7 +80,8 @@ class TrainingEngineTest {
             name = "Estimación editada",
             isCustom = false,
             exercises = listOf(Exercise("only", "Único", 1, 1, 20, 9, 0)),
-            restBetweenExercisesSeconds = 0
+            restBetweenExercisesSeconds = 0,
+            warmupSeconds = 0
         )
 
         assertEquals(1, routine.estimatedDurationMinutes())
@@ -132,6 +134,16 @@ class TrainingEngineTest {
         val validated = draft.validate(isCustom = false).routine!!
         assertEquals(180, validated.restBetweenExercisesSeconds)
         assertEquals(120, validated.exercises.single().restSeconds)
+    }
+
+    @Test
+    fun routineDraftEditsWarmupInWholeMinutesAndStoresSeconds() {
+        val draft = Routines.all.first().toDraft().copy(warmupMinutes = "7")
+
+        val routine = draft.validate(isCustom = false).routine!!
+
+        assertEquals("7", draft.warmupMinutes)
+        assertEquals(420, routine.warmupSeconds)
     }
 
     @Test
@@ -190,6 +202,7 @@ class TrainingEngineTest {
         Routines.all.forEach { routine ->
             assertEquals(false, routine.isCustom)
             assertEquals(60, routine.restBetweenExercisesSeconds)
+            assertEquals(300, routine.warmupSeconds)
             routine.exercises.forEach { exercise ->
                 assertEquals(1, exercise.concentricSeconds)
                 assertEquals(3, exercise.eccentricSeconds)
@@ -580,6 +593,136 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun enabledWarmupStartsBeforeAnyExercisePhaseWithoutBeeps() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 12
+        )
+
+        fixture.engine.start(fixture.routine)
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 12, 0, 1, 1, false)
+        assertEquals("Comienza el calentamiento.", fixture.voice.phrases.single())
+        assertEquals(0, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun disabledWarmupKeepsTheExistingInitialCountdownFlow() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1))
+
+        fixture.engine.start(fixture.routine)
+
+        fixture.assertWorkout(TrainingPhase.COUNTDOWN, 10, 0, 1, 1, false)
+        assertEquals("Comenzamos en diez segundos.", fixture.voice.phrases.single())
+    }
+
+    @Test
+    fun warmupAnnouncesExactlyTenSecondsOnce() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 12
+        )
+        fixture.engine.start(fixture.routine)
+
+        repeat(2) { fixture.scheduler.advance() }
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 10, 0, 1, 1, false)
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+        assertEquals(0, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun warmupFinalCountdownTransitionsDirectlyToConcentricWithoutSecondCountdown() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 4
+        )
+        fixture.engine.start(fixture.routine)
+
+        repeat(4) { fixture.scheduler.advance() }
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
+        assertEquals(listOf("Tres", "Dos", "Uno", "¡Vamos!"), fixture.voice.phrases.takeLast(4))
+        fixture.voice.completeLatest()
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(0, fixture.voice.phrases.count { it == "Comenzamos en diez segundos." })
+        assertEquals(1, fixture.voice.phrases.count { it == "¡Vamos!" })
+    }
+
+    @Test
+    fun pauseAndResumePreserveTheExactWarmupSecond() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 12
+        )
+        fixture.engine.start(fixture.routine)
+        fixture.scheduler.advance()
+
+        fixture.engine.pause()
+        fixture.scheduler.advanceCancelled()
+        fixture.assertWorkout(TrainingPhase.WARMUP, 11, 0, 1, 1, true)
+        fixture.engine.resume()
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 10, 0, 1, 1, false)
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+    }
+
+    @Test
+    fun skippingWarmupAnnouncesVamosOnceAndStartsConcentric() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 300
+        )
+        fixture.engine.start(fixture.routine)
+
+        fixture.engine.skip()
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
+        assertEquals(1, fixture.voice.phrases.count { it == "¡Vamos!" })
+        fixture.voice.completeLatest()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
+    }
+
+    @Test
+    fun finishingDuringWarmupInvalidatesTimerVoiceAndBeepWork() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 300
+        )
+        fixture.engine.start(fixture.routine)
+
+        fixture.engine.finish()
+        fixture.scheduler.advanceCancelled()
+
+        assertEquals(TrainingUiState.Home, fixture.engine.state)
+        assertTrue(fixture.voice.stopCalls > 0)
+        assertTrue(fixture.beep.stopCalls > 0)
+        assertEquals(0, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun staleWarmupVamosCallbackCannotStartExerciseAfterSkip() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 1
+        )
+        fixture.engine.start(fixture.routine)
+        fixture.scheduler.advance()
+        fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
+
+        fixture.engine.skip()
+        fixture.voice.completeOldest()
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
+        fixture.voice.completeLatest()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
+    }
+
+    @Test
     fun workoutStateKeepsAnEmptyExerciseNoteEmpty() {
         val fixture = Fixture(
             seriesExercise(sets = 1, repetitions = 1, restSeconds = 1).copy(notes = "")
@@ -685,7 +828,8 @@ class TrainingEngineTest {
 
     private class Fixture(
         exercises: List<Exercise>,
-        private val restBetweenExercisesSeconds: Int = 12
+        private val restBetweenExercisesSeconds: Int = 12,
+        private val warmupSeconds: Int = 0
     ) {
         constructor(exercise: Exercise) : this(listOf(exercise))
 
@@ -698,7 +842,8 @@ class TrainingEngineTest {
             name = "Test",
             isCustom = false,
             exercises = exercises,
-            restBetweenExercisesSeconds = restBetweenExercisesSeconds
+            restBetweenExercisesSeconds = restBetweenExercisesSeconds,
+            warmupSeconds = warmupSeconds
         )
 
         fun startFirstConcentricPhase() {
@@ -759,6 +904,10 @@ class TrainingEngineTest {
 
         fun completeLatest() {
             completions.removeAt(completions.lastIndex).invoke()
+        }
+
+        fun completeOldest() {
+            completions.removeAt(0).invoke()
         }
     }
 

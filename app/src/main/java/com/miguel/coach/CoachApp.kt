@@ -483,6 +483,14 @@ private fun RoutineEditorScreen(
         ) {
             item {
                 DraftTextField(
+                    value = draft.warmupMinutes,
+                    label = "Calentamiento (minutos)",
+                    keyboardType = KeyboardType.Number,
+                    onValueChange = { onDraftChange(draft.copy(warmupMinutes = it)) }
+                )
+            }
+            item {
+                DraftTextField(
                     value = draft.name,
                     label = "Nombre de la rutina",
                     onValueChange = { onDraftChange(draft.copy(name = it)) }
@@ -683,7 +691,16 @@ fun WorkoutScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
+            if (state.phase == TrainingPhase.WARMUP) {
+                Text(
+                    text = state.routine.name,
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Text(
+                    text = "Calentamiento",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            } else if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
                 Text(
                     text = "Descanso entre ejercicios",
                     style = MaterialTheme.typography.headlineMedium
@@ -695,7 +712,7 @@ fun WorkoutScreen(
                     style = MaterialTheme.typography.headlineMedium
                 )
             }
-            if (state.currentExerciseNotes.isNotBlank()) {
+            if (state.phase != TrainingPhase.WARMUP && state.currentExerciseNotes.isNotBlank()) {
                 Text(
                     text = state.currentExerciseNotes,
                     style = MaterialTheme.typography.bodyMedium,
@@ -704,10 +721,12 @@ fun WorkoutScreen(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(stringResource(R.string.current_series, state.seriesNumber, exercise.sets))
-            Text(stringResource(R.string.current_repetition, state.repetitionNumber, exercise.repetitions))
-            state.phase.label?.let { phase ->
-                Text("Fase: $phase")
+            if (state.phase != TrainingPhase.WARMUP) {
+                Text(stringResource(R.string.current_series, state.seriesNumber, exercise.sets))
+                Text(stringResource(R.string.current_repetition, state.repetitionNumber, exercise.repetitions))
+                state.phase.label?.let { phase ->
+                    Text("Fase: $phase")
+                }
             }
             Text("Tiempo restante")
             TrainingTimer(state)
@@ -791,6 +810,7 @@ private fun TrainingTimer(state: TrainingUiState.Workout) {
 
 private val TrainingPhase.label: String?
     get() = when (this) {
+        TrainingPhase.WARMUP -> "Calentamiento"
         TrainingPhase.COUNTDOWN -> null
         TrainingPhase.CONCENTRIC -> "Concéntrica"
         TrainingPhase.REPETITION_ANNOUNCEMENT -> "Concéntrica"

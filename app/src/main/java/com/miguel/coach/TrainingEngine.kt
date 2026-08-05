@@ -25,21 +25,27 @@ class TrainingEngine(
 
         beginNewSession()
         val sessionRoutine = routine.copy(exercises = routine.exercises.toList())
+        val hasWarmup = sessionRoutine.warmupSeconds > 0
         state = TrainingUiState.Workout(
             routine = sessionRoutine,
             exerciseIndex = 0,
             seriesNumber = 1,
             repetitionNumber = 1,
-            phase = TrainingPhase.COUNTDOWN,
-            secondsRemaining = INITIAL_COUNTDOWN_SECONDS,
-            phaseDurationSeconds = INITIAL_COUNTDOWN_SECONDS,
+            phase = if (hasWarmup) TrainingPhase.WARMUP else TrainingPhase.COUNTDOWN,
+            secondsRemaining = if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS,
+            phaseDurationSeconds = if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS,
             phaseStartedAtMillis = monotonicClock.nowMillis(),
             phasePausedAtMillis = null,
             isPaused = false,
             currentExerciseNotes = sessionRoutine.exercises.first().notes
         )
-        voiceSpeaker.speak(START_ANNOUNCEMENT)
-        scheduleCountdownTick(sessionId)
+        if (hasWarmup) {
+            voiceSpeaker.speak(WARMUP_ANNOUNCEMENT)
+            scheduleWarmupTick(sessionId)
+        } else {
+            voiceSpeaker.speak(START_ANNOUNCEMENT)
+            scheduleCountdownTick(sessionId)
+        }
     }
 
     fun pause() {
@@ -76,6 +82,10 @@ class TrainingEngine(
         sessionId += 1
         val activeSession = sessionId
         when (workout.phase) {
+            TrainingPhase.WARMUP -> {
+                state = workout.copy(secondsRemaining = 0)
+                announceStart(activeSession)
+            }
             TrainingPhase.CONCENTRIC -> {
                 state = workout.copy(
                     phase = TrainingPhase.REPETITION_ANNOUNCEMENT,
@@ -112,6 +122,10 @@ class TrainingEngine(
     private fun resumePhase(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         when (workout.phase) {
+            TrainingPhase.WARMUP -> {
+                if (workout.secondsRemaining == 0) announceStart(activeSession)
+                else scheduleWarmupTick(activeSession)
+            }
             TrainingPhase.COUNTDOWN -> {
                 if (workout.secondsRemaining == 0) announceStart(activeSession)
                 else scheduleCountdownTick(activeSession)
@@ -133,6 +147,29 @@ class TrainingEngine(
 
     private fun scheduleCountdownTick(activeSession: Long) {
         scheduler.schedule(ONE_SECOND_MILLIS) { advanceCountdown(activeSession) }
+    }
+
+    private fun scheduleWarmupTick(activeSession: Long) {
+        scheduler.schedule(ONE_SECOND_MILLIS) { advanceWarmup(activeSession) }
+    }
+
+    private fun advanceWarmup(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.WARMUP) return
+
+        val secondsRemaining = (workout.secondsRemaining - 1).coerceAtLeast(0)
+        state = workout.copy(secondsRemaining = secondsRemaining)
+        when (secondsRemaining) {
+            10 -> voiceSpeaker.speak(TEN_SECONDS_ANNOUNCEMENT)
+            3 -> voiceSpeaker.speak("Tres")
+            2 -> voiceSpeaker.speak("Dos")
+            1 -> voiceSpeaker.speak("Uno")
+            0 -> {
+                announceStart(activeSession)
+                return
+            }
+        }
+        scheduleWarmupTick(activeSession)
     }
 
     private fun advanceCountdown(activeSession: Long) {
@@ -160,6 +197,7 @@ class TrainingEngine(
     private fun startConcentricPhase(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.COUNTDOWN &&
+            workout.phase != TrainingPhase.WARMUP &&
             workout.phase != TrainingPhase.ECCENTRIC &&
             workout.phase != TrainingPhase.REST &&
             workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES
@@ -225,6 +263,7 @@ class TrainingEngine(
             }
 
             TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
+            TrainingPhase.WARMUP,
             TrainingPhase.COUNTDOWN,
             TrainingPhase.REPETITION_ANNOUNCEMENT,
             TrainingPhase.REST,
@@ -352,6 +391,7 @@ class TrainingEngine(
         const val ONE_SECOND_MILLIS = 1_000L
         const val INITIAL_COUNTDOWN_SECONDS = 10
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
+        const val WARMUP_ANNOUNCEMENT = "Comienza el calentamiento."
         const val REST_ANNOUNCEMENT = "Descansa."
         const val REST_BETWEEN_EXERCISES_ANNOUNCEMENT =
             "Descansa y prepárate para el siguiente ejercicio."
@@ -391,6 +431,7 @@ class AndroidTrainingScheduler : TrainingScheduler {
 }
 
 enum class TrainingPhase {
+    WARMUP,
     COUNTDOWN,
     CONCENTRIC,
     REPETITION_ANNOUNCEMENT,

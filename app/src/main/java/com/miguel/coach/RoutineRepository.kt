@@ -104,6 +104,7 @@ private object RoutineValidator {
                 routine.name.isNotBlank() &&
                 routine.exercises.isNotEmpty() &&
                 routine.restBetweenExercisesSeconds >= 0 &&
+                routine.warmupSeconds >= 0 &&
                 identifiers.add(routine.id) &&
                 routine.exercises.all { exercise ->
                     exercise.id.isNotBlank() &&
@@ -131,6 +132,7 @@ private object RoutineJsonCodec {
             appendQuoted(routine.name)
             append(",\"isCustom\":${routine.isCustom}")
             append(",\"restBetweenExercisesSeconds\":${routine.restBetweenExercisesSeconds}")
+            append(",\"warmupSeconds\":${routine.warmupSeconds}")
             append(",\"exercises\":[")
             routine.exercises.forEachIndexed { exerciseIndex, exercise ->
                 if (exerciseIndex > 0) append(',')
@@ -169,7 +171,8 @@ private object RoutineJsonCodec {
             name = fields.requiredString("name"),
             isCustom = fields.requiredBoolean("isCustom"),
             exercises = exercises,
-            restBetweenExercisesSeconds = fields.requiredInt("restBetweenExercisesSeconds")
+            restBetweenExercisesSeconds = fields.requiredInt("restBetweenExercisesSeconds"),
+            warmupSeconds = fields.optionalInt("warmupSeconds", DEFAULT_WARMUP_SECONDS)
         )
     }
 
@@ -201,6 +204,12 @@ private object RoutineJsonCodec {
 
     private fun MutableMap<String, JsonValue>.requiredInt(name: String): Int =
         (required(name) as? JsonValue.NumberValue)?.value?.toIntOrNull() ?: throw IllegalArgumentException()
+
+    private fun MutableMap<String, JsonValue>.optionalInt(name: String, default: Int): Int {
+        val value = this[name] ?: return default
+        return (value as? JsonValue.NumberValue)?.value?.toIntOrNull()
+            ?: throw IllegalArgumentException()
+    }
 
     private fun StringBuilder.appendQuoted(value: String) {
         append('"')

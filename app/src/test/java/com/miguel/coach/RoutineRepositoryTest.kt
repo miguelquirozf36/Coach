@@ -41,6 +41,21 @@ class RoutineRepositoryTest {
 
         assertEquals(1, loaded.size)
         assertEquals("", loaded.single().exercises.single().notes)
+        assertEquals(300, loaded.single().warmupSeconds)
+    }
+
+    @Test
+    fun warmupSecondsAreSavedAndReloadedAfterRestart() {
+        val storage = InMemoryStorage()
+        val repository = RoutineRepository(storage)
+        val routines = repository.load()
+        val updated = routines.mapIndexed { index, routine ->
+            if (index == 0) routine.copy(warmupSeconds = 420) else routine
+        }
+
+        assertTrue(repository.save(updated))
+
+        assertEquals(420, RoutineRepository(storage).load().first().warmupSeconds)
     }
 
     @Test

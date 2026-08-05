@@ -7,7 +7,8 @@ data class Routine(
     val name: String,
     val isCustom: Boolean,
     val exercises: List<Exercise>,
-    val restBetweenExercisesSeconds: Int
+    val restBetweenExercisesSeconds: Int,
+    val warmupSeconds: Int = DEFAULT_WARMUP_SECONDS
 )
 
 data class Exercise(
@@ -29,7 +30,8 @@ fun Routine.estimatedDurationMinutes(): Int {
         repetitionsSeconds + seriesRestSeconds
     }
     val exerciseRestSeconds = (exercises.size - 1).coerceAtLeast(0) * restBetweenExercisesSeconds
-    return ((INITIAL_COUNTDOWN_SECONDS + exerciseSeconds + exerciseRestSeconds) / 60.0).roundToInt()
+    val startSeconds = if (warmupSeconds > 0) warmupSeconds else INITIAL_COUNTDOWN_SECONDS
+    return ((startSeconds + exerciseSeconds + exerciseRestSeconds) / 60.0).roundToInt()
 }
 
 private const val INITIAL_COUNTDOWN_SECONDS = 10
@@ -38,7 +40,8 @@ data class RoutineDraft(
     val id: String,
     val name: String,
     val restBetweenExercisesSeconds: String,
-    val exercises: List<ExerciseDraft>
+    val exercises: List<ExerciseDraft>,
+    val warmupMinutes: String = (DEFAULT_WARMUP_SECONDS / 60).toString()
 )
 
 data class ExerciseDraft(
@@ -100,7 +103,8 @@ fun Routine.toDraft() = RoutineDraft(
     id = id,
     name = name,
     restBetweenExercisesSeconds = restBetweenExercisesSeconds.toWholeMinutesString(),
-    exercises = exercises.map(Exercise::toDraft)
+    exercises = exercises.map(Exercise::toDraft),
+    warmupMinutes = warmupSeconds.toWholeMinutesString()
 )
 
 fun Exercise.toDraft() = ExerciseDraft(
@@ -125,6 +129,7 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
         "El descanso entre ejercicios",
         errors
     )
+    val warmup = warmupMinutes.toNonNegativeMinutesInSeconds("El calentamiento", errors)
     val validatedExercises = exercises.map { exercise ->
         val exerciseName = exercise.name.trim()
         val exerciseNotes = exercise.notes.trim()
@@ -156,7 +161,7 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
             )
         }
     }
-    if (routineRest == null || validatedExercises.any { it == null } || errors.isNotEmpty()) {
+    if (routineRest == null || warmup == null || validatedExercises.any { it == null } || errors.isNotEmpty()) {
         return RoutineDraftValidation(null, errors.joinToString("\n"))
     }
     return RoutineDraftValidation(
@@ -165,13 +170,15 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
             name = validatedName,
             isCustom = isCustom,
             exercises = validatedExercises.filterNotNull(),
-            restBetweenExercisesSeconds = routineRest
+            restBetweenExercisesSeconds = routineRest,
+            warmupSeconds = warmup
         ),
         message = null
     )
 }
 
 const val MAX_EXERCISE_NOTES_LENGTH = 300
+const val DEFAULT_WARMUP_SECONDS = 300
 
 fun emptyCustomRoutine(id: String): Routine = Routine(
     id = id,
