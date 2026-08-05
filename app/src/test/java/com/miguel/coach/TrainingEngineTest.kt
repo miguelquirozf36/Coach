@@ -1,10 +1,110 @@
 package com.miguel.coach
 
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TrainingEngineTest {
+    @Test
+    fun warmupUsesTheConfiguredWarmupRingColor() {
+        assertEquals(
+            CoachTheme.OBSIDIAN.trainingRingColors.warmupRing,
+            trainingRingColor(TrainingPhase.WARMUP, CoachTheme.OBSIDIAN.trainingRingColors)
+        )
+    }
+
+    @Test
+    fun initialCountdownUsesTheConfiguredWarmupRingColor() {
+        assertEquals(
+            CoachTheme.OCEAN.trainingRingColors.warmupRing,
+            trainingRingColor(TrainingPhase.COUNTDOWN, CoachTheme.OCEAN.trainingRingColors)
+        )
+    }
+
+    @Test
+    fun concentricPhaseUsesTheConfiguredConcentricRingColor() {
+        assertEquals(
+            CoachTheme.FOREST.trainingRingColors.concentricRing,
+            trainingRingColor(TrainingPhase.CONCENTRIC, CoachTheme.FOREST.trainingRingColors)
+        )
+    }
+
+    @Test
+    fun eccentricPhaseUsesTheConfiguredEccentricRingColor() {
+        assertEquals(
+            CoachTheme.LIGHT.trainingRingColors.eccentricRing,
+            trainingRingColor(TrainingPhase.ECCENTRIC, CoachTheme.LIGHT.trainingRingColors)
+        )
+    }
+
+    @Test
+    fun restBetweenSeriesUsesItsConfiguredRingColor() {
+        assertEquals(
+            CoachTheme.OBSIDIAN.trainingRingColors.restSeriesRing,
+            trainingRingColor(TrainingPhase.REST, CoachTheme.OBSIDIAN.trainingRingColors)
+        )
+    }
+
+    @Test
+    fun restBetweenExercisesUsesItsConfiguredRingColor() {
+        assertEquals(
+            CoachTheme.OCEAN.trainingRingColors.restExerciseRing,
+            trainingRingColor(
+                TrainingPhase.REST_BETWEEN_EXERCISES,
+                CoachTheme.OCEAN.trainingRingColors
+            )
+        )
+    }
+
+    @Test
+    fun pauseKeepsTheColorOfTheActivePhase() {
+        val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 1))
+        fixture.startFirstConcentricPhase()
+        val colorBeforePause = trainingRingColor(
+            fixture.currentWorkout().phase,
+            CoachTheme.FOREST.trainingRingColors
+        )
+
+        fixture.engine.pause()
+
+        assertTrue(fixture.currentWorkout().isPaused)
+        assertEquals(
+            colorBeforePause,
+            trainingRingColor(
+                fixture.currentWorkout().phase,
+                CoachTheme.FOREST.trainingRingColors
+            )
+        )
+    }
+
+    @Test
+    fun repetitionAnnouncementKeepsTheConcentricVisualColor() {
+        val colors = CoachTheme.LIGHT.trainingRingColors
+
+        assertEquals(
+            trainingRingColor(TrainingPhase.CONCENTRIC, colors),
+            trainingRingColor(TrainingPhase.REPETITION_ANNOUNCEMENT, colors)
+        )
+    }
+
+    @Test
+    fun everyThemeExposesAllRequiredRingColors() {
+        CoachTheme.entries.forEach { theme ->
+            val colors = theme.trainingRingColors
+            listOf(
+                colors.warmupRing,
+                colors.concentricRing,
+                colors.eccentricRing,
+                colors.restSeriesRing,
+                colors.restExerciseRing
+            ).forEach { color ->
+                assertTrue("${theme.displayName} contains an unspecified ring color", color != Color.Unspecified)
+                assertTrue("${theme.displayName} contains an invisible ring color", color.alpha > 0f)
+            }
+        }
+    }
+
     @Test
     fun phaseDurationMatchesTheConcentricAndEccentricExerciseDurations() {
         val fixture = Fixture(

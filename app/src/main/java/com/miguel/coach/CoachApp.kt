@@ -1,5 +1,8 @@
 package com.miguel.coach
 
+import android.content.Context
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +57,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
@@ -63,11 +67,22 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepository) {
+    val applicationContext = LocalContext.current.applicationContext
+    val themeRepository = remember(applicationContext) {
+        ThemePreferenceRepository(
+            SharedPreferencesThemeStorage(
+                applicationContext.getSharedPreferences("coach_appearance", Context.MODE_PRIVATE)
+            )
+        )
+    }
+    var selectedThemeId by rememberSaveable { mutableStateOf(themeRepository.load().id) }
+    val selectedTheme = remember(selectedThemeId) { CoachTheme.fromId(selectedThemeId) }
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
     var customExercises by remember { mutableStateOf<List<ExerciseDefinition>>(emptyList()) }
     var isLoadingRoutines by remember { mutableStateOf(true) }
     var selectedRoutineId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
+    var showAppearance by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(routineRepository) {
         routines = routineRepository.load()
@@ -76,10 +91,21 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
         isLoadingRoutines = false
     }
 
-    MaterialTheme {
+    CoachTheme(selectedTheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
             when (val state = trainingEngine.state) {
                 TrainingUiState.Home -> {
+                    if (showAppearance) {
+                        AppearanceScreen(
+                            selectedTheme = selectedTheme,
+                            onBack = { showAppearance = false },
+                            onThemeSelected = { theme ->
+                                selectedThemeId = theme.id
+                                themeRepository.save(theme)
+                            }
+                        )
+                        return@Surface
+                    }
                     if (isLoadingRoutines) {
                         LoadingRoutinesScreen()
                         return@Surface
@@ -105,7 +131,8 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                                 if (routineRepository.save(updated)) routines = updated
                             },
                             selectedTab = selectedTab,
-                            onTabSelected = { selectedTab = it }
+                            onTabSelected = { selectedTab = it },
+                            onAppearance = { showAppearance = true }
                         )
                     } else {
                         RoutineDetailScreen(
@@ -205,7 +232,8 @@ fun HomeScreen(
     onCreate: () -> Unit,
     onDelete: (Routine) -> Unit,
     selectedTab: Int,
-    onTabSelected: (Int) -> Unit
+    onTabSelected: (Int) -> Unit,
+    onAppearance: () -> Unit
 ) {
     var routinePendingDeletion by remember { mutableStateOf<Routine?>(null) }
     routinePendingDeletion?.let { routine ->
@@ -218,7 +246,14 @@ fun HomeScreen(
         )
     }
     Scaffold(
-        topBar = { TopAppBar(title = { Text(if (isCustomTab) "PERSONALIZADO" else stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(if (isCustomTab) "PERSONALIZADO" else stringResource(R.string.app_name)) },
+                actions = {
+                    TextButton(onClick = onAppearance) { Text("APARIENCIA") }
+                }
+            )
+        },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(selected = selectedTab == 0, onClick = { onTabSelected(0) }, icon = {}, label = { Text("MI RUTINA") })
@@ -776,7 +811,12 @@ private fun TrainingTimer(state: TrainingUiState.Workout) {
     val progress = if (durationMillis > 0) {
         ((durationMillis - elapsedMillis).toFloat() / durationMillis).coerceIn(0f, 1f)
     } else 0f
-    val progressColor = MaterialTheme.colorScheme.primary
+    val targetProgressColor = trainingRingColor(state.phase, LocalTrainingRingColors.current)
+    val progressColor by animateColorAsState(
+        targetValue = targetProgressColor,
+        animationSpec = tween(durationMillis = 250),
+        label = "trainingRingColor"
+    )
     val trackColor = MaterialTheme.colorScheme.outlineVariant
 
     Box(
