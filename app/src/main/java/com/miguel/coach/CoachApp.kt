@@ -41,7 +41,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +66,42 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+private val LocalSystemBackAction = compositionLocalOf<((() -> Unit)?) -> Unit> {
+    error("System back action registrar is not available")
+}
+
+internal enum class SystemBackOutcome { CLOSE_DIALOG, SHOW_CONFIRMATION, NAVIGATE_BACK }
+
+internal fun editorSystemBackOutcome(hasChanges: Boolean, dialogOpen: Boolean): SystemBackOutcome = when {
+    dialogOpen -> SystemBackOutcome.CLOSE_DIALOG
+    hasChanges -> SystemBackOutcome.SHOW_CONFIRMATION
+    else -> SystemBackOutcome.NAVIGATE_BACK
+}
+
+internal fun workoutSystemBackOutcome(dialogOpen: Boolean): SystemBackOutcome =
+    if (dialogOpen) SystemBackOutcome.CLOSE_DIALOG else SystemBackOutcome.SHOW_CONFIRMATION
+
+@Composable
+private fun SystemBackHost(content: @Composable () -> Unit) {
+    var currentAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    BackHandler(enabled = currentAction != null) { currentAction?.invoke() }
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalSystemBackAction provides { action -> currentAction = action },
+        content = content
+    )
+}
+
+@Composable
+internal fun RegisterSystemBackAction(action: () -> Unit) {
+    val register = LocalSystemBackAction.current
+    val currentAction by androidx.compose.runtime.rememberUpdatedState(action)
+    val stableAction = remember { { currentAction() } }
+    DisposableEffect(register, stableAction) {
+        register(stableAction)
+        onDispose { register(null) }
+    }
+}
 
 @Composable
 fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepository) {
@@ -92,8 +130,9 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
     }
 
     CoachTheme(selectedTheme) {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            when (val state = trainingEngine.state) {
+        SystemBackHost {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                when (val state = trainingEngine.state) {
                 TrainingUiState.Home -> {
                     if (showAppearance) {
                         AppearanceScreen(
@@ -185,6 +224,7 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                 )
 
                 TrainingUiState.Completed -> CompletionScreen(onFinish = trainingEngine::finish)
+                }
             }
         }
     }
@@ -203,6 +243,7 @@ private fun LoadingRoutinesScreen() {
 
 @Composable
 fun CompletionScreen(onFinish: () -> Unit) {
+    RegisterSystemBackAction(onFinish)
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -324,6 +365,8 @@ private fun RoutineDetailScreen(
     var isEditing by rememberSaveable(routine.id) { mutableStateOf(false) }
     var draft by remember(routine.id) { mutableStateOf(routine.toDraft()) }
     var validationMessage by remember(routine.id) { mutableStateOf<String?>(null) }
+
+    if (!isEditing) RegisterSystemBackAction(onBack)
 
     if (isEditing) {
         val originalDraft = remember(routine) { routine.toDraft() }
@@ -465,7 +508,13 @@ private fun RoutineEditorScreen(
         return
     }
 
-    BackHandler(onBack = requestExit)
+    RegisterSystemBackAction {
+        when (editorSystemBackOutcome(draft.hasChangesFrom(originalDraft), showSaveDialog)) {
+            SystemBackOutcome.CLOSE_DIALOG -> showSaveDialog = false
+            SystemBackOutcome.SHOW_CONFIRMATION -> showSaveDialog = true
+            SystemBackOutcome.NAVIGATE_BACK -> onCancel()
+        }
+    }
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
@@ -696,6 +745,14 @@ fun WorkoutScreen(
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
     var showFinishConfirmation by rememberSaveable { mutableStateOf(false) }
+
+    RegisterSystemBackAction {
+        when (workoutSystemBackOutcome(showFinishConfirmation)) {
+            SystemBackOutcome.CLOSE_DIALOG -> showFinishConfirmation = false
+            SystemBackOutcome.SHOW_CONFIRMATION -> showFinishConfirmation = true
+            SystemBackOutcome.NAVIGATE_BACK -> Unit
+        }
+    }
 
     if (showFinishConfirmation) {
         AlertDialog(

@@ -1,6 +1,5 @@
 package com.miguel.coach
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -64,6 +63,23 @@ fun ExercisePickerNavigationContext.closeDetail(): ExercisePickerNavigationConte
 
 fun ExercisePickerNavigationContext.afterDeletedExercise(): ExercisePickerNavigationContext =
     copy(selectedExerciseId = null)
+
+internal enum class ExercisePickerBackOutcome {
+    CLOSE_MESSAGE, CLOSE_DELETE_CONFIRMATION, CLOSE_FORM, CLOSE_DETAIL, RETURN_TO_EDITOR
+}
+
+internal fun exercisePickerSystemBackOutcome(
+    messageOpen: Boolean,
+    deleteConfirmationOpen: Boolean,
+    formOpen: Boolean,
+    detailOpen: Boolean
+): ExercisePickerBackOutcome = when {
+    messageOpen -> ExercisePickerBackOutcome.CLOSE_MESSAGE
+    deleteConfirmationOpen -> ExercisePickerBackOutcome.CLOSE_DELETE_CONFIRMATION
+    formOpen -> ExercisePickerBackOutcome.CLOSE_FORM
+    detailOpen -> ExercisePickerBackOutcome.CLOSE_DETAIL
+    else -> ExercisePickerBackOutcome.RETURN_TO_EDITOR
+}
 
 fun ExerciseDefinition.canBeManagedByUser(): Boolean = !ExerciseLibrary.isOfficial(id)
 
@@ -144,10 +160,23 @@ fun ExercisePickerScreen(
         )
     }
 
-    val navigateBack = {
-        if (selectedExerciseId != null) selectedExerciseId = null else onBack()
+    RegisterSystemBackAction {
+        when (exercisePickerSystemBackOutcome(
+            messageOpen = operationMessage != null,
+            deleteConfirmationOpen = pendingDeletionId != null,
+            formOpen = showExerciseForm,
+            detailOpen = selectedExerciseId != null
+        )) {
+            ExercisePickerBackOutcome.CLOSE_MESSAGE -> operationMessage = null
+            ExercisePickerBackOutcome.CLOSE_DELETE_CONFIRMATION -> pendingDeletionId = null
+            ExercisePickerBackOutcome.CLOSE_FORM -> {
+                showExerciseForm = false
+                editingExerciseId = null
+            }
+            ExercisePickerBackOutcome.CLOSE_DETAIL -> selectedExerciseId = null
+            ExercisePickerBackOutcome.RETURN_TO_EDITOR -> onBack()
+        }
     }
-    BackHandler(onBack = navigateBack)
 
     if (selectedExercise != null) {
         ExerciseDetailScreen(
