@@ -65,6 +65,14 @@ class WorkoutNotificationTest {
     }
 
     @Test
+    fun notificationCanBeCreatedAgainForASecondSession() {
+        val tracker = WorkoutNotificationTracker()
+        assertTrue(tracker.next(workout(TrainingPhase.CONCENTRIC)) is WorkoutNotificationChange.Show)
+        assertEquals(WorkoutNotificationChange.Remove, tracker.next(TrainingUiState.Home))
+        assertTrue(tracker.next(workout(TrainingPhase.CONCENTRIC)) is WorkoutNotificationChange.Show)
+    }
+
+    @Test
     fun restBetweenExercisesKeepsTheCompletedExercise() {
         val content = workoutNotificationContent(
             workout(TrainingPhase.REST_BETWEEN_EXERCISES, exerciseIndex = 1)

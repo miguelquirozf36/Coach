@@ -43,10 +43,7 @@ object WorkoutSessionController {
     fun finishWorkout() {
         val completed = engine?.state == TrainingUiState.Completed
         engine?.finish()
-        if (completed) {
-            sessionActive = false
-            releaseResources(keepEngineState = true)
-        }
+        if (completed) sessionActive = false
     }
 
     fun attachObserver(stateObserver: (TrainingUiState) -> Unit) {
@@ -62,17 +59,15 @@ object WorkoutSessionController {
         if (!sessionActive) return
         engine?.finish()
         sessionActive = false
-        releaseResources(keepEngineState = true)
     }
 
     fun releaseFinishedSession() {
         sessionActive = false
-        releaseResources(keepEngineState = true)
     }
 
     fun releaseIdleResources() {
         if (sessionActive || engine?.state is TrainingUiState.Workout) return
-        releaseResources(keepEngineState = true)
+        destroyInfrastructure()
     }
 
     private fun createEngine(context: Context): TrainingEngine {
@@ -87,12 +82,11 @@ object WorkoutSessionController {
         ).also { engine = it }
     }
 
-    private fun releaseResources(keepEngineState: Boolean = false) {
+    private fun destroyInfrastructure() {
         beepPlayer?.release()
         voiceCoach?.release()
         beepPlayer = null
         voiceCoach = null
-        if (!keepEngineState) engine = null
     }
 }
 
