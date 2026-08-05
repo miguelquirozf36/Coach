@@ -20,6 +20,19 @@ class RoutineRepository(
     private val storage: RoutineStorage,
     private val seedRoutines: List<Routine> = Routines.all
 ) {
+    private val customExerciseRepository = CustomExerciseRepository(storage)
+
+    fun loadCustomExercises(): List<ExerciseDefinition> = customExerciseRepository.load()
+
+    fun createCustomExercise(name: String, category: String): CustomExerciseOperationResult =
+        customExerciseRepository.create(name, category)
+
+    fun editCustomExercise(id: String, name: String, category: String): CustomExerciseOperationResult =
+        customExerciseRepository.edit(id, name, category)
+
+    fun deleteCustomExercise(id: String, routines: List<Routine>): CustomExerciseOperationResult =
+        customExerciseRepository.delete(id, routines)
+
     fun load(): List<Routine> {
         val primaryJson = storage.read(ROUTINES_JSON)
         decodeAndValidate(primaryJson)?.let { return it }

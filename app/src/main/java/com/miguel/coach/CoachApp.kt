@@ -63,12 +63,15 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepository) {
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
+    var customExercises by remember { mutableStateOf<List<ExerciseDefinition>>(emptyList()) }
     var isLoadingRoutines by remember { mutableStateOf(true) }
     var selectedRoutineId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
 
     LaunchedEffect(routineRepository) {
         routines = routineRepository.load()
+        customExercises = routineRepository.loadCustomExercises()
+        ExerciseLibrary.replaceCustom(customExercises)
         isLoadingRoutines = false
     }
 
@@ -109,6 +112,27 @@ fun CoachApp(trainingEngine: TrainingEngine, routineRepository: RoutineRepositor
                             onBack = { selectedRoutineId = null },
                             onStart = trainingEngine::start,
                             isVoiceReady = trainingEngine.isVoiceReady,
+                            customExercises = customExercises,
+                            onSaveCustomExercise = { id, name, category ->
+                                val result = if (id == null) {
+                                    routineRepository.createCustomExercise(name, category)
+                                } else {
+                                    routineRepository.editCustomExercise(id, name, category)
+                                }
+                                if (result.success) {
+                                    customExercises = result.exercises
+                                    ExerciseLibrary.replaceCustom(result.exercises)
+                                }
+                                result.message
+                            },
+                            onDeleteCustomExercise = { definition ->
+                                val result = routineRepository.deleteCustomExercise(definition.id, routines)
+                                if (result.success) {
+                                    customExercises = result.exercises
+                                    ExerciseLibrary.replaceCustom(result.exercises)
+                                }
+                                result.message
+                            },
                             onSave = { updatedRoutine ->
                                 val updatedRoutines = routines.map { routine ->
                                     if (routine.id == updatedRoutine.id) updatedRoutine else routine
@@ -256,6 +280,9 @@ private fun RoutineDetailScreen(
     onBack: () -> Unit,
     onStart: (Routine) -> Unit,
     isVoiceReady: Boolean,
+    customExercises: List<ExerciseDefinition>,
+    onSaveCustomExercise: (String?, String, String) -> String?,
+    onDeleteCustomExercise: (ExerciseDefinition) -> String?,
     onSave: (Routine) -> Boolean
 ) {
     var isEditing by rememberSaveable(routine.id) { mutableStateOf(false) }
@@ -267,6 +294,9 @@ private fun RoutineDetailScreen(
         RoutineEditorScreen(
             draft = draft,
             originalDraft = originalDraft,
+            customExercises = customExercises,
+            onSaveCustomExercise = onSaveCustomExercise,
+            onDeleteCustomExercise = onDeleteCustomExercise,
             validationMessage = validationMessage,
             onDraftChange = { draft = it },
             onSave = {
@@ -305,7 +335,7 @@ private fun RoutineDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(routine.name, style = MaterialTheme.typography.headlineSmall)
-            Text("Descanso entre ejercicios: ${routine.restBetweenExercisesSeconds.toClockFormat()}")
+            Text("Descanso entre ejercicios: ${routine.restBetweenExercisesSeconds.toClockFormat()} min")
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -343,10 +373,14 @@ private fun ExerciseSummary(exercise: Exercise) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(exercise.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = exercise.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             Text("${exercise.sets} series · ${exercise.repetitions} repeticiones")
             Text("Concéntrica: ${exercise.concentricSeconds.toClockFormat()} · Excéntrica: ${exercise.eccentricSeconds.toClockFormat()}")
-            Text("Descanso: ${exercise.restSeconds.toClockFormat()}")
+            Text("Descanso entre series: ${exercise.restSeconds.toClockFormat()} min")
         }
     }
 }
@@ -356,6 +390,9 @@ private fun ExerciseSummary(exercise: Exercise) {
 private fun RoutineEditorScreen(
     draft: RoutineDraft,
     originalDraft: RoutineDraft,
+    customExercises: List<ExerciseDefinition>,
+    onSaveCustomExercise: (String?, String, String) -> String?,
+    onDeleteCustomExercise: (ExerciseDefinition) -> String?,
     validationMessage: String?,
     onDraftChange: (RoutineDraft) -> Unit,
     onSave: () -> Unit,
@@ -371,7 +408,10 @@ private fun RoutineEditorScreen(
 
     exerciseBeingSelectedId?.let { exerciseId ->
         ExercisePickerScreen(
+            customExercises = customExercises,
             onBack = { exerciseBeingSelectedId = null },
+            onSaveCustomExercise = onSaveCustomExercise,
+            onDeleteCustomExercise = onDeleteCustomExercise,
             onSelect = { definition ->
                 draft.exercises.firstOrNull { it.id == exerciseId }?.let { exercise ->
                     onDraftChange(draft.updateExercise(selectExerciseDefinition(exercise, definition)))
@@ -443,7 +483,7 @@ private fun RoutineEditorScreen(
             item {
                 DraftTextField(
                     value = draft.restBetweenExercisesSeconds,
-                    label = "Descanso entre ejercicios (segundos)",
+                    label = "Descanso entre ejercicios (minutos)",
                     keyboardType = KeyboardType.Number,
                     onValueChange = { onDraftChange(draft.copy(restBetweenExercisesSeconds = it)) }
                 )
@@ -534,7 +574,7 @@ private fun ExerciseEditor(
         ) {
             Text(
                 text = exercise.name,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Text("✏ Editar", color = MaterialTheme.colorScheme.primary)
@@ -556,7 +596,7 @@ private fun ExerciseEditor(
                 DraftTextField(exercise.repetitions, "Repeticiones", KeyboardType.Number, { onChange(exercise.copy(repetitions = it)) })
                 DraftTextField(exercise.concentricSeconds, "Tiempo concéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(concentricSeconds = it)) })
                 DraftTextField(exercise.eccentricSeconds, "Tiempo excéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(eccentricSeconds = it)) })
-                DraftTextField(exercise.restSeconds, "Descanso entre series (segundos)", KeyboardType.Number, { onChange(exercise.copy(restSeconds = it)) })
+                DraftTextField(exercise.restSeconds, "Descanso entre series (minutos)", KeyboardType.Number, { onChange(exercise.copy(restSeconds = it)) })
             }
         }
     }

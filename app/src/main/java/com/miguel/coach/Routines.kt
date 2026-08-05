@@ -97,7 +97,7 @@ fun RoutineDraft.moveExercise(exerciseId: String, offset: Int): RoutineDraft {
 fun Routine.toDraft() = RoutineDraft(
     id = id,
     name = name,
-    restBetweenExercisesSeconds = restBetweenExercisesSeconds.toString(),
+    restBetweenExercisesSeconds = restBetweenExercisesSeconds.toWholeMinutesString(),
     exercises = exercises.map(Exercise::toDraft)
 )
 
@@ -108,7 +108,7 @@ fun Exercise.toDraft() = ExerciseDraft(
     repetitions = repetitions.toString(),
     concentricSeconds = concentricSeconds.toString(),
     eccentricSeconds = eccentricSeconds.toString(),
-    restSeconds = restSeconds.toString()
+    restSeconds = restSeconds.toWholeMinutesString()
 )
 
 fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
@@ -118,7 +118,10 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
     if (validatedName.isEmpty()) errors += "El nombre de la rutina es obligatorio."
     if (exercises.isEmpty()) errors += "La rutina debe tener al menos un ejercicio."
     if (id.isBlank() || !identifiers.add(id)) errors += "La rutina debe tener un identificador único."
-    val routineRest = restBetweenExercisesSeconds.toNonNegativeInt("El descanso entre ejercicios", errors)
+    val routineRest = restBetweenExercisesSeconds.toNonNegativeMinutesInSeconds(
+        "El descanso entre ejercicios",
+        errors
+    )
     val validatedExercises = exercises.map { exercise ->
         val exerciseName = exercise.name.trim()
         if (exercise.id.isBlank() || !identifiers.add(exercise.id)) errors += "Los ejercicios deben tener identificadores únicos."
@@ -127,7 +130,10 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
         val repetitions = exercise.repetitions.toPositiveInt("Las repeticiones", errors)
         val concentric = exercise.concentricSeconds.toNonNegativeInt("El tiempo concéntrico", errors)
         val eccentric = exercise.eccentricSeconds.toNonNegativeInt("El tiempo excéntrico", errors)
-        val rest = exercise.restSeconds.toNonNegativeInt("El descanso entre series", errors)
+        val rest = exercise.restSeconds.toNonNegativeMinutesInSeconds(
+            "El descanso entre series",
+            errors
+        )
         if (listOf(sets, repetitions, concentric, eccentric, rest).any { it == null }) {
             null
         } else {
@@ -192,6 +198,20 @@ private fun String.toNonNegativeInt(label: String, errors: MutableList<String>):
     }
     return value
 }
+
+private fun String.toNonNegativeMinutesInSeconds(
+    label: String,
+    errors: MutableList<String>
+): Int? {
+    val minutes = toLongOrNull()
+    if (minutes == null || minutes < 0 || minutes > Int.MAX_VALUE / 60L) {
+        errors += "$label debe ser una cantidad válida de minutos."
+        return null
+    }
+    return (minutes * 60L).toInt()
+}
+
+private fun Int.toWholeMinutesString(): String = (coerceAtLeast(0) / 60).toString()
 
 object Routines {
     private const val DEFAULT_CONCENTRIC_SECONDS = 1

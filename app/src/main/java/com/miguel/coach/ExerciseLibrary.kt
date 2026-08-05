@@ -24,7 +24,7 @@ object ExerciseLibrary {
         listOf(CHEST, BACK, LEGS, SHOULDERS, BICEPS, TRICEPS, FOREARMS, CALVES, ABS)
     )
 
-    private val definitions = Collections.unmodifiableList(
+    private val officialDefinitions = Collections.unmodifiableList(
         listOf(
             definition("aperturas", "Aperturas", CHEST),
             definition("aperturas-cables", "Aperturas con cables", CHEST),
@@ -116,31 +116,61 @@ object ExerciseLibrary {
             definition("rueda-abdominal", "Rueda abdominal", ABS)
         ).sortedWith(
             compareBy<ExerciseDefinition> { categoryOrder.indexOf(it.category) }
-                .thenBy { normalize(it.name) }
+                .thenBy { normalizeExerciseText(it.name) }
         )
     )
 
-    fun all(): List<ExerciseDefinition> = definitions
+    @Volatile
+    private var customDefinitions: List<ExerciseDefinition> = emptyList()
+
+    @Volatile
+    private var mergedDefinitions: List<ExerciseDefinition> = officialDefinitions
+
+    fun all(): List<ExerciseDefinition> = mergedDefinitions
+
+    fun official(): List<ExerciseDefinition> = officialDefinitions
+
+    fun custom(): List<ExerciseDefinition> = customDefinitions
+
+    fun replaceCustom(exercises: List<ExerciseDefinition>) {
+        customDefinitions = immutableSorted(exercises)
+        mergedDefinitions = immutableSorted(officialDefinitions + customDefinitions)
+    }
 
     fun categories(): List<String> = categoryOrder
 
     fun byCategory(category: String): List<ExerciseDefinition> {
-        val normalizedCategory = normalize(category)
-        return definitions.filter { normalize(it.category) == normalizedCategory }
+        val normalizedCategory = normalizeExerciseText(category)
+        return mergedDefinitions.filter { normalizeExerciseText(it.category) == normalizedCategory }
     }
 
     fun search(text: String): List<ExerciseDefinition> {
-        val query = normalize(text.trim())
-        return if (query.isEmpty()) definitions else definitions.filter { normalize(it.name).contains(query) }
+        val query = normalizeExerciseText(text.trim())
+        return if (query.isEmpty()) mergedDefinitions else immutableAlphabetical(
+            mergedDefinitions.filter { normalizeExerciseText(it.name).contains(query) }
+        )
     }
 
-    fun find(id: String): ExerciseDefinition? = definitions.firstOrNull { it.id == id }
+    fun find(id: String): ExerciseDefinition? = mergedDefinitions.firstOrNull { it.id == id }
+
+    fun isOfficial(id: String): Boolean = officialDefinitions.any { it.id == id }
 
     private fun definition(id: String, name: String, category: String) =
         ExerciseDefinition(id = id, name = name, category = category)
 
-    private fun normalize(value: String): String = Normalizer
-        .normalize(value, Normalizer.Form.NFD)
-        .replace("\\p{Mn}+".toRegex(), "")
-        .lowercase()
+    private fun immutableSorted(exercises: List<ExerciseDefinition>): List<ExerciseDefinition> =
+        Collections.unmodifiableList(
+            exercises.sortedWith(
+                compareBy<ExerciseDefinition> { categoryOrder.indexOf(it.category) }
+                    .thenBy { normalizeExerciseText(it.name) }
+            )
+        )
+
+    private fun immutableAlphabetical(exercises: List<ExerciseDefinition>): List<ExerciseDefinition> =
+        Collections.unmodifiableList(exercises.sortedBy { normalizeExerciseText(it.name) })
 }
+
+fun normalizeExerciseText(value: String): String = Normalizer
+    .normalize(value, Normalizer.Form.NFD)
+    .replace("\\p{Mn}+".toRegex(), "")
+    .lowercase()
