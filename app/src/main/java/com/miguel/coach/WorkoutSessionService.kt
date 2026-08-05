@@ -150,7 +150,7 @@ class WorkoutSessionService : Service() {
         }
         if (state is TrainingUiState.Workout) return
         stopSessionService()
-        if (state == TrainingUiState.Home) WorkoutSessionController.releaseFinishedSession()
+        WorkoutSessionController.releaseFinishedSession()
     }
 
     private fun stopSessionService() {
