@@ -10,3 +10,8 @@ captures/
 .externalNativeBuild/
 .cxx/
 /branding/
+keystore.properties
+*.jks
+*.keystore
+*.apk
+*.aab
