@@ -1,11 +1,16 @@
 package com.miguel.coach
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,7 +25,6 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -36,11 +40,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 fun exercisePickerResults(query: String): List<ExerciseDefinition> =
@@ -48,6 +54,13 @@ fun exercisePickerResults(query: String): List<ExerciseDefinition> =
 
 fun toggledExerciseCategory(current: String?, selected: String): String? =
     selected.takeUnless { it == current }
+
+internal enum class CategoryExpansionIcon { CHEVRON_RIGHT, EXPAND_MORE }
+
+internal fun categoryExpansionIcon(expanded: Boolean): CategoryExpansionIcon =
+    if (expanded) CategoryExpansionIcon.EXPAND_MORE else CategoryExpansionIcon.CHEVRON_RIGHT
+
+internal const val EXERCISE_SEARCH_LABEL = "Buscar ejercicios"
 
 data class ExercisePickerNavigationContext(
     val query: String = "",
@@ -198,13 +211,7 @@ fun ExercisePickerScreen(
             TopAppBar(
                 title = { Text("Biblioteca de ejercicios") },
                 navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            imageVector = ExercisePickerArrowBackIcon,
-                            contentDescription = "Volver al editor",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+                    CoachBackButton(onClick = onBack)
                 }
             )
         },
@@ -230,7 +237,8 @@ fun ExercisePickerScreen(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Buscar ejercicio...") },
+                label = { Text(EXERCISE_SEARCH_LABEL) },
+                placeholder = { Text("Nombre del ejercicio") },
                 singleLine = true
             )
             LazyColumn(
@@ -249,11 +257,26 @@ fun ExercisePickerScreen(
                                         expandedCategory = toggledExerciseCategory(expandedCategory, category)
                                     }
                             ) {
-                                Text(
-                                    text = if (expandedCategory == category) "▼ $category" else "▶ $category",
+                                val expanded = expandedCategory == category
+                                Row(
                                     modifier = Modifier.padding(16.dp),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = when (categoryExpansionIcon(expanded)) {
+                                            CategoryExpansionIcon.EXPAND_MORE -> ExpandMoreIcon
+                                            CategoryExpansionIcon.CHEVRON_RIGHT -> ChevronRightIcon
+                                        },
+                                        contentDescription = if (expanded) {
+                                            "Contraer categoría"
+                                        } else {
+                                            "Expandir categoría"
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(category, style = MaterialTheme.typography.titleMedium)
+                                }
                             }
                         }
                         if (expandedCategory == category) {
@@ -296,7 +319,12 @@ private fun ExerciseDefinitionRow(
     ) {
         ListItem(
             headlineContent = {
-                Text(definition.name, fontWeight = FontWeight.Bold)
+                Text(
+                    definition.name,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             },
             supportingContent = {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -329,13 +357,7 @@ private fun ExerciseDetailScreen(
             TopAppBar(
                 title = { Text("Detalle del ejercicio") },
                 navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                        Icon(
-                            imageVector = ExercisePickerArrowBackIcon,
-                            contentDescription = "Volver a la biblioteca",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+                    CoachBackButton(onClick = onBack)
                 }
             )
         }
@@ -349,7 +371,12 @@ private fun ExerciseDetailScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item(key = "detail-name") {
-                Text(definition.name, style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    definition.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             item(key = "detail-category") {
                 Text(definition.category, style = MaterialTheme.typography.titleMedium)
@@ -408,7 +435,13 @@ private fun CustomExerciseDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (exercise == null) "Nuevo ejercicio" else "Editar ejercicio") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState())
+                    .imePadding(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -474,23 +507,38 @@ private fun CustomExerciseDialog(
     )
 }
 
-private val ExercisePickerArrowBackIcon: ImageVector = ImageVector.Builder(
-    name = "ExercisePickerArrowBack",
+private val ChevronRightIcon: ImageVector = ImageVector.Builder(
+    name = "ChevronRight",
     defaultWidth = 24.dp,
     defaultHeight = 24.dp,
     viewportWidth = 24f,
     viewportHeight = 24f
 ).apply {
     path(fill = SolidColor(Color.Black)) {
-        moveTo(20f, 11f)
-        horizontalLineTo(7.83f)
-        lineTo(13.42f, 5.41f)
-        lineTo(12f, 4f)
-        lineTo(4f, 12f)
-        lineTo(12f, 20f)
-        lineTo(13.41f, 18.59f)
-        lineTo(7.83f, 13f)
-        horizontalLineTo(20f)
+        moveTo(9.29f, 6.71f)
+        lineTo(13.58f, 11f)
+        lineTo(9.29f, 15.29f)
+        lineTo(10.7f, 16.7f)
+        lineTo(16.4f, 11f)
+        lineTo(10.7f, 5.3f)
+        close()
+    }
+}.build()
+
+private val ExpandMoreIcon: ImageVector = ImageVector.Builder(
+    name = "ExpandMore",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(7.41f, 8.59f)
+        lineTo(12f, 13.17f)
+        lineTo(16.59f, 8.59f)
+        lineTo(18f, 10f)
+        lineTo(12f, 16f)
+        lineTo(6f, 10f)
         close()
     }
 }.build()

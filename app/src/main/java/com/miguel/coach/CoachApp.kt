@@ -32,8 +32,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -60,10 +58,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
@@ -419,7 +413,9 @@ fun HomeScreen(
                         Text(
                             text = "Hola, $userName",
                             style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     Text(
@@ -451,7 +447,9 @@ fun HomeScreen(
                                 .clickable { onOpen(routine) }
                         ) {
                             ListItem(
-                                headlineContent = { Text(routine.name) },
+                                headlineContent = {
+                                    Text(routine.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                },
                                 supportingContent = {
                                     Text(
                                         "${routine.exercises.size} ejercicios · " +
@@ -489,7 +487,9 @@ fun HomeScreen(
                                     Text(
                                         text = routine.name,
                                         style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = routineSummary,
@@ -586,9 +586,7 @@ private fun RoutineDetailScreen(
             TopAppBar(
                 title = { Text("Detalle de rutina") },
                 navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                        Icon(ArrowBackIcon, contentDescription = "Volver", modifier = Modifier.size(28.dp))
-                    }
+                    CoachBackButton(onClick = onBack)
                 },
                 actions = {
                     TextButton(onClick = {
@@ -607,7 +605,12 @@ private fun RoutineDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(routine.name, style = MaterialTheme.typography.headlineSmall)
+            Text(
+                routine.name,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
             Text("Descanso entre ejercicios: ${routine.restBetweenExercisesSeconds.toClockFormat()} min")
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -730,16 +733,7 @@ private fun RoutineEditorScreen(
         TopAppBar(
             title = { Text("Editar rutina") },
             navigationIcon = {
-                IconButton(
-                    onClick = requestExit,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = ArrowBackIcon,
-                        contentDescription = "Volver",
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                CoachBackButton(onClick = requestExit)
             },
             actions = { TextButton(onClick = onSave) { Text("GUARDAR") } }
         )
@@ -825,27 +819,6 @@ private fun RoutineEditorScreen(
     }
 }
 
-private val ArrowBackIcon: ImageVector = ImageVector.Builder(
-    name = "ArrowBack",
-    defaultWidth = 24.dp,
-    defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f
-).apply {
-    path(fill = SolidColor(Color.Black)) {
-        moveTo(20f, 11f)
-        horizontalLineTo(7.83f)
-        lineTo(13.42f, 5.41f)
-        lineTo(12f, 4f)
-        lineTo(4f, 12f)
-        lineTo(12f, 20f)
-        lineTo(13.41f, 18.59f)
-        lineTo(7.83f, 13f)
-        horizontalLineTo(20f)
-        close()
-    }
-}.build()
-
 @Composable
 private fun ExerciseEditor(
     exercise: ExerciseDraft,
@@ -866,8 +839,11 @@ private fun ExerciseEditor(
             ) {
                 Text(
                     text = exercise.name,
+                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text("EDITAR", color = MaterialTheme.colorScheme.primary)
             }
