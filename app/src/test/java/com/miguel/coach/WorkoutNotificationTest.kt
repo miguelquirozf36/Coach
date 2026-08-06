@@ -10,7 +10,7 @@ class WorkoutNotificationTest {
         val content = workoutNotificationContent(workout(phase = TrainingPhase.WARMUP))
         assertEquals("Rutina de prueba", content.title)
         assertEquals("Calentamiento", content.text)
-        assertEquals("Calentamiento", content.phase)
+        assertEquals(false, content.isPaused)
     }
 
     @Test
@@ -20,21 +20,60 @@ class WorkoutNotificationTest {
         )
         assertEquals("Ejercicio uno", content.title)
         assertEquals("Serie 2 de 3 · Repetición 3 de 8", content.text)
-        assertEquals("Concéntrica", content.phase)
+        assertEquals(false, content.isPaused)
     }
 
     @Test
-    fun eccentricAndRestHaveTheirVisiblePhase() {
-        assertEquals("Excéntrica", workoutNotificationContent(workout(TrainingPhase.ECCENTRIC)).phase)
-        assertEquals("Descanso", workoutNotificationContent(workout(TrainingPhase.REST)).phase)
-    }
-
-    @Test
-    fun pausedWorkoutOverridesTheCurrentPhase() {
+    fun phaseNeverChangesTheVisibleExerciseContent() {
         assertEquals(
-            "Pausa",
-            workoutNotificationContent(workout(TrainingPhase.CONCENTRIC, paused = true)).phase
+            workoutNotificationContent(workout(TrainingPhase.ECCENTRIC)).text,
+            workoutNotificationContent(workout(TrainingPhase.REST)).text
         )
+    }
+
+    @Test
+    fun pausedWorkoutSelectsTheResumeActionState() {
+        assertTrue(workoutNotificationContent(workout(TrainingPhase.CONCENTRIC, paused = true)).isPaused)
+    }
+
+    @Test
+    fun runningWorkoutUsesOnePauseIconActionWithAccessibleLabel() {
+        val actions = workoutNotificationActions(workoutNotificationContent(workout(TrainingPhase.CONCENTRIC)))
+
+        assertEquals(1, actions.size)
+        assertEquals(R.drawable.ic_notification_pause, actions.single().iconResId)
+        assertEquals("Pausar entrenamiento", actions.single().accessibilityLabel)
+        assertEquals(WorkoutSessionService.ACTION_PAUSE_WORKOUT, actions.single().serviceAction)
+        assertEquals(1, actions.single().requestCode)
+    }
+
+    @Test
+    fun pausedWorkoutUsesOnePlayIconActionWithAccessibleLabel() {
+        val actions = workoutNotificationActions(
+            workoutNotificationContent(workout(TrainingPhase.CONCENTRIC, paused = true))
+        )
+
+        assertEquals(1, actions.size)
+        assertEquals(R.drawable.ic_notification_play, actions.single().iconResId)
+        assertEquals("Reanudar entrenamiento", actions.single().accessibilityLabel)
+        assertEquals(WorkoutSessionService.ACTION_RESUME_WORKOUT, actions.single().serviceAction)
+        assertEquals(2, actions.single().requestCode)
+    }
+
+    @Test
+    fun pauseWordsAreNotAddedToVisibleNotificationContent() {
+        listOf(false, true).forEach { paused ->
+            val content = workoutNotificationContent(workout(TrainingPhase.CONCENTRIC, paused = paused))
+            val visibleText = "${content.title} ${content.text}"
+            assertTrue(!visibleText.contains("PAUSAR") && !visibleText.contains("REANUDAR"))
+        }
+    }
+
+    @Test
+    fun countdownUsesRoutineNameAndPreparationText() {
+        val content = workoutNotificationContent(workout(TrainingPhase.COUNTDOWN))
+        assertEquals("Rutina de prueba", content.title)
+        assertEquals("Preparando entrenamiento", content.text)
     }
 
     @Test
@@ -84,6 +123,13 @@ class WorkoutNotificationTest {
     @Test
     fun notificationUsesOneStableIdentifier() {
         assertEquals(1308, WORKOUT_NOTIFICATION_ID)
+    }
+
+    @Test
+    fun pauseAndResumeUseDistinctInternalServiceActions() {
+        assertEquals("com.miguel.coach.action.PAUSE_WORKOUT", WorkoutSessionService.ACTION_PAUSE_WORKOUT)
+        assertEquals("com.miguel.coach.action.RESUME_WORKOUT", WorkoutSessionService.ACTION_RESUME_WORKOUT)
+        assertTrue(WorkoutSessionService.ACTION_PAUSE_WORKOUT != WorkoutSessionService.ACTION_RESUME_WORKOUT)
     }
 
     @Test

@@ -178,14 +178,17 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
 }
 
 const val MAX_EXERCISE_NOTES_LENGTH = 300
-const val DEFAULT_WARMUP_SECONDS = 300
+const val DEFAULT_WARMUP_SECONDS = 600
+const val DEFAULT_ROUTINE_REST_SECONDS = 180
+const val DEFAULT_ECCENTRIC_SECONDS = 2
+const val DEFAULT_SERIES_REST_SECONDS = 120
 
 fun emptyCustomRoutine(id: String): Routine = Routine(
     id = id,
     name = "Nueva rutina",
     isCustom = true,
-    exercises = listOf(emptyCustomExercise("$id-exercise-1")),
-    restBetweenExercisesSeconds = 60
+    exercises = emptyList(),
+    restBetweenExercisesSeconds = DEFAULT_ROUTINE_REST_SECONDS
 )
 
 fun emptyCustomExercise(id: String): Exercise = Exercise(
@@ -194,8 +197,8 @@ fun emptyCustomExercise(id: String): Exercise = Exercise(
     sets = 1,
     repetitions = 1,
     concentricSeconds = 1,
-    eccentricSeconds = 1,
-    restSeconds = 60
+    eccentricSeconds = DEFAULT_ECCENTRIC_SECONDS,
+    restSeconds = DEFAULT_SERIES_REST_SECONDS
 )
 
 private fun String.toPositiveInt(label: String, errors: MutableList<String>): Int? {
@@ -232,8 +235,6 @@ private fun Int.toWholeMinutesString(): String = (coerceAtLeast(0) / 60).toStrin
 
 object Routines {
     private const val DEFAULT_CONCENTRIC_SECONDS = 1
-    private const val DEFAULT_ECCENTRIC_SECONDS = 3
-    private const val DEFAULT_REST_SECONDS = 60
 
     val all = listOf(
         routine(
@@ -308,7 +309,7 @@ object Routines {
         name = name,
         isCustom = false,
         exercises = exercises,
-        restBetweenExercisesSeconds = DEFAULT_REST_SECONDS
+        restBetweenExercisesSeconds = DEFAULT_ROUTINE_REST_SECONDS
     )
 
     private fun exercise(id: String, name: String, sets: Int, repetitions: Int) = Exercise(
@@ -318,6 +319,6 @@ object Routines {
         repetitions = repetitions,
         concentricSeconds = DEFAULT_CONCENTRIC_SECONDS,
         eccentricSeconds = DEFAULT_ECCENTRIC_SECONDS,
-        restSeconds = DEFAULT_REST_SECONDS
+        restSeconds = DEFAULT_SERIES_REST_SECONDS
     )
 }

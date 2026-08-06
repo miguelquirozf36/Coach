@@ -257,7 +257,7 @@ class TrainingEngineTest {
         assertEquals("Cambio descartado", discardedDraft.name)
         assertEquals(Routines.all.first(), original)
         assertEquals("DÍA 1 — PECHO Y TRÍCEPS", original.name)
-        assertEquals(60, original.restBetweenExercisesSeconds)
+        assertEquals(180, original.restBetweenExercisesSeconds)
     }
 
     @Test
@@ -301,12 +301,12 @@ class TrainingEngineTest {
         assertEquals(6, Routines.all.size)
         Routines.all.forEach { routine ->
             assertEquals(false, routine.isCustom)
-            assertEquals(60, routine.restBetweenExercisesSeconds)
-            assertEquals(300, routine.warmupSeconds)
+            assertEquals(180, routine.restBetweenExercisesSeconds)
+            assertEquals(600, routine.warmupSeconds)
             routine.exercises.forEach { exercise ->
                 assertEquals(1, exercise.concentricSeconds)
-                assertEquals(3, exercise.eccentricSeconds)
-                assertEquals(60, exercise.restSeconds)
+                assertEquals(2, exercise.eccentricSeconds)
+                assertEquals(120, exercise.restSeconds)
             }
         }
     }

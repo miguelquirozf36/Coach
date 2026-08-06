@@ -183,7 +183,10 @@ class CoachBackupTest {
                         if (exerciseIndex == 0) exercise.copy(notes = "Nota restaurada") else exercise
                     }
                 )
-            } + emptyCustomRoutine("backup-custom-routine").copy(name = "Rutina importada")
+            } + emptyCustomRoutine("backup-custom-routine").copy(
+                name = "Rutina importada",
+                exercises = listOf(emptyCustomExercise("backup-custom-exercise"))
+            )
             return CoachBackupDocument(
                 backupVersion = 1,
                 exportedAt = "2026-08-05T12:00:00Z",

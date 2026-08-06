@@ -46,6 +46,20 @@ object WorkoutSessionController {
         if (completed) sessionActive = false
     }
 
+    fun pauseWorkout(): Boolean {
+        val activeEngine = engine ?: return false
+        if (activeEngine.state !is TrainingUiState.Workout) return false
+        activeEngine.pause()
+        return true
+    }
+
+    fun resumeWorkout(): Boolean {
+        val activeEngine = engine ?: return false
+        if (activeEngine.state !is TrainingUiState.Workout) return false
+        activeEngine.resume()
+        return true
+    }
+
     fun attachObserver(stateObserver: (TrainingUiState) -> Unit) {
         observer = stateObserver
         engine?.state?.let(stateObserver)
@@ -106,6 +120,8 @@ class WorkoutSessionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> stopSessionService()
+            ACTION_PAUSE_WORKOUT -> handleNotificationAction(WorkoutSessionController::pauseWorkout)
+            ACTION_RESUME_WORKOUT -> handleNotificationAction(WorkoutSessionController::resumeWorkout)
             else -> promoteCurrentWorkout()
         }
         return START_NOT_STICKY
@@ -142,6 +158,10 @@ class WorkoutSessionService : Service() {
         }
     }
 
+    private fun handleNotificationAction(action: () -> Boolean) {
+        if (!action()) stopSessionService()
+    }
+
     private fun handleState(state: TrainingUiState) {
         when (val change = notificationTracker.next(state)) {
             is WorkoutNotificationChange.Show -> workoutNotification.notify(change.content)
@@ -163,5 +183,7 @@ class WorkoutSessionService : Service() {
     companion object {
         const val ACTION_START = "com.miguel.coach.action.START_WORKOUT"
         const val ACTION_STOP = "com.miguel.coach.action.STOP_WORKOUT"
+        const val ACTION_PAUSE_WORKOUT = "com.miguel.coach.action.PAUSE_WORKOUT"
+        const val ACTION_RESUME_WORKOUT = "com.miguel.coach.action.RESUME_WORKOUT"
     }
 }

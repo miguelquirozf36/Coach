@@ -269,11 +269,8 @@ fun CoachApp(
                                 onOpen = { selectedRoutineId = it.id },
                                 onCreate = {
                                     val newRoutine = emptyCustomRoutine("custom-${System.nanoTime()}")
-                                    val updated = routines + newRoutine
-                                    if (routineRepository.save(updated)) {
-                                        routines = updated
-                                        selectedRoutineId = newRoutine.id
-                                    }
+                                    routines = routines + newRoutine
+                                    selectedRoutineId = newRoutine.id
                                 },
                                 onDelete = { routine ->
                                     val updated = routines.filterNot { it.id == routine.id }
@@ -368,7 +365,7 @@ fun CompletionScreen(onFinish: () -> Unit) {
                 style = MaterialTheme.typography.headlineMedium
             )
             Button(modifier = Modifier.fillMaxWidth(), onClick = onFinish) {
-                Text("VOLVER AL INICIO")
+                Text("IR AL INICIO")
             }
         }
     }
@@ -588,7 +585,18 @@ private fun RoutineDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Detalle de rutina") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("VOLVER") } }
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                        Icon(ArrowBackIcon, contentDescription = "Volver", modifier = Modifier.size(28.dp))
+                    }
+                },
+                actions = {
+                    TextButton(onClick = {
+                        draft = routine.toDraft()
+                        validationMessage = null
+                        isEditing = true
+                    }) { Text("EDITAR") }
+                }
             )
         }
     ) { innerPadding ->
@@ -617,16 +625,6 @@ private fun RoutineDetailScreen(
                 Text("COMENZAR")
             }
             if (!isVoiceReady) Text("Inicializando voz")
-            TextButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    draft = routine.toDraft()
-                    validationMessage = null
-                    isEditing = true
-                }
-            ) {
-                Text("EDITAR")
-            }
         }
     }
 }
@@ -685,9 +683,13 @@ private fun RoutineEditorScreen(
             onSaveCustomExercise = onSaveCustomExercise,
             onDeleteCustomExercise = onDeleteCustomExercise,
             onSelect = { definition ->
-                draft.exercises.firstOrNull { it.id == exerciseId }?.let { exercise ->
-                    onDraftChange(draft.updateExercise(selectExerciseDefinition(exercise, definition)))
-                }
+                val existing = draft.exercises.firstOrNull { it.id == exerciseId }
+                val selected = selectExerciseDefinition(
+                    existing ?: emptyCustomExercise(exerciseId).toDraft(),
+                    definition
+                )
+                onDraftChange(if (existing == null) draft.addExercise(selected) else draft.updateExercise(selected))
+                expandedExerciseId = exerciseId
                 exerciseBeingSelectedId = null
             }
         )
@@ -810,8 +812,7 @@ private fun RoutineEditorScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         val id = "${draft.id}-exercise-${System.nanoTime()}"
-                        onDraftChange(draft.addExercise(emptyCustomExercise(id).toDraft()))
-                        expandedExerciseId = id
+                        exerciseBeingSelectedId = id
                     }
                 ) { Text("AÑADIR EJERCICIO") }
             }
@@ -855,15 +856,21 @@ private fun ExerciseEditor(
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(if (expanded) 16.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = exercise.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text("✏ Editar", color = MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = exercise.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("EDITAR", color = MaterialTheme.colorScheme.primary)
+            }
             if (expanded) {
                 Text("Nombre del ejercicio", style = MaterialTheme.typography.labelLarge)
                 OutlinedButton(

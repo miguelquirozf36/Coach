@@ -41,7 +41,10 @@ class RoutineRepositoryTest {
 
         assertEquals(1, loaded.size)
         assertEquals("", loaded.single().exercises.single().notes)
-        assertEquals(300, loaded.single().warmupSeconds)
+        assertEquals(600, loaded.single().warmupSeconds)
+        assertEquals(180, loaded.single().restBetweenExercisesSeconds)
+        assertEquals(2, loaded.single().exercises.single().eccentricSeconds)
+        assertEquals(120, loaded.single().exercises.single().restSeconds)
     }
 
     @Test
@@ -56,6 +59,56 @@ class RoutineRepositoryTest {
         assertTrue(repository.save(updated))
 
         assertEquals(420, RoutineRepository(storage).load().first().warmupSeconds)
+    }
+
+    @Test
+    fun v15DefaultsMigrationRunsOnceAndPreservesOtherFields() {
+        val storage = InMemoryStorage()
+        val original = Routines.all.first().copy(
+            name = "Nombre conservado",
+            warmupSeconds = 15,
+            restBetweenExercisesSeconds = 25,
+            exercises = Routines.all.first().exercises.mapIndexed { index, exercise ->
+                exercise.copy(
+                    sets = exercise.sets + 1,
+                    repetitions = exercise.repetitions + 1,
+                    concentricSeconds = 7,
+                    eccentricSeconds = 9,
+                    restSeconds = 35,
+                    notes = if (index == 0) "Nota conservada" else ""
+                )
+            }
+        )
+        storage.values[PRIMARY] = RoutineJsonCodec.encode(listOf(original))
+
+        val migrated = RoutineRepository(storage, listOf(original)).load().single()
+
+        assertEquals(600, migrated.warmupSeconds)
+        assertEquals(180, migrated.restBetweenExercisesSeconds)
+        assertTrue(migrated.exercises.all { it.eccentricSeconds == 2 && it.restSeconds == 120 })
+        assertEquals(original.id, migrated.id)
+        assertEquals(original.name, migrated.name)
+        assertEquals(original.exercises.map { it.id }, migrated.exercises.map { it.id })
+        assertEquals(original.exercises.map { it.sets }, migrated.exercises.map { it.sets })
+        assertEquals(original.exercises.map { it.repetitions }, migrated.exercises.map { it.repetitions })
+        assertEquals(original.exercises.map { it.concentricSeconds }, migrated.exercises.map { it.concentricSeconds })
+        assertEquals("Nota conservada", migrated.exercises.first().notes)
+
+        val userEdited = listOf(migrated.copy(
+            warmupSeconds = 60,
+            exercises = migrated.exercises.map { it.copy(eccentricSeconds = 4) }
+        ))
+        assertTrue(RoutineRepository(storage).save(userEdited))
+        assertEquals(userEdited, RoutineRepository(storage).load())
+    }
+
+    @Test
+    fun newCustomRoutineStartsEmptyAndCannotBeValidatedUntilExerciseIsAdded() {
+        val routine = emptyCustomRoutine("new-empty")
+
+        assertTrue(routine.exercises.isEmpty())
+        assertNull(routine.toDraft().validate(true).routine)
+        assertTrue(routine.toDraft().validate(true).message.orEmpty().contains("al menos un ejercicio"))
     }
 
     @Test
@@ -200,7 +253,10 @@ class RoutineRepositoryTest {
     fun customRoutineCanBeCreatedEditedAndReloadedSeparatelyFromSeeds() {
         val storage = InMemoryStorage()
         val repository = RoutineRepository(storage)
-        val custom = emptyCustomRoutine("custom-1").copy(name = "Personalizada")
+        val custom = emptyCustomRoutine("custom-1").copy(
+            name = "Personalizada",
+            exercises = listOf(emptyCustomExercise("custom-1-exercise"))
+        )
         val all = repository.load() + custom
 
         assertTrue(repository.save(all))
@@ -232,7 +288,9 @@ class RoutineRepositoryTest {
     fun deletingCustomRoutinePersistsWhileCancelingDeletionDoesNotChangeData() {
         val storage = InMemoryStorage()
         val repository = RoutineRepository(storage)
-        val custom = emptyCustomRoutine("custom-delete")
+        val custom = emptyCustomRoutine("custom-delete").copy(
+            exercises = listOf(emptyCustomExercise("custom-delete-exercise"))
+        )
         val saved = repository.load() + custom
         assertTrue(repository.save(saved))
 
@@ -250,8 +308,8 @@ class RoutineRepositoryTest {
         val savedRoutine = draftWithAddedExercise.validate(true).routine!!
         val draftAfterRemoval = savedRoutine.toDraft().copy(exercises = savedRoutine.toDraft().exercises.dropLast(1))
 
-        assertEquals(2, savedRoutine.exercises.size)
-        assertEquals(1, draftAfterRemoval.validate(true).routine!!.exercises.size)
+        assertEquals(1, savedRoutine.exercises.size)
+        assertNull(draftAfterRemoval.validate(true).routine)
     }
 
     @Test

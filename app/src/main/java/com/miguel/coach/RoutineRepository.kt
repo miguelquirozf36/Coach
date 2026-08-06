@@ -50,18 +50,40 @@ class RoutineRepository(
 
     fun load(): List<Routine> {
         val primaryJson = storage.read(ROUTINES_JSON)
-        decodeAndValidate(primaryJson)?.let { return it }
+        decodeAndValidate(primaryJson)?.let { return migrateDefaultsOnce(it) }
 
         val backupJson = storage.read(ROUTINES_BACKUP_JSON)
         decodeAndValidate(backupJson)?.let { recoveredRoutines ->
             storage.write(ROUTINES_JSON, backupJson!!)
-            return recoveredRoutines
+            return migrateDefaultsOnce(recoveredRoutines)
         }
 
         if (primaryJson == null && backupJson == null) {
-            save(seedRoutines)
+            if (save(seedRoutines)) storage.write(DEFAULTS_MIGRATION_V15_STAGE1, "complete")
         }
         return seedRoutines
+    }
+
+    private fun migrateDefaultsOnce(routines: List<Routine>): List<Routine> {
+        if (storage.read(DEFAULTS_MIGRATION_V15_STAGE1) == "complete") return routines
+        val migrated = routines.map { routine ->
+            routine.copy(
+                warmupSeconds = DEFAULT_WARMUP_SECONDS,
+                restBetweenExercisesSeconds = DEFAULT_ROUTINE_REST_SECONDS,
+                exercises = routine.exercises.map { exercise ->
+                    exercise.copy(
+                        eccentricSeconds = DEFAULT_ECCENTRIC_SECONDS,
+                        restSeconds = DEFAULT_SERIES_REST_SECONDS
+                    )
+                }
+            )
+        }
+        if (!save(migrated)) return routines
+        if (!storage.write(DEFAULTS_MIGRATION_V15_STAGE1, "complete")) {
+            restoreBackup()
+            return routines
+        }
+        return migrated
     }
 
     fun save(routines: List<Routine>): Boolean {
@@ -100,6 +122,7 @@ class RoutineRepository(
     private companion object {
         const val ROUTINES_JSON = "routines_json"
         const val ROUTINES_BACKUP_JSON = "routines_backup_json"
+        const val DEFAULTS_MIGRATION_V15_STAGE1 = "training_defaults_migration_v15_stage1"
     }
 }
 

@@ -18,8 +18,34 @@ const val WORKOUT_NOTIFICATION_CHANNEL_ID = "active_workout"
 data class WorkoutNotificationContent(
     val title: String,
     val text: String,
-    val phase: String
+    val isPaused: Boolean
 )
+
+data class WorkoutNotificationAction(
+    val iconResId: Int,
+    val accessibilityLabel: String,
+    val serviceAction: String,
+    val requestCode: Int
+)
+
+fun workoutNotificationActions(content: WorkoutNotificationContent): List<WorkoutNotificationAction> =
+    listOf(
+        if (content.isPaused) {
+            WorkoutNotificationAction(
+                iconResId = R.drawable.ic_notification_play,
+                accessibilityLabel = "Reanudar entrenamiento",
+                serviceAction = WorkoutSessionService.ACTION_RESUME_WORKOUT,
+                requestCode = 2
+            )
+        } else {
+            WorkoutNotificationAction(
+                iconResId = R.drawable.ic_notification_pause,
+                accessibilityLabel = "Pausar entrenamiento",
+                serviceAction = WorkoutSessionService.ACTION_PAUSE_WORKOUT,
+                requestCode = 1
+            )
+        }
+    )
 
 sealed interface WorkoutNotificationChange {
     data class Show(val content: WorkoutNotificationContent) : WorkoutNotificationChange
@@ -46,11 +72,10 @@ class WorkoutNotificationTracker {
 
 fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificationContent {
     if (state.phase == TrainingPhase.WARMUP) {
-        return WorkoutNotificationContent(
-            title = state.routine.name,
-            text = "Calentamiento",
-            phase = if (state.isPaused) "Pausa" else "Calentamiento"
-        )
+        return WorkoutNotificationContent(state.routine.name, "Calentamiento", state.isPaused)
+    }
+    if (state.phase == TrainingPhase.COUNTDOWN) {
+        return WorkoutNotificationContent(state.routine.name, "Preparando entrenamiento", state.isPaused)
     }
     val exercise = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES && state.exerciseIndex > 0) {
         state.routine.exercises[state.exerciseIndex - 1]
@@ -58,28 +83,13 @@ fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificat
         state.routine.exercises[state.exerciseIndex]
     }
     val series = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) exercise.sets else state.seriesNumber
-    val repetition = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
-        exercise.repetitions
-    } else {
-        state.repetitionNumber
-    }
+    val repetition = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) exercise.repetitions else state.repetitionNumber
     return WorkoutNotificationContent(
-        title = exercise.name,
-        text = "Serie $series de ${exercise.sets} · Repetición $repetition de ${exercise.repetitions}",
-        phase = if (state.isPaused) "Pausa" else state.phase.notificationLabel
+        exercise.name,
+        "Serie $series de ${exercise.sets} · Repetición $repetition de ${exercise.repetitions}",
+        state.isPaused
     )
 }
-
-private val TrainingPhase.notificationLabel: String
-    get() = when (this) {
-        TrainingPhase.WARMUP -> "Calentamiento"
-        TrainingPhase.COUNTDOWN -> "Cuenta inicial"
-        TrainingPhase.CONCENTRIC,
-        TrainingPhase.REPETITION_ANNOUNCEMENT -> "Concéntrica"
-        TrainingPhase.ECCENTRIC -> "Excéntrica"
-        TrainingPhase.REST,
-        TrainingPhase.REST_BETWEEN_EXERCISES -> "Descanso"
-    }
 
 enum class NotificationPermissionAction { REQUEST_WITH_EXPLANATION, START_WITHOUT_REQUEST, START_ALLOWED }
 
@@ -116,23 +126,30 @@ class WorkoutNotification(private val context: Context) {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            openAppIntent,
+            context, 0, openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notificationAction = workoutNotificationActions(content).single()
+        val actionIntent = Intent(context, WorkoutSessionService::class.java)
+            .setAction(notificationAction.serviceAction)
+        val actionPendingIntent = PendingIntent.getService(
+            context, notificationAction.requestCode, actionIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val category = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             Notification.CATEGORY_WORKOUT
-        } else {
-            NotificationCompat.CATEGORY_SERVICE
-        }
+        } else NotificationCompat.CATEGORY_SERVICE
         return NotificationCompat.Builder(context, WORKOUT_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle(content.title)
             .setContentText(content.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("${content.text}\nFase: ${content.phase}"))
-            .setSubText("Fase: ${content.phase}")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content.text))
             .setContentIntent(pendingIntent)
+            .addAction(
+                notificationAction.iconResId,
+                notificationAction.accessibilityLabel,
+                actionPendingIntent
+            )
             .setCategory(category)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
@@ -143,8 +160,7 @@ class WorkoutNotification(private val context: Context) {
 
     fun notify(content: WorkoutNotificationContent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, "android.permission.POST_NOTIFICATIONS") !=
-            PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, "android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
         ) return
         manager.notify(WORKOUT_NOTIFICATION_ID, build(content))
     }
