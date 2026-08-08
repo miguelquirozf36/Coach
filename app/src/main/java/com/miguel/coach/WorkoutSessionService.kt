@@ -25,6 +25,7 @@ object WorkoutSessionController {
         if (engine != null && voiceCoach != null && beepPlayer != null) engine!! else createEngine(context)
 
     fun startWorkout(context: Context, routine: Routine) {
+        if (routine.exercises.isEmpty()) return
         val activeEngine = ensureEngine(context)
         activeEngine.start(routine)
         if (activeEngine.state !is TrainingUiState.Workout) return

@@ -27,6 +27,7 @@ class TrainingEngine(
     private var sessionId = 0L
 
     fun start(routine: Routine) {
+        if (routine.exercises.isEmpty()) return
         if (!voiceSpeaker.isReady) return
 
         beginNewSession()

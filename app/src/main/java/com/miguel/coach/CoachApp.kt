@@ -548,6 +548,17 @@ private fun RoutineDetailScreen(
     var isEditing by rememberSaveable(routine.id) { mutableStateOf(false) }
     var draft by remember(routine.id) { mutableStateOf(routine.toDraft()) }
     var validationMessage by remember(routine.id) { mutableStateOf<String?>(null) }
+    var startValidationMessage by remember(routine.id) { mutableStateOf<String?>(null) }
+
+    startValidationMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { startValidationMessage = null },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { startValidationMessage = null }) { Text("ACEPTAR") }
+            }
+        )
+    }
 
     if (!isEditing) RegisterSystemBackAction(onBack)
 
@@ -623,13 +634,23 @@ private fun RoutineDetailScreen(
             Button(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = isVoiceReady,
-                onClick = { onStart(routine) }
+                onClick = {
+                    startValidationMessage = attemptRoutineStart(routine, onStart)
+                }
             ) {
                 Text("COMENZAR")
             }
             if (!isVoiceReady) Text("Inicializando voz")
         }
     }
+}
+
+const val EMPTY_ROUTINE_START_MESSAGE = "Agrega al menos un ejercicio antes de comenzar."
+
+fun attemptRoutineStart(routine: Routine, onStart: (Routine) -> Unit): String? {
+    if (routine.exercises.isEmpty()) return EMPTY_ROUTINE_START_MESSAGE
+    onStart(routine)
+    return null
 }
 
 @Composable

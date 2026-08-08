@@ -7,6 +7,31 @@ import org.junit.Test
 
 class TrainingEngineTest {
     @Test
+    fun emptyRoutineIsRejectedBeforeStateAudioOrTimersAreCreated() {
+        val fixture = Fixture(emptyList())
+
+        fixture.engine.start(fixture.routine)
+
+        assertEquals(TrainingUiState.Home, fixture.engine.state)
+        assertTrue(fixture.voice.phrases.isEmpty())
+        assertEquals(0, fixture.voice.stopCalls)
+        assertEquals(0, fixture.beep.playCalls)
+        assertEquals(0, fixture.beep.stopCalls)
+        assertTrue(!fixture.scheduler.hasPendingActions)
+    }
+
+    @Test
+    fun routineWithOneExerciseStillCreatesWorkoutAndStartsNormally() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 0))
+
+        fixture.engine.start(fixture.routine)
+
+        assertTrue(fixture.engine.state is TrainingUiState.Workout)
+        assertEquals(listOf("Comenzamos en diez segundos."), fixture.voice.phrases)
+        assertTrue(fixture.scheduler.hasPendingActions)
+    }
+
+    @Test
     fun warmupUsesTheConfiguredWarmupRingColor() {
         assertEquals(
             CoachTheme.OBSIDIAN.trainingRingColors.warmupRing,

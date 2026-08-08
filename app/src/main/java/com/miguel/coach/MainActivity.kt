@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startWorkoutWithNotificationPermission(routine: Routine) {
+        if (routine.exercises.isEmpty()) return
         val preferences = getSharedPreferences("coach_notifications", MODE_PRIVATE)
         val action = notificationPermissionAction(
             sdkInt = Build.VERSION.SDK_INT,
