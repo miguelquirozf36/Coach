@@ -28,6 +28,8 @@ data class WorkoutNotificationAction(
     val requestCode: Int
 )
 
+fun workoutNotificationSmallIconResId(): Int = R.drawable.ic_notification_coach
+
 fun workoutNotificationActions(content: WorkoutNotificationContent): List<WorkoutNotificationAction> =
     listOf(
         if (content.isPaused) {
@@ -140,7 +142,7 @@ class WorkoutNotification(private val context: Context) {
             Notification.CATEGORY_WORKOUT
         } else NotificationCompat.CATEGORY_SERVICE
         return NotificationCompat.Builder(context, WORKOUT_NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setSmallIcon(workoutNotificationSmallIconResId())
             .setContentTitle(content.title)
             .setContentText(content.text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(content.text))

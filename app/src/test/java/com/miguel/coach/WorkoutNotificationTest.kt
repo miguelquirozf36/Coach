@@ -1,10 +1,22 @@
 package com.miguel.coach
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WorkoutNotificationTest {
+    @Test
+    fun coachIconIsTheStablePrimarySmallIconForRunningAndPausedStates() {
+        val runningSmallIcon = workoutNotificationSmallIconResId()
+        val pausedSmallIcon = workoutNotificationSmallIconResId()
+
+        assertEquals(R.drawable.ic_notification_coach, runningSmallIcon)
+        assertEquals(runningSmallIcon, pausedSmallIcon)
+        assertNotEquals(R.drawable.ic_notification_play, runningSmallIcon)
+        assertNotEquals(R.drawable.ic_notification_pause, runningSmallIcon)
+    }
+
     @Test
     fun warmupUsesRoutineNameAndWarmupText() {
         val content = workoutNotificationContent(workout(phase = TrainingPhase.WARMUP))
