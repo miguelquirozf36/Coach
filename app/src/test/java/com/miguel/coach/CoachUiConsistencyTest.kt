@@ -3,13 +3,33 @@ package com.miguel.coach
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CoachUiConsistencyTest {
     @Test
     fun routineCardTitleUsesTheApprovedCompactSize() {
-        assertEquals(20.sp, ROUTINE_CARD_TITLE_FONT_SIZE)
+        assertEquals(18.sp, ROUTINE_CARD_TITLE_FONT_SIZE)
+    }
+
+    @Test
+    fun mainRoutineCardSeparatesExercisesFromItsDynamicDuration() {
+        val content = routineCardContent(exerciseCount = 6, durationMinutes = 71)
+
+        assertEquals("6 ejercicios", content.exerciseMetadata)
+        assertEquals("71 min", content.duration)
+        assertFalse(content.exerciseMetadata.contains("min"))
+    }
+
+    @Test
+    fun onlyTheSelectedNavigationTabUsesTheSharedOutlineTreatment() {
+        repeat(3) { selectedTab ->
+            repeat(3) { tabIndex ->
+                assertEquals(selectedTab == tabIndex, isNavigationTabOutlined(selectedTab, tabIndex))
+            }
+        }
     }
 
     @Test

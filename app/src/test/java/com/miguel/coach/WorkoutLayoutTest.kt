@@ -6,6 +6,18 @@ import org.junit.Test
 
 class WorkoutLayoutTest {
     @Test
+    fun workoutMetricsKeepTheExistingDynamicValues() {
+        assertEquals(
+            WorkoutMetricTexts("2 de 4", "7 de 12", "Concéntrica"),
+            workoutMetricTexts(2, 4, 7, 12, "Concéntrica")
+        )
+        assertEquals(
+            "Excéntrica",
+            workoutMetricTexts(2, 4, 7, 12, "Excéntrica").phase
+        )
+    }
+
+    @Test
     fun usefulCenterExcludesSystemInsets() {
         assertEquals(544f, usefulAreaCenter(1080, 2400, 24, 80, 16, 120).first)
         assertEquals(1180f, usefulAreaCenter(1080, 2400, 24, 80, 16, 120).second)

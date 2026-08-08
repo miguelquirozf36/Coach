@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
@@ -30,15 +32,16 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -46,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -64,7 +68,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
@@ -448,34 +455,59 @@ fun HomeScreen(
                 state = if (isCustomTab) customRoutineListState else routineListState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(if (isCustomTab) 8.dp else 14.dp)
+                verticalArrangement = Arrangement.spacedBy(if (isCustomTab) 8.dp else 10.dp)
             ) {
                 if (isCustomTab) {
                     items(routines, key = Routine::id) { routine ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onOpen(routine) }
+                                .clickable { onOpen(routine) },
+                            shape = RoundedCornerShape(20.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                         ) {
-                            ListItem(
-                                headlineContent = {
-                                    RoutineCardTitle(routine.name, maxLines = 1)
-                                },
-                                supportingContent = {
-                                    RoutineCardMetadata(
-                                        "${routine.exercises.size} ejercicios · " +
-                                            "${routine.estimatedDurationMinutes()} min"
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .routineCardStripe()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        RoutineCardTitle(routine.name, maxLines = 1)
+                                        RoutineCardMetadata(
+                                            "${routine.exercises.size} ejercicios · " +
+                                                "${routine.estimatedDurationMinutes()} min"
+                                        )
+                                    }
+                                    TextButton(onClick = { routinePendingDeletion = routine }) {
+                                        Text("ELIMINAR")
+                                    }
+                                    Icon(
+                                        imageVector = RoutineChevronRightIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                },
-                                trailingContent = { RoutineCardViewAction() }
-                            )
-                            TextButton(onClick = { routinePendingDeletion = routine }) { Text("ELIMINAR") }
+                                }
+                            }
                         }
                     }
                 } else {
                     items(routines, key = Routine::id) { routine ->
-                        val routineSummary = remember(routine) {
-                            "${routine.exercises.size} ejercicios • ${routine.estimatedDurationMinutes()} min"
+                        val cardContent = remember(routine) {
+                            routineCardContent(
+                                exerciseCount = routine.exercises.size,
+                                durationMinutes = routine.estimatedDurationMinutes()
+                            )
                         }
                         Card(
                             modifier = Modifier
@@ -484,22 +516,37 @@ fun HomeScreen(
                             shape = RoundedCornerShape(20.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                         ) {
-                            Row(
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 18.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    .routineCardStripe()
                             ) {
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    RoutineCardTitle(routine.name, maxLines = 2)
-                                    RoutineCardMetadata(routineSummary)
-                                }
-                                OutlinedButton(onClick = { onOpen(routine) }) {
-                                    RoutineCardViewAction()
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        RoutineCardTitle(routine.name, maxLines = 2)
+                                        RoutineCardMetadata(cardContent.exerciseMetadata)
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        RoutineDuration(cardContent.duration)
+                                        Icon(
+                                            imageVector = RoutineChevronRightIcon,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(22.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -513,7 +560,33 @@ fun HomeScreen(
     }
 }
 
-internal val ROUTINE_CARD_TITLE_FONT_SIZE = 20.sp
+internal val ROUTINE_CARD_TITLE_FONT_SIZE = 18.sp
+
+@Composable
+private fun Modifier.routineCardStripe(): Modifier {
+    val stripeColor = MaterialTheme.colorScheme.primary
+    return drawBehind {
+        val inset = 4.dp.toPx()
+        val strokeWidth = 4.dp.toPx()
+        drawLine(
+            color = stripeColor,
+            start = Offset(strokeWidth / 2f, inset),
+            end = Offset(strokeWidth / 2f, (size.height - inset).coerceAtLeast(inset)),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+internal data class RoutineCardContent(
+    val exerciseMetadata: String,
+    val duration: String
+)
+
+internal fun routineCardContent(exerciseCount: Int, durationMinutes: Int) = RoutineCardContent(
+    exerciseMetadata = "$exerciseCount ejercicios",
+    duration = "$durationMinutes min"
+)
 
 @Composable
 private fun RoutineCardTitle(name: String, maxLines: Int) {
@@ -536,28 +609,60 @@ private fun RoutineCardMetadata(summary: String) {
 }
 
 @Composable
-private fun RoutineCardViewAction() {
-    Text("VER", style = MaterialTheme.typography.labelLarge)
+private fun RoutineDuration(duration: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Icon(
+            imageVector = ScheduleIcon,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = duration,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+    }
 }
+
+internal fun isNavigationTabOutlined(selectedTab: Int, tabIndex: Int): Boolean =
+    selectedTab == tabIndex
 
 @Composable
 internal fun MainNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     NavigationBar {
-        NavigationBarItem(
-            selected = selectedTab == 0,
-            onClick = { onTabSelected(0) },
-            icon = { Text("MI RUTINA", style = MaterialTheme.typography.labelMedium) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 1,
-            onClick = { onTabSelected(1) },
-            icon = { Text("PERSONALIZADO", style = MaterialTheme.typography.labelMedium) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 2,
-            onClick = { onTabSelected(2) },
-            icon = { Text("AJUSTES", style = MaterialTheme.typography.labelMedium) }
-        )
+        listOf("MI RUTINA", "PERSONALIZADO", "AJUSTES").forEachIndexed { index, label ->
+            val selected = selectedTab == index
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onTabSelected(index) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = Color.Transparent
+                ),
+                icon = {
+                    Text(
+                        text = label,
+                        modifier = Modifier
+                            .then(
+                                if (isNavigationTabOutlined(selectedTab, index)) {
+                                    Modifier.border(
+                                        width = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shape = RoundedCornerShape(50)
+                                    )
+                                } else Modifier
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            )
+        }
     }
 }
 
@@ -695,6 +800,101 @@ private val StartWorkoutPlayIcon: ImageVector = ImageVector.Builder(
         close()
     }
 }.build()
+
+private val PauseIcon = coachIcon("Pause") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(6f, 5f); lineTo(10f, 5f); lineTo(10f, 19f); lineTo(6f, 19f); close()
+        moveTo(14f, 5f); lineTo(18f, 5f); lineTo(18f, 19f); lineTo(14f, 19f); close()
+    }
+}
+
+private val SkipNextIcon = coachIcon("SkipNext") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(6f, 18f); lineTo(14.5f, 12f); lineTo(6f, 6f); close()
+        moveTo(16f, 6f); lineTo(19f, 6f); lineTo(19f, 18f); lineTo(16f, 18f); close()
+    }
+}
+
+private val StopIcon = coachIcon("Stop") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(6f, 6f); lineTo(18f, 6f); lineTo(18f, 18f); lineTo(6f, 18f); close()
+    }
+}
+
+private val ScheduleIcon = coachIcon("Schedule") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(11.99f, 2f)
+        curveTo(6.47f, 2f, 2f, 6.48f, 2f, 12f)
+        curveTo(2f, 17.52f, 6.47f, 22f, 11.99f, 22f)
+        curveTo(17.52f, 22f, 22f, 17.52f, 22f, 12f)
+        curveTo(22f, 6.48f, 17.52f, 2f, 11.99f, 2f)
+        close()
+        moveTo(12f, 20f)
+        curveTo(7.58f, 20f, 4f, 16.42f, 4f, 12f)
+        curveTo(4f, 7.58f, 7.58f, 4f, 12f, 4f)
+        curveTo(16.42f, 4f, 20f, 7.58f, 20f, 12f)
+        curveTo(20f, 16.42f, 16.42f, 20f, 12f, 20f)
+        close()
+        moveTo(12.5f, 7f)
+        lineTo(11f, 7f)
+        lineTo(11f, 13f)
+        lineTo(16.25f, 16.15f)
+        lineTo(17f, 14.92f)
+        lineTo(12.5f, 12.25f)
+        close()
+    }
+}
+
+internal val RoutineChevronRightIcon = coachIcon("ChevronRight") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(9.29f, 6.71f)
+        lineTo(13.58f, 11f)
+        lineTo(9.29f, 15.29f)
+        lineTo(10.7f, 16.7f)
+        lineTo(16.4f, 11f)
+        lineTo(10.7f, 5.3f)
+        close()
+    }
+}
+
+private val SeriesIcon = coachIcon("Series") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(4f, 6f); lineTo(20f, 6f); lineTo(20f, 8f); lineTo(4f, 8f); close()
+        moveTo(4f, 11f); lineTo(20f, 11f); lineTo(20f, 13f); lineTo(4f, 13f); close()
+        moveTo(4f, 16f); lineTo(20f, 16f); lineTo(20f, 18f); lineTo(4f, 18f); close()
+    }
+}
+
+private val RepeatIcon = coachIcon("Repeat") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(7f, 7f); lineTo(17f, 7f); lineTo(17f, 10f); lineTo(22f, 6f)
+        lineTo(17f, 2f); lineTo(17f, 5f); lineTo(7f, 5f)
+        curveTo(4.24f, 5f, 2f, 7.24f, 2f, 10f); lineTo(4f, 10f)
+        curveTo(4f, 8.34f, 5.34f, 7f, 7f, 7f); close()
+        moveTo(17f, 17f); lineTo(7f, 17f); lineTo(7f, 14f); lineTo(2f, 18f)
+        lineTo(7f, 22f); lineTo(7f, 19f); lineTo(17f, 19f)
+        curveTo(19.76f, 19f, 22f, 16.76f, 22f, 14f); lineTo(20f, 14f)
+        curveTo(20f, 15.66f, 18.66f, 17f, 17f, 17f); close()
+    }
+}
+
+private val PhaseIcon = coachIcon("Activity") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(2f, 13f); lineTo(7f, 13f); lineTo(9.5f, 6f); lineTo(13f, 18f)
+        lineTo(16f, 10f); lineTo(18f, 13f); lineTo(22f, 13f); lineTo(22f, 15f)
+        lineTo(17f, 15f); lineTo(16.5f, 14.5f); lineTo(12.8f, 23f); lineTo(9.3f, 11f)
+        lineTo(8.4f, 15f); lineTo(2f, 15f); close()
+    }
+}
+
+private fun coachIcon(name: String, paths: ImageVector.Builder.() -> Unit): ImageVector =
+    ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply(paths).build()
 
 fun attemptRoutineStart(routine: Routine, onStart: (Routine) -> Unit): String? {
     if (routine.exercises.isEmpty()) return EMPTY_ROUTINE_START_MESSAGE
@@ -1075,11 +1275,15 @@ fun WorkoutScreen(
                 )
             }
             if (state.phase != TrainingPhase.WARMUP) {
-                Text(stringResource(R.string.current_series, state.seriesNumber, exercise.sets))
-                Text(stringResource(R.string.current_repetition, state.repetitionNumber, exercise.repetitions))
-                state.phase.label?.let { phase ->
-                    Text("Fase: $phase")
-                }
+                WorkoutMetricsCard(
+                    metrics = workoutMetricTexts(
+                        seriesNumber = state.seriesNumber,
+                        seriesTotal = exercise.sets,
+                        repetitionNumber = state.repetitionNumber,
+                        repetitionTotal = exercise.repetitions,
+                        phase = state.phase.label.orEmpty()
+                    )
+                )
             }
         }
 
@@ -1105,27 +1309,152 @@ fun WorkoutScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 onClick = if (state.isPaused) onResume else onPause
             ) {
-                Text(if (state.isPaused) "REANUDAR" else "PAUSA")
+                WorkoutButtonContent(
+                    icon = if (state.isPaused) StartWorkoutPlayIcon else PauseIcon,
+                    label = if (state.isPaused) "REANUDAR" else "PAUSA"
+                )
             }
             Button(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = workoutNeutralButtonColors(),
                 enabled = !state.isPaused &&
                     state.phase != TrainingPhase.COUNTDOWN,
                 onClick = onSkip
             ) {
-                Text("OMITIR")
+                WorkoutButtonContent(SkipNextIcon, "OMITIR")
             }
             Button(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = workoutNeutralButtonColors(),
                 onClick = { showFinishConfirmation = true }
             ) {
-                Text(stringResource(R.string.finish_workout))
+                WorkoutButtonContent(StopIcon, stringResource(R.string.finish_workout))
             }
         }
     }
+}
+
+internal data class WorkoutMetricTexts(
+    val series: String,
+    val repetition: String,
+    val phase: String
+)
+
+internal fun workoutMetricTexts(
+    seriesNumber: Int,
+    seriesTotal: Int,
+    repetitionNumber: Int,
+    repetitionTotal: Int,
+    phase: String
+) = WorkoutMetricTexts(
+    series = "$seriesNumber de $seriesTotal",
+    repetition = "$repetitionNumber de $repetitionTotal",
+    phase = phase
+)
+
+@Composable
+private fun WorkoutMetricsCard(metrics: WorkoutMetricTexts) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            WorkoutMetricColumn(SeriesIcon, "SERIE", metrics.series, Modifier.weight(1f))
+            WorkoutMetricDivider()
+            WorkoutMetricColumn(RepeatIcon, "REPETICIÓN", metrics.repetition, Modifier.weight(1f))
+            WorkoutMetricDivider()
+            WorkoutMetricColumn(PhaseIcon, "FASE", metrics.phase, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun WorkoutMetricColumn(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun WorkoutMetricDivider() {
+    VerticalDivider(
+        modifier = Modifier.height(72.dp),
+        thickness = 1.dp,
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+    )
+}
+
+@Composable
+private fun workoutNeutralButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+)
+
+@Composable
+private fun WorkoutButtonContent(icon: ImageVector, label: String) {
+    Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(24.dp))
+    Spacer(modifier = Modifier.size(8.dp))
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge.copy(
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+    )
 }
 
 internal fun workoutRingDiameter(containerWidth: Dp, containerHeight: Dp): Dp {
