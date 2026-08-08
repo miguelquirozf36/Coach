@@ -34,6 +34,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -62,7 +63,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
@@ -644,7 +649,12 @@ private fun RoutineDetailScreen(
                     startValidationMessage = attemptRoutineStart(routine, onStart)
                 }
             ) {
-                Text("COMENZAR")
+                Icon(
+                    imageVector = StartWorkoutPlayIcon,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(START_WORKOUT_LABEL)
             }
             if (!isVoiceReady) Text("Inicializando voz")
         }
@@ -652,6 +662,22 @@ private fun RoutineDetailScreen(
 }
 
 const val EMPTY_ROUTINE_START_MESSAGE = "Agrega al menos un ejercicio antes de comenzar."
+const val START_WORKOUT_LABEL = "INICIAR"
+
+private val StartWorkoutPlayIcon: ImageVector = ImageVector.Builder(
+    name = "PlayArrow",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(8f, 5f)
+        lineTo(8f, 19f)
+        lineTo(19f, 12f)
+        close()
+    }
+}.build()
 
 fun attemptRoutineStart(routine: Routine, onStart: (Routine) -> Unit): String? {
     if (routine.exercises.isEmpty()) return EMPTY_ROUTINE_START_MESSAGE

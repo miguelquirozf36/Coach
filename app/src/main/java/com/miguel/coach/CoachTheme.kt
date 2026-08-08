@@ -171,6 +171,150 @@ enum class CoachTheme(
             restSeriesRing = Color(0xFF5E7180),
             restExerciseRing = Color(0xFF6C5D8A)
         )
+    ),
+    GREEN(
+        id = "green",
+        displayName = "Green",
+        description = "Enérgico, enfocado y equilibrado.",
+        colorScheme = darkColorScheme(
+            primary = Color(0xFF86DF86),
+            onPrimary = Color(0xFF08390E),
+            primaryContainer = Color(0xFF235126),
+            onPrimaryContainer = Color(0xFFB7F5B5),
+            secondary = Color(0xFFAEB4BE),
+            onSecondary = Color(0xFF292E35),
+            secondaryContainer = Color(0xFF3A4048),
+            onSecondaryContainer = Color(0xFFD9DFE9),
+            tertiary = Color(0xFF91D5B0),
+            onTertiary = Color(0xFF0D3522),
+            background = Color(0xFF0D1014),
+            onBackground = Color(0xFFF5F5F5),
+            surface = Color(0xFF1C222B),
+            onSurface = Color(0xFFF5F5F5),
+            surfaceVariant = Color(0xFF292F38),
+            onSurfaceVariant = Color(0xFFAEB4BE),
+            outline = Color(0xFF89919B),
+            outlineVariant = Color(0xFF424952),
+            error = Color(0xFFF2B8B5),
+            onError = Color(0xFF601410),
+            errorContainer = Color(0xFF8C1D18),
+            onErrorContainer = Color(0xFFF9DEDC)
+        ),
+        trainingRingColors = TrainingRingColors(
+            warmupRing = Color(0xFF74BCA5),
+            concentricRing = Color(0xFF86DF86),
+            eccentricRing = Color(0xFFB4D979),
+            restSeriesRing = Color(0xFF72A884),
+            restExerciseRing = Color(0xFF91BFA4)
+        )
+    ),
+    ORANGE(
+        id = "orange",
+        displayName = "Orange",
+        description = "Enérgico, intenso y deportivo.",
+        colorScheme = darkColorScheme(
+            primary = Color(0xFFEA571C),
+            onPrimary = Color(0xFFFFFFFF),
+            primaryContainer = Color(0xFF71300F),
+            onPrimaryContainer = Color(0xFFFFDBCC),
+            secondary = Color(0xFFAEB4BE),
+            onSecondary = Color(0xFF292E35),
+            secondaryContainer = Color(0xFF3A4048),
+            onSecondaryContainer = Color(0xFFD9DFE9),
+            tertiary = Color(0xFFE6A06F),
+            onTertiary = Color(0xFF452B12),
+            background = Color(0xFF0D1014),
+            onBackground = Color(0xFFF5F5F5),
+            surface = Color(0xFF1C222B),
+            onSurface = Color(0xFFF5F5F5),
+            surfaceVariant = Color(0xFF292F38),
+            onSurfaceVariant = Color(0xFFAEB4BE),
+            outline = Color(0xFF89919B),
+            outlineVariant = Color(0xFF424952),
+            error = Color(0xFFF2B8B5),
+            onError = Color(0xFF601410),
+            errorContainer = Color(0xFF8C1D18),
+            onErrorContainer = Color(0xFFF9DEDC)
+        ),
+        trainingRingColors = TrainingRingColors(
+            warmupRing = Color(0xFFE29A63),
+            concentricRing = Color(0xFFEA571C),
+            eccentricRing = Color(0xFFF08A36),
+            restSeriesRing = Color(0xFFC36A42),
+            restExerciseRing = Color(0xFFD98B60)
+        )
+    ),
+    SAND(
+        id = "sand",
+        displayName = "Sand",
+        description = "Claro, cálido y natural.",
+        colorScheme = lightColorScheme(
+            primary = Color(0xFFD56A32),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFFFDBCA),
+            onPrimaryContainer = Color(0xFF4B1F08),
+            secondary = Color(0xFF68645F),
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFECE5DD),
+            onSecondaryContainer = Color(0xFF292521),
+            tertiary = Color(0xFF7A6047),
+            onTertiary = Color.White,
+            background = Color(0xFFF7F4EF),
+            onBackground = Color(0xFF24211F),
+            surface = Color(0xFFFFFFFF),
+            onSurface = Color(0xFF24211F),
+            surfaceVariant = Color(0xFFECE7E1),
+            onSurfaceVariant = Color(0xFF68645F),
+            outline = Color(0xFFDED8D0),
+            outlineVariant = Color(0xFFE8E2DA),
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002)
+        ),
+        trainingRingColors = TrainingRingColors(
+            warmupRing = Color(0xFF527A91),
+            concentricRing = Color(0xFF477856),
+            eccentricRing = Color(0xFFD56A32),
+            restSeriesRing = Color(0xFF77685C),
+            restExerciseRing = Color(0xFF765D82)
+        )
+    ),
+    ICE(
+        id = "ice",
+        displayName = "Ice",
+        description = "Claro, fresco y sereno.",
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF4F7898),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFD1E8F8),
+            onPrimaryContainer = Color(0xFF102F44),
+            secondary = Color(0xFF65717C),
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFDDE6ED),
+            onSecondaryContainer = Color(0xFF202A32),
+            tertiary = Color(0xFF5F6F91),
+            onTertiary = Color.White,
+            background = Color(0xFFF3F7FA),
+            onBackground = Color(0xFF20262C),
+            surface = Color(0xFFFFFFFF),
+            onSurface = Color(0xFF20262C),
+            surfaceVariant = Color(0xFFE5EDF2),
+            onSurfaceVariant = Color(0xFF65717C),
+            outline = Color(0xFFD9E1E7),
+            outlineVariant = Color(0xFFE2E9EE),
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002)
+        ),
+        trainingRingColors = TrainingRingColors(
+            warmupRing = Color(0xFF4F7898),
+            concentricRing = Color(0xFF3F7668),
+            eccentricRing = Color(0xFF9A633E),
+            restSeriesRing = Color(0xFF607887),
+            restExerciseRing = Color(0xFF626E91)
+        )
     );
 
     companion object {

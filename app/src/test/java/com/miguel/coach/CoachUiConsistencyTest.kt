@@ -7,6 +7,11 @@ import org.junit.Test
 
 class CoachUiConsistencyTest {
     @Test
+    fun workoutStartActionUsesTheInitiateLabel() {
+        assertEquals("INICIAR", START_WORKOUT_LABEL)
+    }
+
+    @Test
     fun emptyRoutineStartProducesValidationMessageWithoutStarting() {
         val routine = routineWithExercises(emptyList())
         var startedRoutine: Routine? = null

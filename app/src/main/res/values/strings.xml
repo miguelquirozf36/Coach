@@ -11,7 +11,7 @@
     <string name="exercise_squat">Sentadilla</string>
     <string name="exercise_bench_press">Press de banca</string>
     <string name="exercise_row">Remo</string>
-    <string name="start_workout">COMENZAR</string>
+    <string name="start_workout">INICIAR</string>
     <string name="finish_workout">FINALIZAR</string>
     <string name="workout_title">Entrenamiento</string>
     <string name="current_series">Serie %1$d de %2$d</string>
