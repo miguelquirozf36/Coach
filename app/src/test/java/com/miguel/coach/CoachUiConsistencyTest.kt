@@ -1,11 +1,17 @@
 package com.miguel.coach
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class CoachUiConsistencyTest {
+    @Test
+    fun routineCardTitleUsesTheApprovedCompactSize() {
+        assertEquals(20.sp, ROUTINE_CARD_TITLE_FONT_SIZE)
+    }
+
     @Test
     fun workoutStartActionUsesTheInitiateLabel() {
         assertEquals("INICIAR", START_WORKOUT_LABEL)

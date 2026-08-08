@@ -459,15 +459,15 @@ fun HomeScreen(
                         ) {
                             ListItem(
                                 headlineContent = {
-                                    Text(routine.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    RoutineCardTitle(routine.name, maxLines = 1)
                                 },
                                 supportingContent = {
-                                    Text(
+                                    RoutineCardMetadata(
                                         "${routine.exercises.size} ejercicios · " +
                                             "${routine.estimatedDurationMinutes()} min"
                                     )
                                 },
-                                trailingContent = { Text("VER") }
+                                trailingContent = { RoutineCardViewAction() }
                             )
                             TextButton(onClick = { routinePendingDeletion = routine }) { Text("ELIMINAR") }
                         }
@@ -495,21 +495,11 @@ fun HomeScreen(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = routine.name,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = routineSummary,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    RoutineCardTitle(routine.name, maxLines = 2)
+                                    RoutineCardMetadata(routineSummary)
                                 }
                                 OutlinedButton(onClick = { onOpen(routine) }) {
-                                    Text("VER")
+                                    RoutineCardViewAction()
                                 }
                             }
                         }
@@ -521,6 +511,33 @@ fun HomeScreen(
             }
         }
     }
+}
+
+internal val ROUTINE_CARD_TITLE_FONT_SIZE = 20.sp
+
+@Composable
+private fun RoutineCardTitle(name: String, maxLines: Int) {
+    Text(
+        text = name,
+        style = MaterialTheme.typography.titleLarge.copy(fontSize = ROUTINE_CARD_TITLE_FONT_SIZE),
+        fontWeight = FontWeight.SemiBold,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@Composable
+private fun RoutineCardMetadata(summary: String) {
+    Text(
+        text = summary,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun RoutineCardViewAction() {
+    Text("VER", style = MaterialTheme.typography.labelLarge)
 }
 
 @Composable
