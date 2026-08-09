@@ -8,13 +8,18 @@ import org.junit.Test
 class ThemePreferenceRepositoryTest {
 
     @Test
-    fun `exposes exactly the eight themes in the approved order with unique ids`() {
-        assertEquals(
-            listOf("Obsidian", "Ocean", "Forest", "Light", "Green", "Orange", "Sand", "Ice"),
-            CoachTheme.entries.map(CoachTheme::displayName)
-        )
+    fun `exposes exactly eight themes with unique ids`() {
         assertEquals(8, CoachTheme.entries.size)
         assertEquals(8, CoachTheme.entries.map(CoachTheme::id).toSet().size)
+    }
+
+    @Test
+    fun `shows dark themes before light themes in the approved appearance order`() {
+        assertEquals(
+            listOf("Obsidian", "Ocean", "Forest", "Green", "Orange", "Light", "Sand", "Ice"),
+            appearanceThemeOrder.map(CoachTheme::displayName)
+        )
+        assertEquals(CoachTheme.entries.toSet(), appearanceThemeOrder.toSet())
     }
 
     @Test
@@ -23,7 +28,11 @@ class ThemePreferenceRepositoryTest {
             "obsidian" to CoachTheme.OBSIDIAN,
             "ocean" to CoachTheme.OCEAN,
             "forest" to CoachTheme.FOREST,
-            "light" to CoachTheme.LIGHT
+            "light" to CoachTheme.LIGHT,
+            "green" to CoachTheme.GREEN,
+            "orange" to CoachTheme.ORANGE,
+            "sand" to CoachTheme.SAND,
+            "ice" to CoachTheme.ICE
         ).forEach { (id, expected) -> assertEquals(expected, CoachTheme.fromId(id)) }
     }
 
@@ -35,6 +44,30 @@ class ThemePreferenceRepositoryTest {
         assertBasePalette(CoachTheme.ICE, 0xFFF3F7FA, 0xFFFFFFFF, 0xFF4F7898, 0xFF20262C, 0xFF65717C)
         assertEquals(Color(0xFFDED8D0), CoachTheme.SAND.colorScheme.outline)
         assertEquals(Color(0xFFD9E1E7), CoachTheme.ICE.colorScheme.outline)
+    }
+
+    @Test
+    fun `routine cards consume the approved neutral colors for light themes`() {
+        assertEquals(Color(0xFFE8EBEF), routineCardContainerColor(CoachTheme.LIGHT.colorScheme))
+        assertEquals(Color(0xFFE9E4DE), routineCardContainerColor(CoachTheme.SAND.colorScheme))
+        assertEquals(Color(0xFFE3EAF0), routineCardContainerColor(CoachTheme.ICE.colorScheme))
+    }
+
+    @Test
+    fun `navigation bar consumes neutral colors for light themes and preserves dark themes`() {
+        assertEquals(Color(0xFFF1F3F5), navigationBarContainerColor(CoachTheme.LIGHT))
+        assertEquals(Color(0xFFF3EFEA), navigationBarContainerColor(CoachTheme.SAND))
+        assertEquals(Color(0xFFEEF3F6), navigationBarContainerColor(CoachTheme.ICE))
+
+        listOf(
+            CoachTheme.OBSIDIAN,
+            CoachTheme.OCEAN,
+            CoachTheme.FOREST,
+            CoachTheme.GREEN,
+            CoachTheme.ORANGE
+        ).forEach { theme ->
+            assertEquals(theme.colorScheme.surfaceContainer, navigationBarContainerColor(theme))
+        }
     }
 
     @Test

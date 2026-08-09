@@ -26,6 +26,7 @@ private val ObsidianTrainingRingColors = TrainingRingColors(
 )
 
 val LocalTrainingRingColors = staticCompositionLocalOf { ObsidianTrainingRingColors }
+val LocalNavigationBarContainerColor = staticCompositionLocalOf { Color.Unspecified }
 
 enum class CoachTheme(
     val id: String,
@@ -155,7 +156,7 @@ enum class CoachTheme(
             onBackground = Color(0xFF1A1C1E),
             surface = Color(0xFFFFFFFF),
             onSurface = Color(0xFF1A1C1E),
-            surfaceVariant = Color(0xFFE2E5E9),
+            surfaceVariant = Color(0xFFE8EBEF),
             onSurfaceVariant = Color(0xFF45494E),
             outline = Color(0xFF75797E),
             outlineVariant = Color(0xFFC5C9CE),
@@ -263,7 +264,7 @@ enum class CoachTheme(
             onBackground = Color(0xFF24211F),
             surface = Color(0xFFFFFFFF),
             onSurface = Color(0xFF24211F),
-            surfaceVariant = Color(0xFFECE7E1),
+            surfaceVariant = Color(0xFFE9E4DE),
             onSurfaceVariant = Color(0xFF68645F),
             outline = Color(0xFFDED8D0),
             outlineVariant = Color(0xFFE8E2DA),
@@ -299,7 +300,7 @@ enum class CoachTheme(
             onBackground = Color(0xFF20262C),
             surface = Color(0xFFFFFFFF),
             onSurface = Color(0xFF20262C),
-            surfaceVariant = Color(0xFFE5EDF2),
+            surfaceVariant = Color(0xFFE3EAF0),
             onSurfaceVariant = Color(0xFF65717C),
             outline = Color(0xFFD9E1E7),
             outlineVariant = Color(0xFFE2E9EE),
@@ -322,6 +323,13 @@ enum class CoachTheme(
     }
 }
 
+internal fun navigationBarContainerColor(theme: CoachTheme): Color = when (theme) {
+    CoachTheme.LIGHT -> Color(0xFFF1F3F5)
+    CoachTheme.SAND -> Color(0xFFF3EFEA)
+    CoachTheme.ICE -> Color(0xFFEEF3F6)
+    else -> theme.colorScheme.surfaceContainer
+}
+
 fun trainingRingColor(
     phase: TrainingPhase,
     colors: TrainingRingColors
@@ -337,7 +345,10 @@ fun trainingRingColor(
 
 @Composable
 fun CoachTheme(theme: CoachTheme, content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalTrainingRingColors provides theme.trainingRingColors) {
+    CompositionLocalProvider(
+        LocalTrainingRingColors provides theme.trainingRingColors,
+        LocalNavigationBarContainerColor provides navigationBarContainerColor(theme)
+    ) {
         MaterialTheme(colorScheme = theme.colorScheme, content = content)
     }
 }

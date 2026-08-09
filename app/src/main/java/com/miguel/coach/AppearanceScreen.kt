@@ -26,6 +26,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
+internal val appearanceThemeOrder = listOf(
+    CoachTheme.OBSIDIAN,
+    CoachTheme.OCEAN,
+    CoachTheme.FOREST,
+    CoachTheme.GREEN,
+    CoachTheme.ORANGE,
+    CoachTheme.LIGHT,
+    CoachTheme.SAND,
+    CoachTheme.ICE
+)
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun AppearanceScreen(
@@ -51,7 +62,7 @@ fun AppearanceScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(CoachTheme.entries, key = CoachTheme::id) { theme ->
+            items(appearanceThemeOrder, key = CoachTheme::id) { theme ->
                 ThemeOptionCard(
                     theme = theme,
                     selected = theme == selectedTheme,

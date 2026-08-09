@@ -35,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -514,7 +515,10 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .clickable { onOpen(routine) },
                             shape = RoundedCornerShape(20.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = routineCardContainerColor(MaterialTheme.colorScheme)
+                            )
                         ) {
                             Box(
                                 modifier = Modifier
@@ -561,6 +565,8 @@ fun HomeScreen(
 }
 
 internal val ROUTINE_CARD_TITLE_FONT_SIZE = 18.sp
+
+internal fun routineCardContainerColor(colorScheme: ColorScheme) = colorScheme.surfaceVariant
 
 @Composable
 private fun Modifier.routineCardStripe(): Modifier {
@@ -634,7 +640,7 @@ internal fun isNavigationTabOutlined(selectedTab: Int, tabIndex: Int): Boolean =
 
 @Composable
 internal fun MainNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    NavigationBar {
+    NavigationBar(containerColor = LocalNavigationBarContainerColor.current) {
         listOf("MI RUTINA", "PERSONALIZADO", "AJUSTES").forEachIndexed { index, label ->
             val selected = selectedTab == index
             NavigationBarItem(
