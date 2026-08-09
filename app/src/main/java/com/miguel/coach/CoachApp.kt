@@ -1,8 +1,6 @@
 package com.miguel.coach
 
 import android.content.Context
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
@@ -16,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -1362,8 +1361,55 @@ fun WorkoutScreen(
             .fillMaxSize()
             .padding(WindowInsets.safeDrawing.asPaddingValues())
     ) {
-        val ringDiameter = workoutRingDiameter(maxWidth, maxHeight)
+        val metrics = workoutMetricTexts(
+            seriesNumber = state.seriesNumber,
+            seriesTotal = exercise.sets,
+            repetitionNumber = state.repetitionNumber,
+            repetitionTotal = exercise.repetitions,
+            phase = state.phase.label.orEmpty()
+        )
+        when (workoutLayoutFor(maxWidth, maxHeight)) {
+            WorkoutLayout.PORTRAIT -> WorkoutPortraitLayout(
+                state = state,
+                exercise = exercise,
+                metrics = metrics,
+                ringDiameter = workoutRingDiameter(maxWidth, maxHeight),
+                onPause = onPause,
+                onResume = onResume,
+                onSkip = onSkip,
+                onRequestFinish = { showFinishConfirmation = true }
+            )
+            WorkoutLayout.LANDSCAPE -> WorkoutLandscapeLayout(
+                state = state,
+                exercise = exercise,
+                metrics = metrics,
+                ringDiameter = landscapeWorkoutRingDiameter(maxWidth * 0.4f, maxHeight),
+                onPause = onPause,
+                onResume = onResume,
+                onSkip = onSkip,
+                onRequestFinish = { showFinishConfirmation = true }
+            )
+        }
+    }
+}
 
+internal enum class WorkoutLayout { PORTRAIT, LANDSCAPE }
+
+internal fun workoutLayoutFor(width: Dp, height: Dp): WorkoutLayout =
+    if (width > height) WorkoutLayout.LANDSCAPE else WorkoutLayout.PORTRAIT
+
+@Composable
+private fun WorkoutPortraitLayout(
+    state: TrainingUiState.Workout,
+    exercise: Exercise,
+    metrics: WorkoutMetricTexts,
+    ringDiameter: Dp,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onSkip: () -> Unit,
+    onRequestFinish: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -1371,112 +1417,169 @@ fun WorkoutScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
-            if (state.phase == TrainingPhase.WARMUP) {
-                Text(
-                    text = state.routine.name,
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Text(
-                    text = "Calentamiento",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            } else if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
-                Text(
-                    text = "Descanso entre ejercicios",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Text("Siguiente: ${exercise.name}")
-            } else {
-                Text(
-                    text = exercise.name,
-                    style = MaterialTheme.typography.headlineMedium
-                )
-            }
-            if (state.phase != TrainingPhase.WARMUP && state.currentExerciseNotes.isNotBlank()) {
-                Text(
-                    text = state.currentExerciseNotes,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (state.phase != TrainingPhase.WARMUP) {
-                WorkoutMetricsCard(
-                    metrics = workoutMetricTexts(
-                        seriesNumber = state.seriesNumber,
-                        seriesTotal = exercise.sets,
-                        repetitionNumber = state.repetitionNumber,
-                        repetitionTotal = exercise.repetitions,
-                        phase = state.phase.label.orEmpty()
-                    )
-                )
-            }
+            WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE, notesMaxLines = 3)
+            if (state.phase != TrainingPhase.WARMUP) WorkoutMetricsCard(metrics)
         }
-
-        Box(
-            modifier = Modifier.align(Alignment.Center),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(modifier = Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Text(
                 text = "Tiempo restante",
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-32).dp),
+                modifier = Modifier.align(Alignment.TopCenter).offset(y = (-32).dp),
                 style = MaterialTheme.typography.labelLarge
             )
-            TrainingTimer(state, ringDiameter)
+            TrainingTimer(state, ringDiameter, showPhaseLabel = false)
         }
+        WorkoutControls(
+            state = state,
+            compact = false,
+            onPause = onPause,
+            onResume = onResume,
+            onSkip = onSkip,
+            onRequestFinish = onRequestFinish,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+    }
+}
 
+@Composable
+private fun WorkoutLandscapeLayout(
+    state: TrainingUiState.Workout,
+    exercise: Exercise,
+    metrics: WorkoutMetricTexts,
+    ringDiameter: Dp,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onSkip: () -> Unit,
+    onRequestFinish: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.weight(0.3f).fillMaxHeight().padding(end = 12.dp),
+            verticalArrangement = Arrangement.Center
         ) {
-            Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                onClick = if (state.isPaused) onResume else onPause
-            ) {
-                WorkoutButtonContent(
-                    icon = if (state.isPaused) StartWorkoutPlayIcon else PauseIcon,
-                    label = if (state.isPaused) "REANUDAR" else "PAUSA"
-                )
+            WorkoutHeader(state, exercise, nameMaxLines = 2, notesMaxLines = 2)
+            if (state.phase != TrainingPhase.WARMUP) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LandscapeWorkoutMetrics(metrics)
             }
-            Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = workoutNeutralButtonColors(),
-                enabled = !state.isPaused &&
-                    state.phase != TrainingPhase.COUNTDOWN,
-                onClick = onSkip
-            ) {
-                WorkoutButtonContent(SkipNextIcon, "OMITIR")
-            }
-            Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = workoutNeutralButtonColors(),
-                onClick = { showFinishConfirmation = true }
-            ) {
-                WorkoutButtonContent(StopIcon, stringResource(R.string.finish_workout))
-            }
+        }
+        Column(
+            modifier = Modifier.weight(0.4f).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Tiempo restante", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            TrainingTimer(state, ringDiameter, showPhaseLabel = true)
+        }
+        WorkoutControls(
+            state = state,
+            compact = true,
+            onPause = onPause,
+            onResume = onResume,
+            onSkip = onSkip,
+            onRequestFinish = onRequestFinish,
+            modifier = Modifier.weight(0.3f).padding(start = 12.dp)
+        )
+    }
+}
+
+@Composable
+private fun WorkoutHeader(
+    state: TrainingUiState.Workout,
+    exercise: Exercise,
+    nameMaxLines: Int,
+    notesMaxLines: Int
+) {
+    Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
+    if (state.phase == TrainingPhase.WARMUP) {
+        Text(state.routine.name, style = MaterialTheme.typography.headlineMedium)
+        Text("Calentamiento", style = MaterialTheme.typography.titleLarge)
+    } else if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
+        Text("Descanso entre ejercicios", style = MaterialTheme.typography.headlineMedium)
+        Text("Siguiente: ${exercise.name}")
+    } else {
+        Text(
+            exercise.name,
+            style = MaterialTheme.typography.headlineMedium,
+            maxLines = nameMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+    if (state.phase != TrainingPhase.WARMUP && state.currentExerciseNotes.isNotBlank()) {
+        Text(
+            state.currentExerciseNotes,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = notesMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun LandscapeWorkoutMetrics(metrics: WorkoutMetricTexts) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LandscapeWorkoutMetric(SeriesIcon, "SERIE", metrics.series)
+        LandscapeWorkoutMetric(RepeatIcon, "REPETICIÃ“N", metrics.repetition)
+        LandscapeWorkoutMetric(PhaseIcon, "FASE", metrics.phase)
+    }
+}
+
+@Composable
+private fun LandscapeWorkoutMetric(icon: ImageVector, label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
     }
 }
+
+@Composable
+private fun WorkoutControls(
+    state: TrainingUiState.Workout,
+    compact: Boolean,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onSkip: () -> Unit,
+    onRequestFinish: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val buttonHeight = if (compact) 44.dp else 56.dp
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 8.dp)) {
+        Button(
+            modifier = Modifier.fillMaxWidth().height(buttonHeight),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            onClick = workoutPauseAction(state.isPaused, onPause, onResume)
+        ) {
+            WorkoutButtonContent(if (state.isPaused) StartWorkoutPlayIcon else PauseIcon, if (state.isPaused) "REANUDAR" else "PAUSA")
+        }
+        Button(
+            modifier = Modifier.fillMaxWidth().height(buttonHeight),
+            shape = RoundedCornerShape(16.dp),
+            colors = workoutNeutralButtonColors(),
+            enabled = !state.isPaused && state.phase != TrainingPhase.COUNTDOWN,
+            onClick = onSkip
+        ) { WorkoutButtonContent(SkipNextIcon, "OMITIR") }
+        Button(
+            modifier = Modifier.fillMaxWidth().height(buttonHeight),
+            shape = RoundedCornerShape(16.dp),
+            colors = workoutNeutralButtonColors(),
+            onClick = onRequestFinish
+        ) { WorkoutButtonContent(StopIcon, stringResource(R.string.finish_workout)) }
+    }
+}
+
+internal fun workoutPauseAction(isPaused: Boolean, onPause: () -> Unit, onResume: () -> Unit): () -> Unit =
+    if (isPaused) onResume else onPause
 
 internal data class WorkoutMetricTexts(
     val series: String,
@@ -1593,6 +1696,11 @@ internal fun workoutRingDiameter(containerWidth: Dp, containerHeight: Dp): Dp {
         .dp
 }
 
+internal fun landscapeWorkoutRingDiameter(columnWidth: Dp, containerHeight: Dp): Dp =
+    min((columnWidth - 24.dp).value, (containerHeight - 52.dp).value)
+        .coerceIn(120f, 240f)
+        .dp
+
 internal fun usefulAreaCenter(
     screenWidth: Int,
     screenHeight: Int,
@@ -1606,7 +1714,7 @@ internal fun usefulAreaCenter(
 )
 
 @Composable
-private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp) {
+private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhaseLabel: Boolean) {
     val timerText = state.secondsRemaining.toClockFormat()
     var frameTimeMillis by remember(state.phaseStartedAtMillis, state.phasePausedAtMillis) {
         mutableStateOf(state.phasePausedAtMillis ?: state.phaseStartedAtMillis)
@@ -1626,12 +1734,7 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp) {
     val progress = if (durationMillis > 0) {
         ((durationMillis - elapsedMillis).toFloat() / durationMillis).coerceIn(0f, 1f)
     } else 0f
-    val targetProgressColor = trainingRingColor(state.phase, LocalTrainingRingColors.current)
-    val progressColor by animateColorAsState(
-        targetValue = targetProgressColor,
-        animationSpec = tween(durationMillis = 250),
-        label = "trainingRingColor"
-    )
+    val progressColor = timerProgressColor(MaterialTheme.colorScheme)
     val trackColor = MaterialTheme.colorScheme.outlineVariant
 
     Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {
@@ -1652,15 +1755,27 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp) {
                 style = stroke
             )
         }
-        Text(
-            text = timerText,
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.displayLarge.copy(
-                fontSize = (diameter.value / 3f).coerceIn(52f, 80f).sp
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (showPhaseLabel) {
+                Text(
+                    text = state.phase.label.orEmpty().uppercase(),
+                    style = MaterialTheme.typography.labelLarge,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+            Text(
+                text = timerText,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = (diameter.value / 3f).coerceIn(52f, 80f).sp
+                )
             )
-        )
+        }
     }
 }
+
+internal fun timerProgressColor(colorScheme: ColorScheme): Color = colorScheme.primary
 
 private val TrainingPhase.label: String?
     get() = when (this) {
