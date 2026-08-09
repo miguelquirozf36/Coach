@@ -104,6 +104,11 @@ class UserPreferenceRepositoryTest {
     }
 
     @Test
+    fun exportBackupUsesTheCompactDescription() {
+        assertEquals("Guardar los datos en un archivo JSON.", EXPORT_BACKUP_DESCRIPTION)
+    }
+
+    @Test
     fun userPreferencesRemainSeparateFromThemeAndRoutineStorage() {
         val userStorage = InMemoryUserStorage()
         val themeStorage = SeparateThemeStorage()

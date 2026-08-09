@@ -35,6 +35,8 @@ internal fun openAppearanceFromSettings(): SettingsDestination = SettingsDestina
 
 internal fun backFromSettingsAppearance(): SettingsDestination = SettingsDestination.ROOT
 
+internal const val EXPORT_BACKUP_DESCRIPTION = "Guardar los datos en un archivo JSON."
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun SettingsScreen(
@@ -122,7 +124,7 @@ fun SettingsScreen(
             )
             SettingsCard(
                 title = "EXPORTAR COPIA",
-                value = "Guardar los datos configurables en un archivo JSON.",
+                value = EXPORT_BACKUP_DESCRIPTION,
                 onClick = onExportBackup
             )
             SettingsCard(
