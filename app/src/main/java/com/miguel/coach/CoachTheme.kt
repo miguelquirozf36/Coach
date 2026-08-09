@@ -27,6 +27,7 @@ private val ObsidianTrainingRingColors = TrainingRingColors(
 
 val LocalTrainingRingColors = staticCompositionLocalOf { ObsidianTrainingRingColors }
 val LocalNavigationBarContainerColor = staticCompositionLocalOf { Color.Unspecified }
+val LocalDialogContainerColor = staticCompositionLocalOf { Color.Unspecified }
 
 enum class CoachTheme(
     val id: String,
@@ -316,6 +317,78 @@ enum class CoachTheme(
             restSeriesRing = Color(0xFF607887),
             restExerciseRing = Color(0xFF626E91)
         )
+    ),
+    MINT(
+        id = "mint",
+        displayName = "Mint",
+        description = "Claro, verde y relajante.",
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF4F8A5B),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFD1E8D4),
+            onPrimaryContainer = Color(0xFF173B1E),
+            secondary = Color(0xFF637267),
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFDDE8DE),
+            onSecondaryContainer = Color(0xFF202A22),
+            tertiary = Color(0xFF56706A),
+            onTertiary = Color.White,
+            background = Color(0xFFF3F8F3),
+            onBackground = Color(0xFF20251F),
+            surface = Color(0xFFFFFFFF),
+            onSurface = Color(0xFF20251F),
+            surfaceVariant = Color(0xFFE2EDE3),
+            onSurfaceVariant = Color(0xFF5F6960),
+            outline = Color(0xFFC9D5CA),
+            outlineVariant = Color(0xFFDCE6DD),
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002)
+        ),
+        trainingRingColors = TrainingRingColors(
+            warmupRing = Color(0xFF4F7898),
+            concentricRing = Color(0xFF4F8A5B),
+            eccentricRing = Color(0xFF9A6B3F),
+            restSeriesRing = Color(0xFF62786A),
+            restExerciseRing = Color(0xFF6D688A)
+        )
+    ),
+    SKY(
+        id = "sky",
+        displayName = "Sky",
+        description = "Claro, fresco y luminoso.",
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF3F8198),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFCBE8F1),
+            onPrimaryContainer = Color(0xFF103641),
+            secondary = Color(0xFF60747B),
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFD9E8EC),
+            onSecondaryContainer = Color(0xFF1D292D),
+            tertiary = Color(0xFF626E91),
+            onTertiary = Color.White,
+            background = Color(0xFFF2F8FA),
+            onBackground = Color(0xFF1E2528),
+            surface = Color(0xFFFFFFFF),
+            onSurface = Color(0xFF1E2528),
+            surfaceVariant = Color(0xFFE0EDF1),
+            onSurfaceVariant = Color(0xFF5D6D73),
+            outline = Color(0xFFCAD8DC),
+            outlineVariant = Color(0xFFDCE8EB),
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002)
+        ),
+        trainingRingColors = TrainingRingColors(
+            warmupRing = Color(0xFF3F8198),
+            concentricRing = Color(0xFF467C6C),
+            eccentricRing = Color(0xFF9A6845),
+            restSeriesRing = Color(0xFF607A84),
+            restExerciseRing = Color(0xFF626E91)
+        )
     );
 
     companion object {
@@ -327,7 +400,18 @@ internal fun navigationBarContainerColor(theme: CoachTheme): Color = when (theme
     CoachTheme.LIGHT -> Color(0xFFF1F3F5)
     CoachTheme.SAND -> Color(0xFFF3EFEA)
     CoachTheme.ICE -> Color(0xFFEEF3F6)
+    CoachTheme.MINT -> Color(0xFFF0F6F0)
+    CoachTheme.SKY -> Color(0xFFEEF6F8)
     else -> theme.colorScheme.surfaceContainer
+}
+
+internal fun dialogContainerColor(theme: CoachTheme): Color = when (theme) {
+    CoachTheme.LIGHT,
+    CoachTheme.SAND,
+    CoachTheme.ICE,
+    CoachTheme.MINT,
+    CoachTheme.SKY -> theme.colorScheme.surface
+    else -> theme.colorScheme.surfaceContainerHigh
 }
 
 fun trainingRingColor(
@@ -347,7 +431,8 @@ fun trainingRingColor(
 fun CoachTheme(theme: CoachTheme, content: @Composable () -> Unit) {
     CompositionLocalProvider(
         LocalTrainingRingColors provides theme.trainingRingColors,
-        LocalNavigationBarContainerColor provides navigationBarContainerColor(theme)
+        LocalNavigationBarContainerColor provides navigationBarContainerColor(theme),
+        LocalDialogContainerColor provides dialogContainerColor(theme)
     ) {
         MaterialTheme(colorScheme = theme.colorScheme, content = content)
     }

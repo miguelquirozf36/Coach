@@ -147,6 +147,7 @@ fun ExercisePickerScreen(
         customExercises.firstOrNull { it.id == id }?.let { definition ->
             AlertDialog(
                 onDismissRequest = { pendingDeletionId = null },
+                containerColor = LocalDialogContainerColor.current,
                 title = { Text("¿Eliminar ejercicio?") },
                 text = { Text("Esta acción no se puede deshacer.") },
                 dismissButton = {
@@ -166,6 +167,7 @@ fun ExercisePickerScreen(
     operationMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { operationMessage = null },
+            containerColor = LocalDialogContainerColor.current,
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { operationMessage = null }) { Text("ACEPTAR") }
@@ -435,6 +437,7 @@ private fun CustomExerciseDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LocalDialogContainerColor.current,
         title = { Text(if (exercise == null) "Nuevo ejercicio" else "Editar ejercicio") },
         text = {
             Column(

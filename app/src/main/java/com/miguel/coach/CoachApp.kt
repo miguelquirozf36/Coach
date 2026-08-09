@@ -500,6 +500,7 @@ fun HomeScreen(
     routinePendingDeletion?.let { routine ->
         AlertDialog(
             onDismissRequest = { routinePendingDeletion = null },
+            containerColor = LocalDialogContainerColor.current,
             title = { Text("¿Eliminar rutina?") },
             text = { Text("Esta acción no se puede deshacer.") },
             dismissButton = { TextButton(onClick = { routinePendingDeletion = null }) { Text("CANCELAR") } },
@@ -804,6 +805,7 @@ private fun RoutineDetailScreen(
     startValidationMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { startValidationMessage = null },
+            containerColor = LocalDialogContainerColor.current,
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { startValidationMessage = null }) { Text("ACEPTAR") }
@@ -1100,6 +1102,7 @@ private fun RoutineEditorScreen(
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
+            containerColor = LocalDialogContainerColor.current,
             title = { Text("Guardar cambios") },
             text = { Text("¿Deseas guardar los cambios antes de salir?") },
             dismissButton = {
@@ -1335,6 +1338,7 @@ fun WorkoutScreen(
     if (showFinishConfirmation) {
         AlertDialog(
             onDismissRequest = { showFinishConfirmation = false },
+            containerColor = LocalDialogContainerColor.current,
             title = { Text("¿Finalizar entrenamiento?") },
             text = { Text("Se perderá el progreso de la sesión actual.") },
             dismissButton = {

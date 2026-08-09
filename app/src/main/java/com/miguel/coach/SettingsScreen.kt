@@ -70,6 +70,7 @@ fun SettingsScreen(
     if (pendingBackupImport) {
         AlertDialog(
             onDismissRequest = onCancelImport,
+            containerColor = LocalDialogContainerColor.current,
             title = { Text("¿Restaurar copia de seguridad?") },
             text = { Text("Los datos configurables actuales serán reemplazados.") },
             dismissButton = { TextButton(onClick = onCancelImport) { Text("CANCELAR") } },
@@ -79,6 +80,7 @@ fun SettingsScreen(
     backupMessage?.let { message ->
         AlertDialog(
             onDismissRequest = onDismissBackupMessage,
+            containerColor = LocalDialogContainerColor.current,
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = onDismissBackupMessage) { Text("ACEPTAR") }
@@ -171,6 +173,7 @@ private fun UserNameDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = LocalDialogContainerColor.current,
         title = { Text("Editar nombre") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

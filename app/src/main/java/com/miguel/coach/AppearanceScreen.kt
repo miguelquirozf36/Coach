@@ -26,16 +26,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-internal val appearanceThemeOrder = listOf(
+internal val appearanceDarkThemes = listOf(
     CoachTheme.OBSIDIAN,
     CoachTheme.OCEAN,
     CoachTheme.FOREST,
     CoachTheme.GREEN,
-    CoachTheme.ORANGE,
+    CoachTheme.ORANGE
+)
+
+internal val appearanceLightThemes = listOf(
     CoachTheme.LIGHT,
     CoachTheme.SAND,
-    CoachTheme.ICE
+    CoachTheme.ICE,
+    CoachTheme.MINT,
+    CoachTheme.SKY
 )
+
+internal val appearanceThemeOrder = appearanceDarkThemes + appearanceLightThemes
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,9 +67,18 @@ fun AppearanceScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(appearanceThemeOrder, key = CoachTheme::id) { theme ->
+            item { AppearanceSectionTitle("OSCUROS") }
+            items(appearanceDarkThemes, key = CoachTheme::id) { theme ->
+                ThemeOptionCard(
+                    theme = theme,
+                    selected = theme == selectedTheme,
+                    onClick = { onThemeSelected(theme) }
+                )
+            }
+            item { AppearanceSectionTitle("CLAROS") }
+            items(appearanceLightThemes, key = CoachTheme::id) { theme ->
                 ThemeOptionCard(
                     theme = theme,
                     selected = theme == selectedTheme,
@@ -71,6 +87,15 @@ fun AppearanceScreen(
             }
         }
     }
+}
+
+@Composable
+private fun AppearanceSectionTitle(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(top = 6.dp)
+    )
 }
 
 @Composable
@@ -86,8 +111,8 @@ private fun ThemeOptionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(

@@ -64,6 +64,7 @@ fun ProgramsScreen(
     if (showCreate) {
         AlertDialog(
             onDismissRequest = { showCreate = false },
+            containerColor = LocalDialogContainerColor.current,
             title = { Text("Crear programa") },
             text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre") }) },
             dismissButton = { TextButton(onClick = { showCreate = false }) { Text("CANCELAR") } },
@@ -115,6 +116,7 @@ fun ProgramDetailScreen(
     if (showRename) {
         AlertDialog(
             onDismissRequest = { showRename = false },
+            containerColor = LocalDialogContainerColor.current,
             title = { Text("Nombre del programa") },
             text = { OutlinedTextField(value = editedName, onValueChange = { editedName = it }) },
             dismissButton = { TextButton(onClick = { showRename = false }) { Text("CANCELAR") } },
