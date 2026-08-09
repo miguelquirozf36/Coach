@@ -465,7 +465,8 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .clickable { onOpen(routine) },
                             shape = RoundedCornerShape(20.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                            colors = routineCardColors()
                         ) {
                             Box(
                                 modifier = Modifier
@@ -516,9 +517,7 @@ fun HomeScreen(
                                 .clickable { onOpen(routine) },
                             shape = RoundedCornerShape(20.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = routineCardContainerColor(MaterialTheme.colorScheme)
-                            )
+                            colors = routineCardColors()
                         ) {
                             Box(
                                 modifier = Modifier
@@ -567,6 +566,11 @@ fun HomeScreen(
 internal val ROUTINE_CARD_TITLE_FONT_SIZE = 18.sp
 
 internal fun routineCardContainerColor(colorScheme: ColorScheme) = colorScheme.surfaceVariant
+
+@Composable
+private fun routineCardColors() = CardDefaults.cardColors(
+    containerColor = routineCardContainerColor(MaterialTheme.colorScheme)
+)
 
 @Composable
 private fun Modifier.routineCardStripe(): Modifier {

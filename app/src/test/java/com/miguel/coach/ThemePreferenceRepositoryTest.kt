@@ -2,6 +2,7 @@ package com.miguel.coach
 
 import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,10 +48,23 @@ class ThemePreferenceRepositoryTest {
     }
 
     @Test
-    fun `routine cards consume the approved neutral colors for light themes`() {
+    fun `all routine cards consume the shared theme color`() {
         assertEquals(Color(0xFFE8EBEF), routineCardContainerColor(CoachTheme.LIGHT.colorScheme))
         assertEquals(Color(0xFFE9E4DE), routineCardContainerColor(CoachTheme.SAND.colorScheme))
         assertEquals(Color(0xFFE3EAF0), routineCardContainerColor(CoachTheme.ICE.colorScheme))
+
+        listOf(
+            CoachTheme.OBSIDIAN,
+            CoachTheme.OCEAN,
+            CoachTheme.FOREST,
+            CoachTheme.GREEN,
+            CoachTheme.ORANGE
+        ).forEach { theme ->
+            assertEquals(theme.colorScheme.surfaceVariant, routineCardContainerColor(theme.colorScheme))
+        }
+
+        assertTrue(emptyCustomRoutine("new-custom").isCustom)
+        assertFalse(Routine::class.java.declaredFields.any { it.name.contains("color", ignoreCase = true) })
     }
 
     @Test
