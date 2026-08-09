@@ -323,14 +323,14 @@ class TrainingEngineTest {
 
     @Test
     fun seedRoutinesUseTheApprovedSecondBasedDurations() {
-        assertEquals(6, Routines.all.size)
+        assertEquals(7, Routines.all.size)
         Routines.all.forEach { routine ->
             assertEquals(false, routine.isCustom)
             assertEquals(180, routine.restBetweenExercisesSeconds)
             assertEquals(600, routine.warmupSeconds)
             routine.exercises.forEach { exercise ->
                 assertEquals(1, exercise.concentricSeconds)
-                assertEquals(2, exercise.eccentricSeconds)
+                assertEquals(if (exercise.id == "pantorrillas-day-7") 1 else 2, exercise.eccentricSeconds)
                 assertEquals(120, exercise.restSeconds)
             }
         }

@@ -253,7 +253,6 @@ object Routines {
             id = "day-2-quadriceps",
             name = "DÍA 2 — CUÁDRICEPS",
             exercises = listOf(
-                exercise("pantorrillas-day-2", "Pantorrillas", 4, 15),
                 exercise("prensa", "Prensa", 4, 10),
                 exercise("bulgaras", "Búlgaras", 3, 10),
                 exercise("extension-pierna", "Extensión de pierna", 3, 10),
@@ -273,13 +272,12 @@ object Routines {
         ),
         routine(
             id = "day-4-shoulders-calves",
-            name = "DÍA 4 — HOMBRO Y PANTORRILLAS",
+            name = "DÍA 4 — HOMBRO",
             exercises = listOf(
                 exercise("press-militar-mancuernas", "Press militar con mancuernas", 4, 10),
                 exercise("elevaciones-laterales", "Elevaciones laterales", 4, 10),
                 exercise("elevaciones-laterales-ligas", "Elevaciones laterales con ligas", 3, 10),
-                exercise("elevaciones-frontales", "Elevaciones frontales", 4, 10),
-                exercise("pantorrillas-day-4", "Pantorrillas", 4, 10)
+                exercise("elevaciones-frontales", "Elevaciones frontales", 4, 10)
             )
         ),
         routine(
@@ -295,30 +293,55 @@ object Routines {
             id = "day-6-biceps-forearm",
             name = "DÍA 6 — BÍCEPS Y ANTEBRAZO",
             exercises = listOf(
-                exercise("pantorrillas-day-6", "Pantorrillas", 4, 10),
                 exercise("curl-predicador", "Curl de bíceps predicador", 4, 10),
                 exercise("curl-mancuernas", "Curl de bíceps con mancuernas", 4, 10),
                 exercise("curl-martillo", "Curl de bíceps martillo", 4, 10),
                 exercise("antebrazo", "Antebrazo", 4, 10)
             )
+        ),
+        routine(
+            id = "day-7-calves",
+            name = "DÍA 7 — PANTORRILLAS",
+            exercises = listOf(
+                exercise(
+                    id = "pantorrillas-day-7",
+                    name = "Pantorrillas",
+                    sets = 5,
+                    repetitions = 15,
+                    eccentricSeconds = 1
+                )
+            ),
+            warmupSeconds = 10 * 60
         )
     )
 
-    private fun routine(id: String, name: String, exercises: List<Exercise>) = Routine(
+    private fun routine(
+        id: String,
+        name: String,
+        exercises: List<Exercise>,
+        warmupSeconds: Int = DEFAULT_WARMUP_SECONDS
+    ) = Routine(
         id = id,
         name = name,
         isCustom = false,
         exercises = exercises,
-        restBetweenExercisesSeconds = DEFAULT_ROUTINE_REST_SECONDS
+        restBetweenExercisesSeconds = DEFAULT_ROUTINE_REST_SECONDS,
+        warmupSeconds = warmupSeconds
     )
 
-    private fun exercise(id: String, name: String, sets: Int, repetitions: Int) = Exercise(
+    private fun exercise(
+        id: String,
+        name: String,
+        sets: Int,
+        repetitions: Int,
+        eccentricSeconds: Int = DEFAULT_ECCENTRIC_SECONDS
+    ) = Exercise(
         id = id,
         name = name,
         sets = sets,
         repetitions = repetitions,
         concentricSeconds = DEFAULT_CONCENTRIC_SECONDS,
-        eccentricSeconds = DEFAULT_ECCENTRIC_SECONDS,
+        eccentricSeconds = eccentricSeconds,
         restSeconds = DEFAULT_SERIES_REST_SECONDS
     )
 }

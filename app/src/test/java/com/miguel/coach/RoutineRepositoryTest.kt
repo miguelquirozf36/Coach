@@ -20,6 +20,74 @@ class RoutineRepositoryTest {
     }
 
     @Test
+    fun seedRoutinesMoveCalvesToASeventhDayWithDynamicDurations() {
+        assertEquals(7, Routines.all.size)
+        val day2 = Routines.all.single { it.id == "day-2-quadriceps" }
+        val day4 = Routines.all.single { it.id == "day-4-shoulders-calves" }
+        val day6 = Routines.all.single { it.id == "day-6-biceps-forearm" }
+        val day7 = Routines.all.single { it.id == "day-7-calves" }
+
+        listOf(day2, day4, day6).forEach { routine ->
+            assertFalse(routine.exercises.any { it.name == "Pantorrillas" })
+            assertEquals(4, routine.exercises.size)
+        }
+        assertEquals("DÍA 4 — HOMBRO", day4.name)
+        assertEquals("DÍA 7 — PANTORRILLAS", day7.name)
+        assertEquals(600, day7.warmupSeconds)
+        assertEquals(1, day7.exercises.size)
+        with(day7.exercises.single()) {
+            assertEquals("Pantorrillas", name)
+            assertEquals(5, sets)
+            assertEquals(15, repetitions)
+            assertEquals(1, concentricSeconds)
+            assertEquals(1, eccentricSeconds)
+            assertEquals(120, restSeconds)
+            assertEquals("", notes)
+        }
+        assertEquals(46, day2.estimatedDurationMinutes())
+        assertEquals(49, day4.estimatedDurationMinutes())
+        assertEquals(51, day6.estimatedDurationMinutes())
+        assertEquals(21, day7.estimatedDurationMinutes())
+    }
+
+    @Test
+    fun calvesDayMigrationUpdatesDefaultsOnceAndPreservesCustomRoutines() {
+        val custom = emptyCustomRoutine("custom-preserved").copy(
+            name = "Personalizada intacta",
+            exercises = listOf(emptyCustomExercise("custom-exercise").copy(notes = "Sin cambios"))
+        )
+        val legacyDefaults = Routines.all.filterNot { it.id == "day-7-calves" }.map { routine ->
+            when (routine.id) {
+                "day-2-quadriceps" -> routine.copy(
+                    exercises = listOf(legacyCalves("pantorrillas-day-2")) + routine.exercises
+                )
+                "day-4-shoulders-calves" -> routine.copy(
+                    name = "DÍA 4 — HOMBRO Y PANTORRILLAS",
+                    exercises = routine.exercises + legacyCalves("pantorrillas-day-4")
+                )
+                "day-6-biceps-forearm" -> routine.copy(
+                    exercises = listOf(legacyCalves("pantorrillas-day-6")) + routine.exercises
+                )
+                else -> routine
+            }
+        }
+        val storage = InMemoryStorage().apply {
+            values[PRIMARY] = RoutineJsonCodec.encode(legacyDefaults + custom)
+            values["training_defaults_migration_v15_stage1"] = "complete"
+        }
+
+        val migrated = RoutineRepository(storage).load()
+
+        assertEquals(7, migrated.count { !it.isCustom })
+        assertEquals(listOf(custom), migrated.filter { it.isCustom })
+        assertTrue(migrated.any { it.id == "day-7-calves" })
+        assertTrue(migrated.filterNot { it.isCustom }.none { routine ->
+            routine.exercises.any { it.id in setOf("pantorrillas-day-2", "pantorrillas-day-4", "pantorrillas-day-6") }
+        })
+        assertEquals(migrated, RoutineRepository(storage).load())
+    }
+
+    @Test
     fun savingAndReloadingKeepsEditedRoutines() {
         val storage = InMemoryStorage()
         val repository = RoutineRepository(storage)
@@ -262,7 +330,7 @@ class RoutineRepositoryTest {
         assertTrue(repository.save(all))
         val reloaded = RoutineRepository(storage).load()
 
-        assertEquals(6, reloaded.count { !it.isCustom })
+        assertEquals(7, reloaded.count { !it.isCustom })
         assertEquals(listOf(custom), reloaded.filter { it.isCustom })
     }
 
@@ -401,6 +469,16 @@ class RoutineRepositoryTest {
     private fun editedRoutines(name: String): List<Routine> = Routines.all.mapIndexed { index, routine ->
         if (index == 0) routine.copy(name = name, restBetweenExercisesSeconds = 90) else routine
     }
+
+    private fun legacyCalves(id: String) = Exercise(
+        id = id,
+        name = "Pantorrillas",
+        sets = 4,
+        repetitions = 10,
+        concentricSeconds = 1,
+        eccentricSeconds = 2,
+        restSeconds = 120
+    )
 
     private class InMemoryStorage : RoutineStorage {
         val values = mutableMapOf<String, String>()

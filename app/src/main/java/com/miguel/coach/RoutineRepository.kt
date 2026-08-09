@@ -50,16 +50,19 @@ class RoutineRepository(
 
     fun load(): List<Routine> {
         val primaryJson = storage.read(ROUTINES_JSON)
-        decodeAndValidate(primaryJson)?.let { return migrateDefaultsOnce(it) }
+        decodeAndValidate(primaryJson)?.let { return migrateCalvesDayOnce(migrateDefaultsOnce(it)) }
 
         val backupJson = storage.read(ROUTINES_BACKUP_JSON)
         decodeAndValidate(backupJson)?.let { recoveredRoutines ->
             storage.write(ROUTINES_JSON, backupJson!!)
-            return migrateDefaultsOnce(recoveredRoutines)
+            return migrateCalvesDayOnce(migrateDefaultsOnce(recoveredRoutines))
         }
 
         if (primaryJson == null && backupJson == null) {
-            if (save(seedRoutines)) storage.write(DEFAULTS_MIGRATION_V15_STAGE1, "complete")
+            if (save(seedRoutines)) {
+                storage.write(DEFAULTS_MIGRATION_V15_STAGE1, "complete")
+                storage.write(CALVES_DAY_MIGRATION_V16, "complete")
+            }
         }
         return seedRoutines
     }
@@ -80,6 +83,38 @@ class RoutineRepository(
         }
         if (!save(migrated)) return routines
         if (!storage.write(DEFAULTS_MIGRATION_V15_STAGE1, "complete")) {
+            restoreBackup()
+            return routines
+        }
+        return migrated
+    }
+
+    private fun migrateCalvesDayOnce(routines: List<Routine>): List<Routine> {
+        if (storage.read(CALVES_DAY_MIGRATION_V16) == "complete") return routines
+        val hasMigratableDefaults = routines.any { routine ->
+            !routine.isCustom && routine.id in setOf(DAY_2_ID, DAY_4_ID, DAY_6_ID)
+        }
+        if (!hasMigratableDefaults) {
+            storage.write(CALVES_DAY_MIGRATION_V16, "complete")
+            return routines
+        }
+        val seedDay7 = seedRoutines.firstOrNull { it.id == DAY_7_ID }
+        val migrated = routines.map { routine ->
+            if (routine.isCustom) return@map routine
+            when (routine.id) {
+                DAY_2_ID -> routine.copy(exercises = routine.exercises.filterNot { it.id == DAY_2_CALVES_ID })
+                DAY_4_ID -> routine.copy(
+                    name = if (routine.name == OLD_DAY_4_NAME) NEW_DAY_4_NAME else routine.name,
+                    exercises = routine.exercises.filterNot { it.id == DAY_4_CALVES_ID }
+                )
+                DAY_6_ID -> routine.copy(exercises = routine.exercises.filterNot { it.id == DAY_6_CALVES_ID })
+                else -> routine
+            }
+        }.let { updated ->
+            if (seedDay7 == null || updated.any { it.id == DAY_7_ID }) updated else updated + seedDay7
+        }
+        if (!save(migrated)) return routines
+        if (!storage.write(CALVES_DAY_MIGRATION_V16, "complete")) {
             restoreBackup()
             return routines
         }
@@ -123,6 +158,16 @@ class RoutineRepository(
         const val ROUTINES_JSON = "routines_json"
         const val ROUTINES_BACKUP_JSON = "routines_backup_json"
         const val DEFAULTS_MIGRATION_V15_STAGE1 = "training_defaults_migration_v15_stage1"
+        const val CALVES_DAY_MIGRATION_V16 = "calves_day_migration_v16"
+        const val DAY_2_ID = "day-2-quadriceps"
+        const val DAY_4_ID = "day-4-shoulders-calves"
+        const val DAY_6_ID = "day-6-biceps-forearm"
+        const val DAY_7_ID = "day-7-calves"
+        const val DAY_2_CALVES_ID = "pantorrillas-day-2"
+        const val DAY_4_CALVES_ID = "pantorrillas-day-4"
+        const val DAY_6_CALVES_ID = "pantorrillas-day-6"
+        const val OLD_DAY_4_NAME = "DÍA 4 — HOMBRO Y PANTORRILLAS"
+        const val NEW_DAY_4_NAME = "DÍA 4 — HOMBRO"
     }
 }
 
