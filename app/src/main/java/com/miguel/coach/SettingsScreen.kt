@@ -142,7 +142,8 @@ private fun SettingsCard(title: String, value: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .sizeIn(minHeight = 48.dp)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        colors = contentCardColors()
     ) {
         ListItem(
             headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },

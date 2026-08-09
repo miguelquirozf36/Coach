@@ -255,7 +255,8 @@ fun ExercisePickerScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         expandedCategory = toggledExerciseCategory(expandedCategory, category)
-                                    }
+                                    },
+                                colors = contentCardColors()
                             ) {
                                 val expanded = expandedCategory == category
                                 Row(
@@ -315,7 +316,8 @@ private fun ExerciseDefinitionRow(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .clickable(onClick = onOpen),
+        colors = contentCardColors()
     ) {
         ListItem(
             headlineContent = {

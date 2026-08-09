@@ -670,12 +670,15 @@ fun HomeScreen(
 
 internal val ROUTINE_CARD_TITLE_FONT_SIZE = 18.sp
 
-internal fun routineCardContainerColor(colorScheme: ColorScheme) = colorScheme.surfaceVariant
+internal fun contentCardContainerColor(colorScheme: ColorScheme) = colorScheme.surfaceVariant
 
 @Composable
-private fun routineCardColors() = CardDefaults.cardColors(
-    containerColor = routineCardContainerColor(MaterialTheme.colorScheme)
+internal fun contentCardColors() = CardDefaults.cardColors(
+    containerColor = contentCardContainerColor(MaterialTheme.colorScheme)
 )
+
+@Composable
+private fun routineCardColors() = contentCardColors()
 
 @Composable
 private fun Modifier.routineCardStripe(): Modifier {
@@ -1019,7 +1022,10 @@ fun attemptRoutineStart(routine: Routine, onStart: (Routine) -> Unit): String? {
 
 @Composable
 private fun ExerciseSummary(exercise: Exercise) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = contentCardColors()
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1213,7 +1219,10 @@ private fun ExerciseEditor(
     onSelectExercise: () -> Unit,
     onChange: (ExerciseDraft) -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+        colors = contentCardColors()
+    ) {
         Column(
             modifier = Modifier.padding(if (expanded) 16.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)

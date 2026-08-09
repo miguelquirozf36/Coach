@@ -48,10 +48,10 @@ class ThemePreferenceRepositoryTest {
     }
 
     @Test
-    fun `all routine cards consume the shared theme color`() {
-        assertEquals(Color(0xFFE8EBEF), routineCardContainerColor(CoachTheme.LIGHT.colorScheme))
-        assertEquals(Color(0xFFE9E4DE), routineCardContainerColor(CoachTheme.SAND.colorScheme))
-        assertEquals(Color(0xFFE3EAF0), routineCardContainerColor(CoachTheme.ICE.colorScheme))
+    fun `all content cards consume the shared theme color`() {
+        assertEquals(Color(0xFFE8EBEF), contentCardContainerColor(CoachTheme.LIGHT.colorScheme))
+        assertEquals(Color(0xFFE9E4DE), contentCardContainerColor(CoachTheme.SAND.colorScheme))
+        assertEquals(Color(0xFFE3EAF0), contentCardContainerColor(CoachTheme.ICE.colorScheme))
 
         listOf(
             CoachTheme.OBSIDIAN,
@@ -60,7 +60,7 @@ class ThemePreferenceRepositoryTest {
             CoachTheme.GREEN,
             CoachTheme.ORANGE
         ).forEach { theme ->
-            assertEquals(theme.colorScheme.surfaceVariant, routineCardContainerColor(theme.colorScheme))
+            assertEquals(theme.colorScheme.surfaceVariant, contentCardContainerColor(theme.colorScheme))
         }
 
         assertTrue(emptyCustomRoutine("new-custom").isCustom)

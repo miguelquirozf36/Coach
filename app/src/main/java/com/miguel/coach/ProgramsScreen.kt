@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -140,7 +139,7 @@ fun ProgramDetailScreen(
             items(program.routines, key = Routine::id) { routine ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onOpenRoutine(routine) },
-                    colors = CardDefaults.cardColors(containerColor = routineCardContainerColor(MaterialTheme.colorScheme))
+                    colors = contentCardColors()
                 ) {
                     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column { Text(routine.name, fontWeight = FontWeight.SemiBold); Text("${routine.exercises.size} ejercicios") }
@@ -167,7 +166,7 @@ fun ProgramDetailScreen(
 private fun ProgramCard(program: TrainingProgram, active: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = contentCardColors()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
