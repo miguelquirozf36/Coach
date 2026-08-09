@@ -29,6 +29,8 @@ class RoutineRepository(
 
     fun acceptsRoutines(routines: List<Routine>): Boolean = RoutineValidator.isValid(routines)
 
+    fun hasStoredRoutines(): Boolean = storage.read(ROUTINES_JSON) != null || storage.read(ROUTINES_BACKUP_JSON) != null
+
     fun acceptsCustomExercises(exercises: List<ExerciseDefinition>): Boolean =
         customExerciseRepository.isValidForImport(exercises)
 

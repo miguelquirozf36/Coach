@@ -15,12 +15,14 @@ class CoachBackupTest {
         val document = fixture.manager.createDocument()
         val json = CoachBackupCodec.encode(document)
 
-        assertTrue(json.contains("\"backupVersion\": 1"))
+        assertTrue(json.contains("\"backupVersion\": 2"))
         assertTrue(json.contains("\"exportedAt\""))
         assertTrue(json.contains("\"routines\""))
         assertTrue(json.contains("\"customExercises\""))
         assertTrue(json.contains("\"userPreferences\""))
         assertTrue(json.contains("\"themePreference\""))
+        assertTrue(json.contains("\"programsJson\""))
+        assertTrue(json.contains("\"selectedProgramId\""))
         assertEquals("2026-08-05T12:00:00Z", document.exportedAt)
     }
 
@@ -38,6 +40,29 @@ class CoachBackupTest {
     }
 
     @Test
+    fun legacyBackupWithoutProgramsMigratesToWeiderAndPreservesCustomRoutines() {
+        val fixture = Fixture()
+        val legacy = fixture.backupDocument().copy(
+            backupVersion = 1,
+            programs = emptyList(),
+            selectedProgramId = null
+        )
+
+        val validated = fixture.manager.validate(legacy)
+
+        assertTrue(validated.success)
+        assertEquals("weider", validated.document?.selectedProgramId)
+        assertEquals(
+            legacy.routines.filterNot(Routine::isCustom),
+            validated.document?.programs?.single { it.id == "weider" }?.routines
+        )
+        assertEquals(
+            legacy.routines.filter(Routine::isCustom),
+            validated.document?.programs?.single { it.id == "my-routines" }?.routines
+        )
+    }
+
+    @Test
     fun corruptJsonIsRejected() {
         assertFalse(CoachBackupCodec.decode("{documento roto").success)
     }
@@ -46,8 +71,8 @@ class CoachBackupTest {
     fun futureVersionIsRejectedClearly() {
         val fixture = Fixture()
         val json = CoachBackupCodec.encode(fixture.backupDocument()).replace(
-            "\"backupVersion\": 1",
-            "\"backupVersion\": 2"
+            "\"backupVersion\": 2",
+            "\"backupVersion\": 3"
         )
 
         val result = CoachBackupCodec.decode(json)
@@ -101,6 +126,8 @@ class CoachBackupTest {
         assertEquals(document.customExercises, fixture.routineRepository.loadCustomExercises())
         assertEquals("Miguel Quiroz", fixture.userRepository.loadUserName())
         assertEquals(CoachTheme.FOREST, fixture.themeRepository.load())
+        assertEquals(document.programs, fixture.programRepository.loadPrograms(emptyList(), false))
+        assertEquals(document.selectedProgramId, fixture.programRepository.loadSelectedProgramId())
     }
 
     @Test
@@ -158,10 +185,13 @@ class CoachBackupTest {
         val routineRepository = RoutineRepository(routineStorage)
         val userRepository = UserPreferenceRepository(userStorage)
         val themeRepository = ThemePreferenceRepository(themeStorage)
+        val programStorage = RecordingProgramStorage()
+        val programRepository = TrainingProgramRepository(programStorage)
         val manager = CoachBackupManager(
             routineRepository,
             userRepository,
             themeRepository,
+            programRepository,
             now = { "2026-08-05T12:00:00Z" }
         )
 
@@ -188,14 +218,32 @@ class CoachBackupTest {
                 exercises = listOf(emptyCustomExercise("backup-custom-exercise"))
             )
             return CoachBackupDocument(
-                backupVersion = 1,
+                backupVersion = COACH_BACKUP_VERSION,
                 exportedAt = "2026-08-05T12:00:00Z",
                 routines = editedRoutines,
                 customExercises = listOf(customExercise),
                 userName = "miguel   quiroz",
-                themeId = CoachTheme.FOREST.id
+                themeId = CoachTheme.FOREST.id,
+                programs = OfficialTrainingPrograms.create(editedRoutines.filterNot(Routine::isCustom)) + TrainingProgram(
+                    id = "backup-custom-program",
+                    name = "Programa importado",
+                    description = "Programa personalizado.",
+                    frequency = "1 día",
+                    routines = editedRoutines.filter(Routine::isCustom),
+                    builtIn = false
+                ),
+                selectedProgramId = OfficialTrainingPrograms.WEIDER_ID
             )
         }
+    }
+
+    private class RecordingProgramStorage : TrainingProgramStorage {
+        var programs: String? = null
+        var selected: String? = null
+        override fun readPrograms(): String? = programs
+        override fun writePrograms(value: String): Boolean { programs = value; return true }
+        override fun readSelectedProgramId(): String? = selected
+        override fun writeSelectedProgramId(id: String?): Boolean { selected = id; return true }
     }
 
     private class RecordingRoutineStorage : RoutineStorage {

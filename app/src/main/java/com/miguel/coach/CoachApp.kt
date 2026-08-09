@@ -148,10 +148,20 @@ fun CoachApp(
             )
         )
     }
+    val programRepository = remember(applicationContext) {
+        TrainingProgramRepository(
+            SharedPreferencesTrainingProgramStorage(
+                applicationContext.getSharedPreferences("coach_programs", Context.MODE_PRIVATE)
+            )
+        )
+    }
     var selectedThemeId by rememberSaveable { mutableStateOf(themeRepository.load().id) }
     var userName by rememberSaveable { mutableStateOf(userPreferenceRepository.loadUserName()) }
     val selectedTheme = remember(selectedThemeId) { CoachTheme.fromId(selectedThemeId) }
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
+    var programs by remember { mutableStateOf<List<TrainingProgram>>(emptyList()) }
+    var selectedProgramId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openedProgramId by rememberSaveable { mutableStateOf<String?>(null) }
     var customExercises by remember { mutableStateOf<List<ExerciseDefinition>>(emptyList()) }
     var isLoadingRoutines by remember { mutableStateOf(true) }
     var selectedRoutineId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -159,8 +169,8 @@ fun CoachApp(
     var showAppearance by rememberSaveable { mutableStateOf(false) }
     var backupMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingBackupImport by remember { mutableStateOf<CoachBackupDocument?>(null) }
-    val backupManager = remember(routineRepository, userPreferenceRepository, themeRepository) {
-        CoachBackupManager(routineRepository, userPreferenceRepository, themeRepository)
+    val backupManager = remember(routineRepository, userPreferenceRepository, themeRepository, programRepository) {
+        CoachBackupManager(routineRepository, userPreferenceRepository, themeRepository, programRepository)
     }
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -198,8 +208,12 @@ fun CoachApp(
         }
     }
 
-    LaunchedEffect(routineRepository) {
-        routines = routineRepository.load()
+    LaunchedEffect(routineRepository, programRepository) {
+        val existingInstallation = routineRepository.hasStoredRoutines()
+        val legacyRoutines = routineRepository.load()
+        programs = programRepository.loadPrograms(legacyRoutines, existingInstallation)
+        selectedProgramId = programRepository.loadSelectedProgramId()
+        routines = programs.firstOrNull { it.id == selectedProgramId }?.routines.orEmpty()
         customExercises = routineRepository.loadCustomExercises()
         ExerciseLibrary.replaceCustom(customExercises)
         isLoadingRoutines = false
@@ -225,11 +239,64 @@ fun CoachApp(
                         LoadingRoutinesScreen()
                         return@Surface
                     }
+                    if (shouldShowProgramOnboarding(selectedProgramId)) {
+                        ProgramOnboardingScreen(programs) { program ->
+                            if (programRepository.selectProgram(program.id)) {
+                                selectedProgramId = program.id
+                                routines = program.routines
+                                selectedTab = 0
+                            }
+                        }
+                        return@Surface
+                    }
+                    val activeProgram = activeTrainingProgram(programs, selectedProgramId) ?: return@Surface
                     val selectedRoutine = selectedRoutineId?.let { id ->
-                        routines.firstOrNull { it.id == id }
+                        programs.asSequence().flatMap { it.routines.asSequence() }.firstOrNull { it.id == id }
                     }
                     if (selectedRoutine == null) {
-                        if (selectedTab == 2) {
+                        val openedProgram = openedProgramId?.let { id -> programs.firstOrNull { it.id == id } }
+                        if (openedProgram != null) {
+                            ProgramDetailScreen(
+                                program = openedProgram,
+                                active = openedProgram.id == selectedProgramId,
+                                onBack = { openedProgramId = null },
+                                onUse = {
+                                    if (programRepository.selectProgram(openedProgram.id)) {
+                                        selectedProgramId = openedProgram.id
+                                        routines = openedProgram.routines
+                                        openedProgramId = null
+                                        selectedTab = 0
+                                    }
+                                },
+                                onOpenRoutine = { selectedRoutineId = it.id },
+                                onRename = if (openedProgram.builtIn) null else {{ name ->
+                                    val updated = openedProgram.copy(name = name)
+                                    val next = programs.map { if (it.id == updated.id) updated else it }
+                                    if (programRepository.savePrograms(next)) programs = next
+                                }},
+                                onAddDay = if (openedProgram.builtIn) null else {{
+                                    val newDay = emptyCustomRoutine("${openedProgram.id}-day-${System.nanoTime()}")
+                                    val updated = openedProgram.copy(
+                                        routines = openedProgram.routines + newDay,
+                                        frequency = "${openedProgram.routines.size + 1} días"
+                                    )
+                                    val next = programs.map { if (it.id == updated.id) updated else it }
+                                    if (programRepository.savePrograms(next)) { programs = next; openedProgramId = updated.id }
+                                }},
+                                onDeleteDay = if (openedProgram.builtIn) null else {{ day ->
+                                    val updated = openedProgram.copy(
+                                        routines = openedProgram.routines.filterNot { it.id == day.id },
+                                        frequency = "${openedProgram.routines.size - 1} días"
+                                    )
+                                    val next = programs.map { if (it.id == updated.id) updated else it }
+                                    if (programRepository.savePrograms(next)) programs = next
+                                }},
+                                onDeleteProgram = if (openedProgram.builtIn) null else {{
+                                    val next = programs.filterNot { it.id == openedProgram.id }
+                                    if (programRepository.savePrograms(next)) { programs = next; openedProgramId = null }
+                                }}
+                            )
+                        } else if (selectedTab == 2) {
                             SettingsScreen(
                                 userName = userName,
                                 currentTheme = selectedTheme,
@@ -260,7 +327,12 @@ fun CoachApp(
                                     pendingBackupImport = null
                                     backupMessage = result.message
                                     if (result.success) {
-                                        routines = routineRepository.load()
+                                        programs = programRepository.loadPrograms(
+                                            routineRepository.load(),
+                                            routineRepository.hasStoredRoutines()
+                                        )
+                                        selectedProgramId = programRepository.loadSelectedProgramId()
+                                        routines = programs.firstOrNull { it.id == selectedProgramId }?.routines.orEmpty()
                                         customExercises = routineRepository.loadCustomExercises()
                                         ExerciseLibrary.replaceCustom(customExercises)
                                         userName = userPreferenceRepository.loadUserName()
@@ -274,21 +346,37 @@ fun CoachApp(
                                 selectedTab = selectedTab,
                                 onTabSelected = { selectedTab = it }
                             )
+                        } else if (selectedTab == 1) {
+                            ProgramsScreen(
+                                programs = programs,
+                                activeProgramId = activeProgram.id,
+                                selectedTab = selectedTab,
+                                onTabSelected = { selectedTab = it },
+                                onOpen = { openedProgramId = it.id },
+                                onCreate = { name ->
+                                    val id = "custom-program-${System.nanoTime()}"
+                                    val program = TrainingProgram(
+                                        id = id,
+                                        name = name,
+                                        description = "Programa personalizado.",
+                                        frequency = "1 día",
+                                        routines = listOf(emptyCustomRoutine("$id-day-1")),
+                                        builtIn = false
+                                    )
+                                    val next = programs + program
+                                    if (programRepository.savePrograms(next)) { programs = next; openedProgramId = id }
+                                }
+                            )
                         } else {
                             HomeScreen(
-                                routines = routines.filter { it.isCustom == (selectedTab == 1) },
-                                isCustomTab = selectedTab == 1,
+                                routines = activeProgram.routines,
+                                isCustomTab = false,
                                 userName = userName,
+                                activeProgramName = activeProgram.name,
+                                activeProgramFrequency = activeProgram.frequency,
                                 onOpen = { selectedRoutineId = it.id },
-                                onCreate = {
-                                    val newRoutine = emptyCustomRoutine("custom-${System.nanoTime()}")
-                                    routines = routines + newRoutine
-                                    selectedRoutineId = newRoutine.id
-                                },
-                                onDelete = { routine ->
-                                    val updated = routines.filterNot { it.id == routine.id }
-                                    if (routineRepository.save(updated)) routines = updated
-                                },
+                                onCreate = {},
+                                onDelete = {},
                                 selectedTab = selectedTab,
                                 onTabSelected = { selectedTab = it }
                             )
@@ -313,7 +401,10 @@ fun CoachApp(
                                 result.message
                             },
                             onDeleteCustomExercise = { definition ->
-                                val result = routineRepository.deleteCustomExercise(definition.id, routines)
+                                val result = routineRepository.deleteCustomExercise(
+                                    definition.id,
+                                    programs.flatMap(TrainingProgram::routines)
+                                )
                                 if (result.success) {
                                     customExercises = result.exercises
                                     ExerciseLibrary.replaceCustom(result.exercises)
@@ -321,11 +412,16 @@ fun CoachApp(
                                 result.message
                             },
                             onSave = { updatedRoutine ->
-                                val updatedRoutines = routines.map { routine ->
-                                    if (routine.id == updatedRoutine.id) updatedRoutine else routine
+                                val updatedPrograms = programs.map { program ->
+                                    if (program.routines.none { it.id == updatedRoutine.id }) program else program.copy(
+                                        routines = program.routines.map { routine ->
+                                            if (routine.id == updatedRoutine.id) updatedRoutine else routine
+                                        }
+                                    )
                                 }
-                                if (routineRepository.save(updatedRoutines)) {
-                                    routines = updatedRoutines
+                                if (programRepository.savePrograms(updatedPrograms)) {
+                                    programs = updatedPrograms
+                                    routines = updatedPrograms.first { it.id == selectedProgramId }.routines
                                     true
                                 } else {
                                     false
@@ -390,6 +486,8 @@ fun HomeScreen(
     routines: List<Routine>,
     isCustomTab: Boolean,
     userName: String,
+    activeProgramName: String = "",
+    activeProgramFrequency: String = "",
     onOpen: (Routine) -> Unit,
     onCreate: () -> Unit,
     onDelete: (Routine) -> Unit,
@@ -447,6 +545,13 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (activeProgramName.isNotBlank()) {
+                        Text(
+                            text = "$activeProgramName · $activeProgramFrequency",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
             if (isCustomTab && routines.isEmpty()) {
@@ -645,7 +750,7 @@ internal fun isNavigationTabOutlined(selectedTab: Int, tabIndex: Int): Boolean =
 @Composable
 internal fun MainNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     NavigationBar(containerColor = LocalNavigationBarContainerColor.current) {
-        listOf("MI RUTINA", "PERSONALIZADO", "AJUSTES").forEachIndexed { index, label ->
+        listOf("ENTRENAR", "PROGRAMAS", "AJUSTES").forEachIndexed { index, label ->
             val selected = selectedTab == index
             NavigationBarItem(
                 selected = selected,

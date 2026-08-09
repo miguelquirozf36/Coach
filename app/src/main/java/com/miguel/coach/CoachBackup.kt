@@ -2,7 +2,7 @@ package com.miguel.coach
 
 import java.time.Instant
 
-const val COACH_BACKUP_VERSION = 1
+const val COACH_BACKUP_VERSION = 2
 
 data class CoachBackupDocument(
     val backupVersion: Int,
@@ -10,7 +10,9 @@ data class CoachBackupDocument(
     val routines: List<Routine>,
     val customExercises: List<ExerciseDefinition>,
     val userName: String,
-    val themeId: String
+    val themeId: String,
+    val programs: List<TrainingProgram> = emptyList(),
+    val selectedProgramId: String? = null
 )
 
 data class CoachBackupResult(
@@ -43,7 +45,11 @@ object CoachBackupCodec {
         appendJsonString(document.userName)
         append("},\n  \"themePreference\": {\"selected_theme\": ")
         appendJsonString(document.themeId)
-        append("}\n}")
+        append("},\n  \"programsJson\": ")
+        appendJsonString(TrainingProgramCodec.encode(document.programs))
+        append(",\n  \"selectedProgramId\": ")
+        appendJsonString(document.selectedProgramId.orEmpty())
+        append("\n}")
     }
 
     fun decode(json: String): CoachBackupResult {
@@ -51,7 +57,7 @@ object CoachBackupCodec {
             val root = JsonParser(json).parse() as? JsonValue.ObjectValue
                 ?: return CoachBackupResult(false, "El archivo no contiene un documento JSON válido.")
             val version = root.requiredInt("backupVersion")
-            if (version != COACH_BACKUP_VERSION) {
+            if (version !in 1..COACH_BACKUP_VERSION) {
                 return CoachBackupResult(false, "La versión de la copia no es compatible.")
             }
             val document = CoachBackupDocument(
@@ -60,7 +66,10 @@ object CoachBackupCodec {
                 routines = root.requiredArray("routines").values.map(::decodeRoutine),
                 customExercises = root.requiredArray("customExercises").values.map(::decodeCustomExercise),
                 userName = root.requiredObject("userPreferences").requiredString("user_name"),
-                themeId = root.requiredObject("themePreference").requiredString("selected_theme")
+                themeId = root.requiredObject("themePreference").requiredString("selected_theme"),
+                programs = (root.values["programsJson"] as? JsonValue.StringValue)?.value
+                    ?.let(TrainingProgramCodec::decode).orEmpty(),
+                selectedProgramId = (root.values["selectedProgramId"] as? JsonValue.StringValue)?.value?.takeIf(String::isNotBlank)
             )
             CoachBackupResult(true, "Copia válida.", document)
         } catch (_: IllegalArgumentException) {
@@ -174,6 +183,7 @@ class CoachBackupManager(
     private val routineRepository: RoutineRepository,
     private val userPreferenceRepository: UserPreferenceRepository,
     private val themePreferenceRepository: ThemePreferenceRepository,
+    private val trainingProgramRepository: TrainingProgramRepository,
     private val now: () -> String = { Instant.now().toString() }
 ) {
     fun createDocument(): CoachBackupDocument = CoachBackupDocument(
@@ -182,7 +192,12 @@ class CoachBackupManager(
         routines = routineRepository.load(),
         customExercises = routineRepository.loadCustomExercises(),
         userName = userPreferenceRepository.loadUserName(),
-        themeId = themePreferenceRepository.load().id
+        themeId = themePreferenceRepository.load().id,
+        programs = trainingProgramRepository.loadPrograms(
+            routineRepository.load(),
+            routineRepository.hasStoredRoutines()
+        ),
+        selectedProgramId = trainingProgramRepository.loadSelectedProgramId()
     )
 
     fun restore(document: CoachBackupDocument?, workoutActive: Boolean): CoachBackupResult {
@@ -195,12 +210,17 @@ class CoachBackupManager(
         val safeDocument = validated.document!!
         val previous = createDocument()
         val restored = routineRepository.save(safeDocument.routines) &&
+            trainingProgramRepository.savePrograms(safeDocument.programs) &&
+            safeDocument.selectedProgramId?.let(trainingProgramRepository::selectProgram) != false &&
             routineRepository.saveCustomExercises(safeDocument.customExercises) &&
             userPreferenceRepository.saveUserName(safeDocument.userName).saved &&
             themePreferenceRepository.save(CoachTheme.fromId(safeDocument.themeId))
         if (restored) return CoachBackupResult(true, "Copia restaurada correctamente.", safeDocument)
 
         val rolledBack = routineRepository.save(previous.routines) &&
+            trainingProgramRepository.savePrograms(previous.programs) &&
+            (previous.selectedProgramId?.let(trainingProgramRepository::selectProgram)
+                ?: trainingProgramRepository.clearSelectedProgram()) &&
             routineRepository.saveCustomExercises(previous.customExercises) &&
             userPreferenceRepository.saveUserName(previous.userName).saved &&
             themePreferenceRepository.save(CoachTheme.fromId(previous.themeId))
@@ -213,18 +233,27 @@ class CoachBackupManager(
     }
 
     fun validate(document: CoachBackupDocument): CoachBackupResult {
-        if (document.backupVersion != COACH_BACKUP_VERSION) {
+        if (document.backupVersion !in 1..COACH_BACKUP_VERSION) {
             return CoachBackupResult(false, "La versión de la copia no es compatible.")
         }
         val hasValidExportDate = runCatching { Instant.parse(document.exportedAt) }.isSuccess
+        val migratedPrograms = document.programs.takeIf { it.isNotEmpty() } ?: legacyPrograms(document.routines)
+        val selectedProgramId = document.selectedProgramId ?: OfficialTrainingPrograms.WEIDER_ID
         val requiredRoutineIds = Routines.all.mapTo(mutableSetOf()) { it.id }
         val importedBaseRoutineIds = document.routines
             .asSequence()
             .filterNot(Routine::isCustom)
             .mapTo(mutableSetOf(), Routine::id)
+        val baseRoutinesAreCompatible = if (document.backupVersion == 1) {
+            importedBaseRoutineIds.isNotEmpty()
+        } else {
+            importedBaseRoutineIds == requiredRoutineIds
+        }
         if (!hasValidExportDate ||
-            importedBaseRoutineIds != requiredRoutineIds ||
-            !routineRepository.acceptsRoutines(document.routines)
+            !baseRoutinesAreCompatible ||
+            !routineRepository.acceptsRoutines(document.routines) ||
+            !trainingProgramRepository.acceptsPrograms(migratedPrograms) ||
+            migratedPrograms.none { it.id == selectedProgramId }
         ) {
             return CoachBackupResult(false, "La copia contiene rutinas inválidas o incompletas.")
         }
@@ -236,6 +265,28 @@ class CoachBackupManager(
         if (CoachTheme.entries.none { it.id == document.themeId }) {
             return CoachBackupResult(false, "La copia contiene un tema incompatible.")
         }
-        return CoachBackupResult(true, "Copia válida.", document.copy(userName = userName))
+        return CoachBackupResult(
+            true,
+            "Copia válida.",
+            document.copy(
+                backupVersion = COACH_BACKUP_VERSION,
+                userName = userName,
+                programs = migratedPrograms,
+                selectedProgramId = selectedProgramId
+            )
+        )
+    }
+
+    private fun legacyPrograms(routines: List<Routine>): List<TrainingProgram> {
+        val official = OfficialTrainingPrograms.create(routines.filterNot(Routine::isCustom))
+        val custom = routines.filter(Routine::isCustom)
+        return if (custom.isEmpty()) official else official + TrainingProgram(
+            id = "my-routines",
+            name = "Mis rutinas",
+            description = "Rutinas personalizadas migradas.",
+            frequency = "${custom.size} días",
+            routines = custom,
+            builtIn = false
+        )
     }
 }
