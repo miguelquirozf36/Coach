@@ -269,7 +269,7 @@ fun CoachApp(
                     if (showGreeting) {
                         GreetingScreen(userName)
                         LaunchedEffect(userName) {
-                            kotlinx.coroutines.delay(1_200)
+                            kotlinx.coroutines.delay(ONBOARDING_GREETING_DURATION_MILLIS)
                             showGreeting = false
                         }
                         return@Surface
@@ -761,7 +761,7 @@ private fun routineCardColors() = contentCardColors()
 
 @Composable
 private fun Modifier.routineCardStripe(): Modifier {
-    val stripeColor = MaterialTheme.colorScheme.primary
+    val stripeColor = routineCardStripeColor(MaterialTheme.colorScheme)
     return drawBehind {
         val inset = 4.dp.toPx()
         val strokeWidth = 4.dp.toPx()
@@ -774,6 +774,8 @@ private fun Modifier.routineCardStripe(): Modifier {
         )
     }
 }
+
+internal fun routineCardStripeColor(colorScheme: ColorScheme): Color = colorScheme.primary
 
 internal data class RoutineCardContent(
     val exerciseMetadata: String,
