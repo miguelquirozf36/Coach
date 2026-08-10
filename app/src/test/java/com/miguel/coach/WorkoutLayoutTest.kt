@@ -74,6 +74,11 @@ class WorkoutLayoutTest {
     }
 
     @Test
+    fun repetitionLabelUsesTheCorrectUtf8TextInBothLayouts() {
+        assertEquals("REPETICIÓN", WORKOUT_REPETITION_LABEL)
+    }
+
+    @Test
     fun timerProgressAlwaysUsesThemePrimary() {
         CoachTheme.entries.forEach { theme ->
             assertEquals(theme.colorScheme.primary, timerProgressColor(theme.colorScheme))
@@ -94,6 +99,24 @@ class WorkoutLayoutTest {
                 workoutSupportingContainerColor(theme.colorScheme)
             )
         }
+    }
+
+    @Test
+    fun lightMetricDividersGainContrastAndDarkDividersStayUnchanged() {
+        appearanceLightThemes.forEach { theme ->
+            assertEquals(
+                theme.colorScheme.outline.copy(alpha = LIGHT_WORKOUT_DIVIDER_ALPHA),
+                workoutMetricDividerColor(theme.colorScheme)
+            )
+        }
+        appearanceDarkThemes.forEach { theme ->
+            assertEquals(
+                theme.colorScheme.outline.copy(alpha = DARK_WORKOUT_DIVIDER_ALPHA),
+                workoutMetricDividerColor(theme.colorScheme)
+            )
+        }
+        assertEquals(0.35f, LIGHT_WORKOUT_DIVIDER_ALPHA)
+        assertEquals(0.28f, DARK_WORKOUT_DIVIDER_ALPHA)
     }
 
     @Test

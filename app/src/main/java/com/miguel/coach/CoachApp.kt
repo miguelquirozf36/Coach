@@ -1544,7 +1544,7 @@ private fun LandscapeWorkoutMetrics(metrics: WorkoutMetricTexts, modifier: Modif
         ) {
             LandscapeWorkoutMetric(SeriesIcon, "SERIE", metrics.series)
             WorkoutMetricHorizontalDivider()
-            LandscapeWorkoutMetric(RepeatIcon, "REPETICIÃ“N", metrics.repetition)
+            LandscapeWorkoutMetric(RepeatIcon, WORKOUT_REPETITION_LABEL, metrics.repetition)
             WorkoutMetricHorizontalDivider()
             LandscapeWorkoutMetric(PhaseIcon, "FASE", metrics.phase)
         }
@@ -1567,7 +1567,7 @@ private fun WorkoutMetricHorizontalDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
         thickness = 1.dp,
-        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+        color = workoutMetricDividerColor(MaterialTheme.colorScheme)
     )
 }
 
@@ -1648,7 +1648,7 @@ private fun WorkoutMetricsCard(metrics: WorkoutMetricTexts) {
         ) {
             WorkoutMetricColumn(SeriesIcon, "SERIE", metrics.series, Modifier.weight(1f))
             WorkoutMetricDivider()
-            WorkoutMetricColumn(RepeatIcon, "REPETICIÓN", metrics.repetition, Modifier.weight(1f))
+            WorkoutMetricColumn(RepeatIcon, WORKOUT_REPETITION_LABEL, metrics.repetition, Modifier.weight(1f))
             WorkoutMetricDivider()
             WorkoutMetricColumn(PhaseIcon, "FASE", metrics.phase, Modifier.weight(1f))
         }
@@ -1697,7 +1697,7 @@ private fun WorkoutMetricDivider() {
     VerticalDivider(
         modifier = Modifier.height(72.dp),
         thickness = 1.dp,
-        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+        color = workoutMetricDividerColor(MaterialTheme.colorScheme)
     )
 }
 
@@ -1737,6 +1737,9 @@ internal fun landscapeWorkoutRingDiameter(columnWidth: Dp, containerHeight: Dp):
 
 internal const val LANDSCAPE_WORKOUT_SIDE_FRACTION = 0.28f
 internal const val WORKOUT_METRIC_SEPARATOR_COUNT = 2
+internal const val WORKOUT_REPETITION_LABEL = "REPETICIÓN"
+internal const val DARK_WORKOUT_DIVIDER_ALPHA = 0.28f
+internal const val LIGHT_WORKOUT_DIVIDER_ALPHA = 0.35f
 
 internal fun landscapeWorkoutSideWidth(containerWidth: Dp): Dp =
     containerWidth * LANDSCAPE_WORKOUT_SIDE_FRACTION
@@ -1752,6 +1755,15 @@ internal fun workoutSupportingContainerColor(colorScheme: ColorScheme): Color =
     } else {
         colorScheme.surfaceVariant
     }
+
+internal fun workoutMetricDividerColor(colorScheme: ColorScheme): Color =
+    colorScheme.outline.copy(
+        alpha = if (colorScheme.background.luminance() > 0.5f) {
+            LIGHT_WORKOUT_DIVIDER_ALPHA
+        } else {
+            DARK_WORKOUT_DIVIDER_ALPHA
+        }
+    )
 
 internal fun usefulAreaCenter(
     screenWidth: Int,
