@@ -72,4 +72,79 @@ class OnboardingTourTest {
             assertEquals(theme.colorScheme.primary, routineCardStripeColor(theme.colorScheme))
         }
     }
+
+    @Test
+    fun everyStepUsesTheSingleSharedArrowDefinition() {
+        assertEquals(TourArrowStyle(), SHARED_TOUR_ARROW_STYLE)
+    }
+
+    @Test
+    fun everyStepMapsToItsOwnExplicitTarget() {
+        assertEquals(TourTarget.TRAIN_ROUTINE, tourTargetForStep(TourStep.TRAIN))
+        assertEquals(TourTarget.EDIT_BUTTON, tourTargetForStep(TourStep.EDIT))
+        assertEquals(TourTarget.PROGRAMS_TAB, tourTargetForStep(TourStep.PROGRAMS))
+        assertEquals(TourTarget.CREATE_PROGRAM, tourTargetForStep(TourStep.CUSTOM))
+    }
+
+    @Test
+    fun createProgramBoundsAreRegisteredBeforeStepFourAndThenDeliveredToOverlay() {
+        val createProgramBounds = androidx.compose.ui.geometry.Rect(120f, 620f, 960f, 700f)
+        val targetsMeasuredDuringProgramsStep = registerTourTargetBounds(
+            emptyMap(),
+            TourTarget.CREATE_PROGRAM,
+            createProgramBounds
+        )
+
+        assertEquals(createProgramBounds, tourBoundsForStep(targetsMeasuredDuringProgramsStep, TourStep.CUSTOM))
+        assertTrue(hasValidTourBounds(tourBoundsForStep(targetsMeasuredDuringProgramsStep, TourStep.CUSTOM)))
+    }
+
+    @Test
+    fun invalidCreateProgramBoundsDoNotReplaceAValidMeasurement() {
+        val valid = androidx.compose.ui.geometry.Rect(120f, 620f, 960f, 700f)
+        val registered = registerTourTargetBounds(emptyMap(), TourTarget.CREATE_PROGRAM, valid)
+        val afterEmptyMeasurement = registerTourTargetBounds(
+            registered,
+            TourTarget.CREATE_PROGRAM,
+            androidx.compose.ui.geometry.Rect.Zero
+        )
+
+        assertEquals(valid, tourBoundsForStep(afterEmptyMeasurement, TourStep.CUSTOM))
+    }
+
+    @Test
+    fun arrowBelowBubblePointsDownTowardTarget() {
+        val bubble = androidx.compose.ui.geometry.Rect(80f, 200f, 420f, 420f)
+        val target = androidx.compose.ui.geometry.Rect(150f, 460f, 350f, 520f)
+        val arrow = tourArrowGeometry(TourBubbleSide.ABOVE, bubble, target, pixelsPerDp = 1f)
+
+        assertEquals(bubble.bottom, arrow.lineStart.y)
+        assertTrue(arrow.tip.y < target.top)
+        assertTrue(arrow.tip.y > arrow.headLeft.y)
+        assertEquals(target.center.x, arrow.tip.x)
+    }
+
+    @Test
+    fun customBubbleIsCenteredAboveCreateProgramWithoutIntersection() {
+        val target = androidx.compose.ui.geometry.Rect(120f, 620f, 960f, 700f)
+        val bubbleWidth = 520f
+        val bubbleHeight = 280f
+        val left = tourBubbleLeft(target, 1080f, bubbleWidth, 0f, 0f, 24f)
+        val top = tourBubbleTop(TourBubbleSide.ABOVE, target, 800f, bubbleHeight, 24f, 24f, 24f, 16f)
+        val bubble = androidx.compose.ui.geometry.Rect(left, top, left + bubbleWidth, top + bubbleHeight)
+
+        assertTrue(bubble.bottom <= target.top - 16f)
+        assertEquals(target.center.x, bubble.center.x)
+        assertEquals("CREAR PROGRAMA", tourTargetLabel(TourStep.CUSTOM))
+        assertTrue(tourTargetLabel(TourStep.CUSTOM) != "PROGRAMAS")
+    }
+
+    @Test
+    fun bubbleAlignmentRespectsViewportInsets() {
+        val targetNearRightEdge = androidx.compose.ui.geometry.Rect(900f, 600f, 1060f, 680f)
+        val left = tourBubbleLeft(targetNearRightEdge, 1080f, 520f, 16f, 32f, 24f)
+
+        assertTrue(left >= 40f)
+        assertTrue(left + 520f <= 1024f)
+    }
 }

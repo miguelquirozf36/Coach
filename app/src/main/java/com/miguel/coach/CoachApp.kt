@@ -166,7 +166,7 @@ fun CoachApp(
     var needsWelcome by rememberSaveable { mutableStateOf(false) }
     var showGreeting by rememberSaveable { mutableStateOf(false) }
     var tourStep by rememberSaveable { mutableStateOf<TourStep?>(null) }
-    var tourTarget by remember { mutableStateOf<Rect?>(null) }
+    var tourTargets by remember { mutableStateOf<Map<TourTarget, Rect>>(emptyMap()) }
     val selectedTheme = remember(selectedThemeId) { CoachTheme.fromId(selectedThemeId) }
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
     var programs by remember { mutableStateOf<List<TrainingProgram>>(emptyList()) }
@@ -408,8 +408,8 @@ fun CoachApp(
                                     val next = programs + program
                                     if (programRepository.savePrograms(next)) { programs = next; openedProgramId = id }
                                 },
-                                onProgramsTabPositioned = { if (tourStep == TourStep.PROGRAMS) tourTarget = it },
-                                onCreateProgramPositioned = { if (tourStep == TourStep.CUSTOM) tourTarget = it }
+                                onProgramsTabPositioned = { tourTargets = registerTourTargetBounds(tourTargets, TourTarget.PROGRAMS_TAB, it) },
+                                onCreateProgramPositioned = { tourTargets = registerTourTargetBounds(tourTargets, TourTarget.CREATE_PROGRAM, it) }
                             )
                         } else {
                             HomeScreen(
@@ -423,7 +423,7 @@ fun CoachApp(
                                 onDelete = {},
                                 selectedTab = selectedTab,
                                 onTabSelected = { selectedTab = it }
-                                , onRoutinePositioned = { if (tourStep == TourStep.TRAIN) tourTarget = it }
+                                , onRoutinePositioned = { tourTargets = registerTourTargetBounds(tourTargets, TourTarget.TRAIN_ROUTINE, it) }
                             )
                         }
                     } else {
@@ -472,15 +472,14 @@ fun CoachApp(
                                     false
                                 }
                             },
-                            onEditPositioned = { if (tourStep == TourStep.EDIT) tourTarget = it }
+                            onEditPositioned = { tourTargets = registerTourTargetBounds(tourTargets, TourTarget.EDIT_BUTTON, it) }
                         )
                     }
                     tourStep?.let { currentStep ->
                         CoachMarkOverlay(
-                            target = tourTarget,
+                            target = tourBoundsForStep(tourTargets, currentStep),
                             step = currentStep,
                             onNext = {
-                                tourTarget = null
                                 when (currentStep) {
                                     TourStep.TRAIN -> {
                                         selectedRoutineId = activeProgram.routines.firstOrNull()?.id
@@ -501,7 +500,6 @@ fun CoachApp(
                             onSkip = {
                                 userPreferenceRepository.completeTour()
                                 tourStep = null
-                                tourTarget = null
                             }
                         )
                     }

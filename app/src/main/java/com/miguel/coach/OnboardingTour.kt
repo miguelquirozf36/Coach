@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -61,7 +62,45 @@ internal const val ONBOARDING_GREETING_DURATION_MILLIS = 3_000L
 private const val BUBBLE_MARGIN_DP = 24
 private const val TARGET_GAP_DP = 16
 
+internal data class TourArrowStyle(
+    val halfWidthDp: Float = 7f,
+    val headLengthDp: Float = 10f,
+    val strokeWidthDp: Float = 3f,
+    val targetGapDp: Float = 6f
+)
+
+internal val SHARED_TOUR_ARROW_STYLE = TourArrowStyle()
+
+internal data class TourArrowGeometry(
+    val lineStart: Offset,
+    val tip: Offset,
+    val headLeft: Offset,
+    val headRight: Offset
+)
+
 internal enum class TourStep { TRAIN, EDIT, PROGRAMS, CUSTOM }
+
+internal enum class TourTarget { TRAIN_ROUTINE, EDIT_BUTTON, PROGRAMS_TAB, CREATE_PROGRAM }
+
+internal fun tourTargetForStep(step: TourStep): TourTarget = when (step) {
+    TourStep.TRAIN -> TourTarget.TRAIN_ROUTINE
+    TourStep.EDIT -> TourTarget.EDIT_BUTTON
+    TourStep.PROGRAMS -> TourTarget.PROGRAMS_TAB
+    TourStep.CUSTOM -> TourTarget.CREATE_PROGRAM
+}
+
+internal fun hasValidTourBounds(bounds: Rect?): Boolean = bounds != null &&
+    bounds.width > 0f && bounds.height > 0f &&
+    bounds.left.isFinite() && bounds.top.isFinite() && bounds.right.isFinite() && bounds.bottom.isFinite()
+
+internal fun registerTourTargetBounds(
+    targets: Map<TourTarget, Rect>,
+    target: TourTarget,
+    bounds: Rect
+): Map<TourTarget, Rect> = if (hasValidTourBounds(bounds)) targets + (target to bounds) else targets
+
+internal fun tourBoundsForStep(targets: Map<TourTarget, Rect>, step: TourStep): Rect? =
+    targets[tourTargetForStep(step)].takeIf(::hasValidTourBounds)
 
 internal data class TourCopy(val counter: String, val title: String, val body: String, val button: String)
 
@@ -126,6 +165,41 @@ internal fun tourBubbleTop(
     TourBubbleSide.BELOW -> (target.bottom + gap).coerceAtMost(viewportHeight - safeBottom - margin - bubbleHeight)
 }
 
+internal fun tourBubbleLeft(
+    target: Rect,
+    viewportWidth: Float,
+    bubbleWidth: Float,
+    safeLeft: Float,
+    safeRight: Float,
+    margin: Float
+): Float = (target.center.x - bubbleWidth / 2f).coerceIn(
+    safeLeft + margin,
+    (viewportWidth - safeRight - margin - bubbleWidth).coerceAtLeast(safeLeft + margin)
+)
+
+internal fun tourArrowGeometry(
+    side: TourBubbleSide,
+    bubble: Rect,
+    target: Rect,
+    pixelsPerDp: Float,
+    style: TourArrowStyle = SHARED_TOUR_ARROW_STYLE
+): TourArrowGeometry {
+    val halfWidth = style.halfWidthDp * pixelsPerDp
+    val headLength = style.headLengthDp * pixelsPerDp
+    val targetGap = style.targetGapDp * pixelsPerDp
+    val anchorX = target.center.x.coerceIn(bubble.left + 16f * pixelsPerDp, bubble.right - 16f * pixelsPerDp)
+    val bubbleAbove = side == TourBubbleSide.ABOVE
+    val lineStart = Offset(anchorX, if (bubbleAbove) bubble.bottom else bubble.top)
+    val tip = Offset(target.center.x, if (bubbleAbove) target.top - targetGap else target.bottom + targetGap)
+    val headBaseY = tip.y + if (bubbleAbove) -headLength else headLength
+    return TourArrowGeometry(
+        lineStart = lineStart,
+        tip = tip,
+        headLeft = Offset(tip.x - halfWidth, headBaseY),
+        headRight = Offset(tip.x + halfWidth, headBaseY)
+    )
+}
+
 @Composable
 internal fun WelcomeScreen(onContinue: (String) -> String?) {
     var name by rememberSaveable { mutableStateOf("") }
@@ -184,6 +258,7 @@ internal fun CoachMarkOverlay(target: Rect?, step: TourStep, onNext: () -> Unit,
     val scrim = Color.Black.copy(alpha = 0.68f)
     val spotlightColor = MaterialTheme.colorScheme.primary
     val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
     var bubbleSize by remember { mutableStateOf(IntSize.Zero) }
     var bubbleBounds by remember { mutableStateOf<Rect?>(null) }
     BoxWithConstraints(
@@ -209,30 +284,37 @@ internal fun CoachMarkOverlay(target: Rect?, step: TourStep, onNext: () -> Unit,
                 drawRect(scrim, androidx.compose.ui.geometry.Offset(0f, bottom), androidx.compose.ui.geometry.Size(size.width, size.height - bottom))
                 drawRoundRect(spotlightColor, androidx.compose.ui.geometry.Offset(left, top), androidx.compose.ui.geometry.Size(right-left, bottom-top), cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
                 bubbleBounds?.let { bubble ->
-                    val bubbleAbove = bubble.bottom <= target.top
-                    val start = Offset(target.center.x.coerceIn(bubble.left + 16.dp.toPx(), bubble.right - 16.dp.toPx()), if (bubbleAbove) bubble.bottom else bubble.top)
-                    val end = Offset(target.center.x, if (bubbleAbove) target.top - p else target.bottom + p)
-                    drawLine(spotlightColor, start, end, strokeWidth = 3.dp.toPx())
-                    val direction = if (bubbleAbove) -1f else 1f
-                    val arrow = Path().apply {
-                        moveTo(end.x, end.y)
-                        lineTo(end.x - 7.dp.toPx(), end.y + direction * 10.dp.toPx())
-                        lineTo(end.x + 7.dp.toPx(), end.y + direction * 10.dp.toPx())
+                    val arrowGeometry = tourArrowGeometry(
+                        side = if (bubble.bottom <= target.top) TourBubbleSide.ABOVE else TourBubbleSide.BELOW,
+                        bubble = bubble,
+                        target = target,
+                        pixelsPerDp = density.density
+                    )
+                    drawLine(spotlightColor, arrowGeometry.lineStart, arrowGeometry.tip, strokeWidth = SHARED_TOUR_ARROW_STYLE.strokeWidthDp.dp.toPx())
+                    val arrowHead = Path().apply {
+                        moveTo(arrowGeometry.tip.x, arrowGeometry.tip.y)
+                        lineTo(arrowGeometry.headLeft.x, arrowGeometry.headLeft.y)
+                        lineTo(arrowGeometry.headRight.x, arrowGeometry.headRight.y)
                         close()
                     }
-                    drawPath(arrow, spotlightColor)
+                    drawPath(arrowHead, spotlightColor)
                 }
             }
         }
+        val viewportWidth = with(density) { maxWidth.toPx() }
         val viewportHeight = with(density) { maxHeight.toPx() }
         val safeTop = WindowInsets.safeDrawing.getTop(density).toFloat()
         val safeBottom = WindowInsets.safeDrawing.getBottom(density).toFloat()
+        val safeLeft = WindowInsets.safeDrawing.getLeft(density, layoutDirection).toFloat()
+        val safeRight = WindowInsets.safeDrawing.getRight(density, layoutDirection).toFloat()
         val margin = with(density) { BUBBLE_MARGIN_DP.dp.toPx() }
         val gap = with(density) { TARGET_GAP_DP.dp.toPx() }
         val resolvedTarget = target ?: Rect.Zero
         val side = chooseTourBubbleSide(step, resolvedTarget, viewportHeight, bubbleSize.height.toFloat(), safeTop, safeBottom, margin, gap)
         val bubbleTop = if (target == null) safeTop + margin else
             tourBubbleTop(side, resolvedTarget, viewportHeight, bubbleSize.height.toFloat(), safeTop, safeBottom, margin, gap)
+        val bubbleLeft = if (target == null) safeLeft + margin else
+            tourBubbleLeft(resolvedTarget, viewportWidth, bubbleSize.width.toFloat(), safeLeft, safeRight, margin)
         val availableBubbleHeight = if (target == null) {
             viewportHeight - safeTop - safeBottom - margin * 2f
         } else when (side) {
@@ -240,9 +322,8 @@ internal fun CoachMarkOverlay(target: Rect?, step: TourStep, onNext: () -> Unit,
             TourBubbleSide.BELOW -> viewportHeight - safeBottom - margin - resolvedTarget.bottom - gap
         }
         Card(
-            modifier = Modifier.align(Alignment.TopCenter)
-                .offset { IntOffset(0, bubbleTop.roundToInt()) }
-                .padding(horizontal = 20.dp)
+            modifier = Modifier.align(Alignment.TopStart)
+                .offset { IntOffset(bubbleLeft.roundToInt(), bubbleTop.roundToInt()) }
                 .widthIn(max = 520.dp)
                 .heightIn(max = with(density) { availableBubbleHeight.coerceAtLeast(1f).toDp() })
                 .onGloballyPositioned {
