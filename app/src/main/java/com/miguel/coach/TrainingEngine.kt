@@ -304,8 +304,10 @@ class TrainingEngine(
         }
 
         if (workout.exerciseIndex < workout.routine.exercises.lastIndex) {
+            val nextExerciseIndex = workout.exerciseIndex + 1
+            val nextExerciseName = workout.routine.exercises[nextExerciseIndex].name
             state = workout.copy(
-                exerciseIndex = workout.exerciseIndex + 1,
+                exerciseIndex = nextExerciseIndex,
                 seriesNumber = 1,
                 repetitionNumber = 1,
                 phase = TrainingPhase.REST_BETWEEN_EXERCISES,
@@ -314,7 +316,7 @@ class TrainingEngine(
                 phaseStartedAtMillis = monotonicClock.nowMillis(),
                 phasePausedAtMillis = null
             )
-            voiceSpeaker.speak(REST_BETWEEN_EXERCISES_ANNOUNCEMENT)
+            voiceSpeaker.speak("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
             scheduleRestTick(activeSession)
             return
         }

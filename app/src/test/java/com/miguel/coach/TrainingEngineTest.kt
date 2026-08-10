@@ -375,13 +375,17 @@ class TrainingEngineTest {
             listOf(
                 seriesExercise(sets = 1, restSeconds = 4),
                 seriesExercise(sets = 1, restSeconds = 4)
+                    .copy(name = "Press inclinado con mancuernas")
             )
         )
         fixture.startFirstConcentricPhase()
 
         fixture.completeCurrentRepetition()
         fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 12, 1, 1, 1, false)
-        assertEquals("Descansa y prepárate para el siguiente ejercicio.", fixture.voice.phrases.last())
+        assertEquals(
+            "Descansa y prepárate para el siguiente ejercicio. Press inclinado con mancuernas.",
+            fixture.voice.phrases.last()
+        )
 
         fixture.engine.skip()
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
@@ -672,7 +676,7 @@ class TrainingEngineTest {
         val first = seriesExercise(sets = 1, repetitions = 2, restSeconds = 1)
             .copy(id = "first-exercise")
         val second = seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)
-            .copy(id = "second-exercise")
+            .copy(id = "second-exercise", name = "Extensión de tríceps — unilateral")
         val fixture = Fixture(listOf(first, second), restBetweenExercisesSeconds = 3)
         val visitedExerciseIndexes = mutableListOf<Int>()
         fixture.startFirstConcentricPhase()
@@ -684,7 +688,10 @@ class TrainingEngineTest {
         }
         fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 3, 1, 1, 1, false)
         assertEquals(3, fixture.currentWorkout().phaseDurationSeconds)
-        assertEquals(1, fixture.voice.phrases.count { it.startsWith("Descansa y") })
+        val nextExerciseAnnouncement =
+            "Descansa y prepárate para el siguiente ejercicio. Extensión de tríceps — unilateral."
+        assertEquals(nextExerciseAnnouncement, fixture.voice.phrases.last())
+        assertEquals(1, fixture.voice.phrases.count { it == nextExerciseAnnouncement })
 
         repeat(3) { fixture.scheduler.advance() }
         fixture.voice.completeLatest()
@@ -693,7 +700,7 @@ class TrainingEngineTest {
         fixture.completeCurrentRepetition()
 
         assertEquals(listOf(0, 0, 1), visitedExerciseIndexes)
-        assertEquals(1, fixture.voice.phrases.count { it.startsWith("Descansa y") })
+        assertEquals(1, fixture.voice.phrases.count { it == nextExerciseAnnouncement })
         assertEquals(3, fixture.beep.playCalls)
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
         assertEquals(1, fixture.voice.phrases.count { it == "Entrenamiento finalizado." })
