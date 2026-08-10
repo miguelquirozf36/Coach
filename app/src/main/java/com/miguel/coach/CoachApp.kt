@@ -72,6 +72,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.draw.drawBehind
@@ -159,6 +162,11 @@ fun CoachApp(
     }
     var selectedThemeId by rememberSaveable { mutableStateOf(themeRepository.load().id) }
     var userName by rememberSaveable { mutableStateOf(userPreferenceRepository.loadUserName()) }
+    var onboardingInitialized by rememberSaveable { mutableStateOf(false) }
+    var needsWelcome by rememberSaveable { mutableStateOf(false) }
+    var showGreeting by rememberSaveable { mutableStateOf(false) }
+    var tourStep by rememberSaveable { mutableStateOf<TourStep?>(null) }
+    var tourTarget by remember { mutableStateOf<Rect?>(null) }
     val selectedTheme = remember(selectedThemeId) { CoachTheme.fromId(selectedThemeId) }
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
     var programs by remember { mutableStateOf<List<TrainingProgram>>(emptyList()) }
@@ -211,7 +219,11 @@ fun CoachApp(
     }
 
     LaunchedEffect(routineRepository, programRepository) {
-        val existingInstallation = routineRepository.hasStoredRoutines()
+        val existingInstallation = routineRepository.hasStoredRoutines() ||
+            programRepository.hasStoredPrograms() || programRepository.loadSelectedProgramId() != null
+        needsWelcome = userPreferenceRepository.initializeOnboarding(existingInstallation) &&
+            userPreferenceRepository.loadUserName().isBlank()
+        onboardingInitialized = true
         val legacyRoutines = routineRepository.load()
         programs = programRepository.loadPrograms(legacyRoutines, existingInstallation)
         selectedProgramId = programRepository.loadSelectedProgramId()
@@ -241,12 +253,34 @@ fun CoachApp(
                         LoadingRoutinesScreen()
                         return@Surface
                     }
+                    if (!onboardingInitialized) return@Surface
+                    if (needsWelcome) {
+                        WelcomeScreen { input ->
+                            val validation = userPreferenceRepository.saveUserName(input)
+                            validation.value?.let {
+                                userName = it
+                                needsWelcome = false
+                                showGreeting = true
+                            }
+                            validation.message
+                        }
+                        return@Surface
+                    }
+                    if (showGreeting) {
+                        GreetingScreen(userName)
+                        LaunchedEffect(userName) {
+                            kotlinx.coroutines.delay(1_200)
+                            showGreeting = false
+                        }
+                        return@Surface
+                    }
                     if (shouldShowProgramOnboarding(selectedProgramId)) {
                         ProgramOnboardingScreen(programs) { program ->
                             if (programRepository.selectProgram(program.id)) {
                                 selectedProgramId = program.id
                                 routines = program.routines
                                 selectedTab = 0
+                                if (!userPreferenceRepository.isTourCompleted()) tourStep = TourStep.TRAIN
                             }
                         }
                         return@Surface
@@ -345,6 +379,12 @@ fun CoachApp(
                                 onCancelImport = { pendingBackupImport = null },
                                 backupMessage = backupMessage,
                                 onDismissBackupMessage = { backupMessage = null },
+                                onReplayTour = {
+                                    selectedTab = 0
+                                    selectedRoutineId = null
+                                    openedProgramId = null
+                                    tourStep = TourStep.TRAIN
+                                },
                                 selectedTab = selectedTab,
                                 onTabSelected = { selectedTab = it }
                             )
@@ -367,7 +407,9 @@ fun CoachApp(
                                     )
                                     val next = programs + program
                                     if (programRepository.savePrograms(next)) { programs = next; openedProgramId = id }
-                                }
+                                },
+                                onProgramsTabPositioned = { if (tourStep == TourStep.PROGRAMS) tourTarget = it },
+                                onCreateProgramPositioned = { if (tourStep == TourStep.CUSTOM) tourTarget = it }
                             )
                         } else {
                             HomeScreen(
@@ -381,6 +423,7 @@ fun CoachApp(
                                 onDelete = {},
                                 selectedTab = selectedTab,
                                 onTabSelected = { selectedTab = it }
+                                , onRoutinePositioned = { if (tourStep == TourStep.TRAIN) tourTarget = it }
                             )
                         }
                     } else {
@@ -428,6 +471,37 @@ fun CoachApp(
                                 } else {
                                     false
                                 }
+                            },
+                            onEditPositioned = { if (tourStep == TourStep.EDIT) tourTarget = it }
+                        )
+                    }
+                    tourStep?.let { currentStep ->
+                        CoachMarkOverlay(
+                            target = tourTarget,
+                            step = currentStep,
+                            onNext = {
+                                tourTarget = null
+                                when (currentStep) {
+                                    TourStep.TRAIN -> {
+                                        selectedRoutineId = activeProgram.routines.firstOrNull()?.id
+                                        tourStep = TourStep.EDIT
+                                    }
+                                    TourStep.EDIT -> {
+                                        selectedRoutineId = null
+                                        selectedTab = 1
+                                        tourStep = TourStep.PROGRAMS
+                                    }
+                                    TourStep.PROGRAMS -> tourStep = TourStep.CUSTOM
+                                    TourStep.CUSTOM -> {
+                                        userPreferenceRepository.completeTour()
+                                        tourStep = null
+                                    }
+                                }
+                            },
+                            onSkip = {
+                                userPreferenceRepository.completeTour()
+                                tourStep = null
+                                tourTarget = null
                             }
                         )
                     }
@@ -494,7 +568,8 @@ fun HomeScreen(
     onCreate: () -> Unit,
     onDelete: (Routine) -> Unit,
     selectedTab: Int,
-    onTabSelected: (Int) -> Unit
+    onTabSelected: (Int) -> Unit,
+    onRoutinePositioned: (Rect) -> Unit = {}
 ) {
     var routinePendingDeletion by remember { mutableStateOf<Routine?>(null) }
     val routineListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -612,7 +687,7 @@ fun HomeScreen(
                         }
                     }
                 } else {
-                    items(routines, key = Routine::id) { routine ->
+                    itemsIndexed(routines, key = { _, routine -> routine.id }) { index, routine ->
                         val cardContent = remember(routine) {
                             routineCardContent(
                                 exerciseCount = routine.exercises.size,
@@ -622,6 +697,7 @@ fun HomeScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .then(if (index == 0) Modifier.onGloballyPositioned { onRoutinePositioned(it.boundsInWindow()) } else Modifier)
                                 .clickable { onOpen(routine) },
                             shape = RoundedCornerShape(20.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
@@ -754,7 +830,11 @@ internal fun isNavigationTabOutlined(selectedTab: Int, tabIndex: Int): Boolean =
     selectedTab == tabIndex
 
 @Composable
-internal fun MainNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+internal fun MainNavigationBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    onProgramsPositioned: (Rect) -> Unit = {}
+) {
     NavigationBar(containerColor = LocalNavigationBarContainerColor.current) {
         listOf("ENTRENAR", "PROGRAMAS", "AJUSTES").forEachIndexed { index, label ->
             val selected = selectedTab == index
@@ -769,6 +849,7 @@ internal fun MainNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
                     Text(
                         text = label,
                         modifier = Modifier
+                            .then(if (index == 1) Modifier.onGloballyPositioned { onProgramsPositioned(it.boundsInWindow()) } else Modifier)
                             .then(
                                 if (isNavigationTabOutlined(selectedTab, index)) {
                                     Modifier.border(
@@ -797,7 +878,8 @@ private fun RoutineDetailScreen(
     customExercises: List<ExerciseDefinition>,
     onSaveCustomExercise: (String?, String, String, String) -> String?,
     onDeleteCustomExercise: (ExerciseDefinition) -> String?,
-    onSave: (Routine) -> Boolean
+    onSave: (Routine) -> Boolean,
+    onEditPositioned: (Rect) -> Unit = {}
 ) {
     var isEditing by rememberSaveable(routine.id) { mutableStateOf(false) }
     var draft by remember(routine.id) { mutableStateOf(routine.toDraft()) }
@@ -855,7 +937,7 @@ private fun RoutineDetailScreen(
                     CoachBackButton(onClick = onBack)
                 },
                 actions = {
-                    TextButton(onClick = {
+                    TextButton(modifier = Modifier.onGloballyPositioned { onEditPositioned(it.boundsInWindow()) }, onClick = {
                         draft = routine.toDraft()
                         validationMessage = null
                         isEditing = true

@@ -26,6 +26,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -57,7 +60,9 @@ fun ProgramsScreen(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     onOpen: (TrainingProgram) -> Unit,
-    onCreate: (String) -> Unit
+    onCreate: (String) -> Unit,
+    onProgramsTabPositioned: (Rect) -> Unit = {},
+    onCreateProgramPositioned: (Rect) -> Unit = {}
 ) {
     var showCreate by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -78,7 +83,7 @@ fun ProgramsScreen(
     }
     Scaffold(
         topBar = { TopAppBar(title = { Text("PROGRAMAS") }) },
-        bottomBar = { MainNavigationBar(selectedTab, onTabSelected) }
+        bottomBar = { MainNavigationBar(selectedTab, onTabSelected, onProgramsTabPositioned) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
@@ -93,7 +98,12 @@ fun ProgramsScreen(
             items(programs.filterNot(TrainingProgram::builtIn), key = TrainingProgram::id) { program ->
                 ProgramCard(program, program.id == activeProgramId) { onOpen(program) }
             }
-            item { Button(modifier = Modifier.fillMaxWidth(), onClick = { showCreate = true }) { Text("CREAR PROGRAMA") } }
+            item {
+                Button(
+                    modifier = Modifier.fillMaxWidth().onGloballyPositioned { onCreateProgramPositioned(it.boundsInWindow()) },
+                    onClick = { showCreate = true }
+                ) { Text("CREAR PROGRAMA") }
+            }
         }
     }
 }

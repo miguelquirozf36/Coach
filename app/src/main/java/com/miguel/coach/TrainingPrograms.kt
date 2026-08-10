@@ -37,6 +37,7 @@ class SharedPreferencesTrainingProgramStorage(
 class TrainingProgramRepository(
     private val storage: TrainingProgramStorage
 ) {
+    fun hasStoredPrograms(): Boolean = storage.readPrograms() != null
     fun loadPrograms(legacyRoutines: List<Routine>, existingInstallation: Boolean): List<TrainingProgram> {
         TrainingProgramCodec.decode(storage.readPrograms())?.takeIf { validPrograms(it) }?.let { return it }
         val legacyWeider = legacyRoutines.filterNot(Routine::isCustom)

@@ -51,6 +51,7 @@ fun SettingsScreen(
     onCancelImport: () -> Unit,
     backupMessage: String?,
     onDismissBackupMessage: () -> Unit,
+    onReplayTour: () -> Unit,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit
 ) {
@@ -118,6 +119,11 @@ fun SettingsScreen(
                     openAppearanceFromSettings()
                     onAppearance()
                 }
+            )
+            SettingsCard(
+                title = "Ver recorrido de nuevo",
+                value = "Repasa las funciones principales de Coach.",
+                onClick = onReplayTour
             )
             Text(
                 "DATOS",

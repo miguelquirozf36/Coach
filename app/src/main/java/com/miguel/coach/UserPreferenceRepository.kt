@@ -8,6 +8,8 @@ const val MAX_USER_NAME_LENGTH = 40
 interface UserPreferenceStorage {
     fun readUserName(): String?
     fun writeUserName(name: String): Boolean
+    fun readTourCompleted(): Boolean? = null
+    fun writeTourCompleted(completed: Boolean): Boolean = false
 }
 
 class SharedPreferencesUserStorage(
@@ -17,8 +19,15 @@ class SharedPreferencesUserStorage(
 
     override fun writeUserName(name: String): Boolean = preferences.edit().putString(USER_NAME, name).commit()
 
+    override fun readTourCompleted(): Boolean? =
+        if (preferences.contains(TOUR_COMPLETED)) preferences.getBoolean(TOUR_COMPLETED, false) else null
+
+    override fun writeTourCompleted(completed: Boolean): Boolean =
+        preferences.edit().putBoolean(TOUR_COMPLETED, completed).commit()
+
     private companion object {
         const val USER_NAME = "user_name"
+        const val TOUR_COMPLETED = "onboarding_tour_completed_v17"
     }
 }
 
@@ -57,6 +66,19 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
             UserNameValidation(message = "No se pudo guardar el nombre.")
         }
     }
+
+    /** Initializes the v1.7 marker once. Existing installations are migrated as completed. */
+    fun initializeOnboarding(existingInstallation: Boolean): Boolean {
+        val stored = storage.readTourCompleted()
+        if (stored != null) return !stored
+        val completed = existingInstallation
+        storage.writeTourCompleted(completed)
+        return !completed
+    }
+
+    fun isTourCompleted(): Boolean = storage.readTourCompleted() == true
+
+    fun completeTour(): Boolean = storage.writeTourCompleted(true)
 }
 
 fun homeGreeting(userName: String): List<String> = buildList {

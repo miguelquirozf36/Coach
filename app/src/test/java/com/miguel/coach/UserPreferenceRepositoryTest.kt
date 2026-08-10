@@ -120,14 +120,54 @@ class UserPreferenceRepositoryTest {
         assertEquals(setOf("user_name"), userStorage.writtenKeys)
         assertEquals(setOf("selected_theme"), themeStorage.writtenKeys)
     }
+
+    @Test
+    fun newInstallationRequiresOnboardingUntilTourCompletes() {
+        val storage = InMemoryUserStorage()
+        val repository = UserPreferenceRepository(storage)
+
+        assertTrue(repository.initializeOnboarding(existingInstallation = false))
+        assertTrue(!repository.isTourCompleted())
+        assertTrue(repository.completeTour())
+        assertTrue(repository.isTourCompleted())
+        assertTrue(!UserPreferenceRepository(storage).initializeOnboarding(existingInstallation = false))
+    }
+
+    @Test
+    fun existingInstallationIsMigratedWithoutAutomaticOnboarding() {
+        val storage = InMemoryUserStorage()
+        val repository = UserPreferenceRepository(storage)
+
+        assertTrue(!repository.initializeOnboarding(existingInstallation = true))
+        assertTrue(repository.isTourCompleted())
+    }
+
+    @Test
+    fun replayingTourDoesNotChangeName() {
+        val storage = InMemoryUserStorage()
+        val repository = UserPreferenceRepository(storage)
+        repository.saveUserName("  Ana  ")
+        repository.initializeOnboarding(existingInstallation = false)
+
+        assertEquals("Ana", repository.loadUserName())
+        assertTrue(repository.completeTour())
+        assertEquals("Ana", repository.loadUserName())
+    }
 }
 
 private class InMemoryUserStorage(var userName: String? = null) : UserPreferenceStorage {
     val writtenKeys = mutableSetOf<String>()
+    var tourCompleted: Boolean? = null
     override fun readUserName(): String? = userName
     override fun writeUserName(name: String): Boolean {
         userName = name
         writtenKeys += "user_name"
+        return true
+    }
+    override fun readTourCompleted(): Boolean? = tourCompleted
+    override fun writeTourCompleted(completed: Boolean): Boolean {
+        tourCompleted = completed
+        writtenKeys += "onboarding_tour_completed_v17"
         return true
     }
 }
