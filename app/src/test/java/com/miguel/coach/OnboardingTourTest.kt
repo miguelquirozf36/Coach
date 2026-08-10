@@ -7,6 +7,11 @@ import org.junit.Test
 
 class OnboardingTourTest {
     @Test
+    fun brandedLaunchUsesTheApprovedDuration() {
+        assertEquals(1_000L, BRANDED_LAUNCH_DURATION_MILLIS)
+    }
+
+    @Test
     fun greetingRemainsVisibleForThreeSeconds() {
         assertEquals(3_000L, ONBOARDING_GREETING_DURATION_MILLIS)
     }

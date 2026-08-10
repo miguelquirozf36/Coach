@@ -1,9 +1,11 @@
 package com.miguel.coach
 
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -83,6 +86,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +98,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.min
 import java.time.LocalDate
+
+internal const val BRANDED_LAUNCH_DURATION_MILLIS = 1_000L
 
 private val LocalSystemBackAction = compositionLocalOf<((() -> Unit)?) -> Unit> {
     error("System back action registrar is not available")
@@ -179,6 +185,7 @@ fun CoachApp(
     var showAppearance by rememberSaveable { mutableStateOf(false) }
     var backupMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingBackupImport by remember { mutableStateOf<CoachBackupDocument?>(null) }
+    var showBrandedLaunch by remember { mutableStateOf(true) }
     val backupManager = remember(routineRepository, userPreferenceRepository, themeRepository, programRepository) {
         CoachBackupManager(routineRepository, userPreferenceRepository, themeRepository, programRepository)
     }
@@ -236,6 +243,14 @@ fun CoachApp(
     CoachTheme(selectedTheme) {
         SystemBackHost {
             Surface(modifier = Modifier.fillMaxSize()) {
+                if (showBrandedLaunch) {
+                    BrandedLaunchScreen()
+                    LaunchedEffect(Unit) {
+                        kotlinx.coroutines.delay(BRANDED_LAUNCH_DURATION_MILLIS)
+                        showBrandedLaunch = false
+                    }
+                    return@Surface
+                }
                 when (val state = trainingEngine.state) {
                 TrainingUiState.Home -> {
                     if (showAppearance) {
@@ -517,6 +532,20 @@ fun CoachApp(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BrandedLaunchScreen() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.coach_logo_full),
+            contentDescription = null,
+            modifier = Modifier.fillMaxWidth(0.72f).aspectRatio(460.34f / 332.73f)
+        )
     }
 }
 
