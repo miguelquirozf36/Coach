@@ -115,7 +115,7 @@ class WorkoutLayoutTest {
                 workoutMetricDividerColor(theme.colorScheme)
             )
         }
-        assertEquals(0.35f, LIGHT_WORKOUT_DIVIDER_ALPHA)
+        assertEquals(0.55f, LIGHT_WORKOUT_DIVIDER_ALPHA)
         assertEquals(0.28f, DARK_WORKOUT_DIVIDER_ALPHA)
     }
 

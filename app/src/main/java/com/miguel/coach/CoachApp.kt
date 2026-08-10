@@ -1739,7 +1739,7 @@ internal const val LANDSCAPE_WORKOUT_SIDE_FRACTION = 0.28f
 internal const val WORKOUT_METRIC_SEPARATOR_COUNT = 2
 internal const val WORKOUT_REPETITION_LABEL = "REPETICIÓN"
 internal const val DARK_WORKOUT_DIVIDER_ALPHA = 0.28f
-internal const val LIGHT_WORKOUT_DIVIDER_ALPHA = 0.35f
+internal const val LIGHT_WORKOUT_DIVIDER_ALPHA = 0.55f
 
 internal fun landscapeWorkoutSideWidth(containerWidth: Dp): Dp =
     containerWidth * LANDSCAPE_WORKOUT_SIDE_FRACTION
