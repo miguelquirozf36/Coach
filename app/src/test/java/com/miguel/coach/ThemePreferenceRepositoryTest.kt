@@ -133,10 +133,11 @@ class ThemePreferenceRepositoryTest {
     }
 
     @Test
-    fun `uses Obsidian as the default theme`() {
+    fun `uses Orange as the default theme when no preference exists`() {
         val repository = ThemePreferenceRepository(InMemoryThemePreferenceStorage())
 
-        assertEquals(CoachTheme.OBSIDIAN, repository.load())
+        assertEquals(CoachTheme.ORANGE, repository.load())
+        assertEquals(CoachTheme.ORANGE, DEFAULT_COACH_THEME)
     }
 
     @Test

@@ -20,8 +20,10 @@ class SharedPreferencesThemeStorage(
     }
 }
 
+internal val DEFAULT_COACH_THEME = CoachTheme.ORANGE
+
 class ThemePreferenceRepository(private val storage: ThemePreferenceStorage) {
-    fun load(): CoachTheme = CoachTheme.fromId(storage.readThemeId())
+    fun load(): CoachTheme = storage.readThemeId()?.let(CoachTheme::fromId) ?: DEFAULT_COACH_THEME
 
     fun save(theme: CoachTheme): Boolean = storage.writeThemeId(theme.id)
 }
