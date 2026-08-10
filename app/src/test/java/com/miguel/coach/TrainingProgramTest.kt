@@ -17,6 +17,7 @@ class TrainingProgramTest {
         assertEquals(listOf(3, 6, 4, 7), programs.map { it.routines.size })
         assertTrue(programs.all(TrainingProgram::builtIn))
         assertEquals(Routines.all, programs.single { it.id == "weider" }.routines)
+        assertEquals("Weider / Grupos musculares", programDisplayName(programs.single { it.id == "weider" }))
     }
 
     @Test
@@ -89,7 +90,7 @@ class TrainingProgramTest {
     }
 
     @Test
-    fun catalogCardsOnlyShowActiveStatusAndKeepNavigationSeparateFromSelection() {
+    fun catalogCardsUseSelectedBackgroundAndKeepNavigationSeparateFromSelection() {
         val source = Files.readString(
             Paths.get("src/main/java/com/miguel/coach/ProgramsScreen.kt")
         )
@@ -97,7 +98,11 @@ class TrainingProgramTest {
         val detailBody = source.substringAfter("fun ProgramDetailScreen").substringBefore("private fun ProgramCard")
 
         assertFalse(cardBody.contains("USAR ESTE PROGRAMA"))
-        assertTrue(cardBody.contains("if (active) Text(\"ACTIVO\""))
+        assertFalse(cardBody.contains("Text(\"ACTIVO\""))
+        CoachTheme.entries.forEach { theme ->
+            assertEquals(theme.colorScheme.primaryContainer, programCardContainerColor(theme.colorScheme, active = true))
+            assertEquals(contentCardContainerColor(theme.colorScheme), programCardContainerColor(theme.colorScheme, active = false))
+        }
         assertTrue(cardBody.contains(".clickable(onClick = onClick)"))
         assertTrue(detailBody.contains("\"USAR ESTE PROGRAMA\""))
 

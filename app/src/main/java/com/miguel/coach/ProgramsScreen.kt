@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
@@ -204,7 +207,9 @@ private fun ProgramCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = contentCardColors()
+        colors = CardDefaults.cardColors(
+            containerColor = programCardContainerColor(MaterialTheme.colorScheme, active)
+        )
     ) {
         if (showSelectionCue) {
             Box(modifier = Modifier.fillMaxWidth().routineCardStripe()) {
@@ -213,7 +218,7 @@ private fun ProgramCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ProgramCardText(program, active, Modifier.weight(1f))
+                    ProgramCardText(program, Modifier.weight(1f))
                     Icon(
                         imageVector = RoutineChevronRightIcon,
                         contentDescription = null,
@@ -223,19 +228,22 @@ private fun ProgramCard(
                 }
             }
         } else {
-            ProgramCardText(program, active, Modifier.padding(16.dp))
+            ProgramCardText(program, Modifier.padding(16.dp))
         }
     }
 }
 
 @Composable
-private fun ProgramCardText(program: TrainingProgram, active: Boolean, modifier: Modifier = Modifier) {
+private fun ProgramCardText(program: TrainingProgram, modifier: Modifier = Modifier) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(program.name.uppercase(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            if (active) Text("ACTIVO", color = MaterialTheme.colorScheme.primary)
-        }
+        Text(programDisplayName(program).uppercase(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(program.frequency)
         Text(program.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+internal fun programDisplayName(program: TrainingProgram): String =
+    if (program.id == OfficialTrainingPrograms.WEIDER_ID) "Weider / Grupos musculares" else program.name
+
+internal fun programCardContainerColor(colorScheme: ColorScheme, active: Boolean): Color =
+    if (active) colorScheme.primaryContainer else contentCardContainerColor(colorScheme)
