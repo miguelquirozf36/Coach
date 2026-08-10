@@ -217,23 +217,14 @@ internal fun WelcomeScreen(onContinue: (String) -> String?) {
     }
     Column(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.CenterHorizontally)
-                .background(Color.Black, RoundedCornerShape(24.dp))
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(R.drawable.coach_logo_full),
-                contentDescription = "Logo de Coach",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().aspectRatio(460.34f / 332.73f)
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.coach_logo_full),
+            contentDescription = "Logo de Coach",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth().aspectRatio(460.34f / 332.73f)
+        )
         Spacer(Modifier.padding(12.dp))
         Text("Bienvenido a Coach", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.padding(12.dp))
