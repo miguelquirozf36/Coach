@@ -2,18 +2,24 @@ package com.miguel.coach
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -26,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -39,14 +46,23 @@ fun ProgramOnboardingScreen(
 ) {
     RegisterSystemBackAction { }
     Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(WindowInsets.safeDrawing.asPaddingValues())
+            .padding(top = 24.dp)
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("¿Cómo quieres entrenar?", style = MaterialTheme.typography.headlineMedium)
         Text("Elige un programa para comenzar. Podrás cambiarlo después.")
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(programs.filter(TrainingProgram::builtIn), key = TrainingProgram::id) { program ->
-                ProgramCard(program, active = false, onClick = { onSelect(program) })
+                ProgramCard(
+                    program = program,
+                    active = false,
+                    showSelectionCue = true,
+                    onClick = { onSelect(program) }
+                )
             }
         }
     }
@@ -92,7 +108,12 @@ fun ProgramsScreen(
         ) {
             item { Text("PROGRAMAS PREDEFINIDOS", style = MaterialTheme.typography.titleMedium) }
             items(programs.filter(TrainingProgram::builtIn), key = TrainingProgram::id) { program ->
-                ProgramCard(program, program.id == activeProgramId) { onOpen(program) }
+                ProgramCard(
+                    program = program,
+                    active = program.id == activeProgramId,
+                    showSelectionCue = true,
+                    onClick = { onOpen(program) }
+                )
             }
             item { Text("MIS PROGRAMAS", modifier = Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleMedium) }
             items(programs.filterNot(TrainingProgram::builtIn), key = TrainingProgram::id) { program ->
@@ -175,18 +196,46 @@ fun ProgramDetailScreen(
 }
 
 @Composable
-private fun ProgramCard(program: TrainingProgram, active: Boolean, onClick: () -> Unit) {
+private fun ProgramCard(
+    program: TrainingProgram,
+    active: Boolean,
+    showSelectionCue: Boolean = false,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = contentCardColors()
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(program.name.uppercase(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                if (active) Text("ACTIVO", color = MaterialTheme.colorScheme.primary)
+        if (showSelectionCue) {
+            Box(modifier = Modifier.fillMaxWidth().routineCardStripe()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ProgramCardText(program, active, Modifier.weight(1f))
+                    Icon(
+                        imageVector = RoutineChevronRightIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            Text(program.frequency)
-            Text(program.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            ProgramCardText(program, active, Modifier.padding(16.dp))
         }
+    }
+}
+
+@Composable
+private fun ProgramCardText(program: TrainingProgram, active: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(program.name.uppercase(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (active) Text("ACTIVO", color = MaterialTheme.colorScheme.primary)
+        }
+        Text(program.frequency)
+        Text(program.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

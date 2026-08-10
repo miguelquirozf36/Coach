@@ -67,7 +67,7 @@ class OnboardingTourTest {
     }
 
     @Test
-    fun routineStripeUsesEveryThemesPrimaryColor() {
+    fun sharedRoutineAndProgramStripeUsesEveryThemesPrimaryColor() {
         CoachTheme.entries.forEach { theme ->
             assertEquals(theme.colorScheme.primary, routineCardStripeColor(theme.colorScheme))
         }

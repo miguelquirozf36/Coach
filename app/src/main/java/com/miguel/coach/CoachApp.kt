@@ -758,7 +758,7 @@ internal fun contentCardColors() = CardDefaults.cardColors(
 private fun routineCardColors() = contentCardColors()
 
 @Composable
-private fun Modifier.routineCardStripe(): Modifier {
+internal fun Modifier.routineCardStripe(): Modifier {
     val stripeColor = routineCardStripeColor(MaterialTheme.colorScheme)
     return drawBehind {
         val inset = 4.dp.toPx()
