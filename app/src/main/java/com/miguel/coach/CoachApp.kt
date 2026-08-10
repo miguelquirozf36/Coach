@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -22,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -38,6 +38,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -68,6 +69,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -1451,25 +1454,23 @@ private fun WorkoutLandscapeLayout(
     onSkip: () -> Unit,
     onRequestFinish: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        val sideWidth = landscapeWorkoutSideWidth(maxWidth)
         Column(
-            modifier = Modifier.weight(0.3f).fillMaxHeight().padding(end = 12.dp),
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth(0.6f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = 2, notesMaxLines = 2)
-            if (state.phase != TrainingPhase.WARMUP) {
-                Spacer(modifier = Modifier.height(12.dp))
-                LandscapeWorkoutMetrics(metrics)
-            }
+            WorkoutHeader(state, exercise, nameMaxLines = 1, notesMaxLines = 1)
         }
-        Column(
-            modifier = Modifier.weight(0.4f).fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        if (state.phase != TrainingPhase.WARMUP) {
+            LandscapeWorkoutMetrics(
+                metrics = metrics,
+                modifier = Modifier.align(Alignment.CenterStart).width(sideWidth)
+            )
+        }
+        Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Tiempo restante", style = MaterialTheme.typography.labelLarge)
             Spacer(modifier = Modifier.height(8.dp))
             TrainingTimer(state, ringDiameter, showPhaseLabel = true)
@@ -1481,7 +1482,7 @@ private fun WorkoutLandscapeLayout(
             onResume = onResume,
             onSkip = onSkip,
             onRequestFinish = onRequestFinish,
-            modifier = Modifier.weight(0.3f).padding(start = 12.dp)
+            modifier = Modifier.align(Alignment.CenterEnd).width(sideWidth)
         )
     }
 }
@@ -1495,11 +1496,20 @@ private fun WorkoutHeader(
 ) {
     Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
     if (state.phase == TrainingPhase.WARMUP) {
-        Text(state.routine.name, style = MaterialTheme.typography.headlineMedium)
+        Text(
+            state.routine.name,
+            style = MaterialTheme.typography.headlineMedium,
+            maxLines = nameMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
         Text("Calentamiento", style = MaterialTheme.typography.titleLarge)
     } else if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
         Text("Descanso entre ejercicios", style = MaterialTheme.typography.headlineMedium)
-        Text("Siguiente: ${exercise.name}")
+        Text(
+            "Siguiente: ${exercise.name}",
+            maxLines = nameMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
     } else {
         Text(
             exercise.name,
@@ -1520,11 +1530,24 @@ private fun WorkoutHeader(
 }
 
 @Composable
-private fun LandscapeWorkoutMetrics(metrics: WorkoutMetricTexts) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        LandscapeWorkoutMetric(SeriesIcon, "SERIE", metrics.series)
-        LandscapeWorkoutMetric(RepeatIcon, "REPETICIÃ“N", metrics.repetition)
-        LandscapeWorkoutMetric(PhaseIcon, "FASE", metrics.phase)
+private fun LandscapeWorkoutMetrics(metrics: WorkoutMetricTexts, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = workoutSupportingContainerColor(MaterialTheme.colorScheme)
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.SpaceEvenly
+        ) {
+            LandscapeWorkoutMetric(SeriesIcon, "SERIE", metrics.series)
+            WorkoutMetricHorizontalDivider()
+            LandscapeWorkoutMetric(RepeatIcon, "REPETICIÃ“N", metrics.repetition)
+            WorkoutMetricHorizontalDivider()
+            LandscapeWorkoutMetric(PhaseIcon, "FASE", metrics.phase)
+        }
     }
 }
 
@@ -1537,6 +1560,15 @@ private fun LandscapeWorkoutMetric(icon: ImageVector, label: String, value: Stri
             Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
     }
+}
+
+@Composable
+private fun WorkoutMetricHorizontalDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+        thickness = 1.dp,
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+    )
 }
 
 @Composable
@@ -1604,7 +1636,9 @@ private fun WorkoutMetricsCard(metrics: WorkoutMetricTexts) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(
+            containerColor = workoutSupportingContainerColor(MaterialTheme.colorScheme)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -1669,9 +1703,9 @@ private fun WorkoutMetricDivider() {
 
 @Composable
 private fun workoutNeutralButtonColors() = ButtonDefaults.buttonColors(
-    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+    containerColor = workoutSupportingContainerColor(MaterialTheme.colorScheme),
     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    disabledContainerColor = workoutSupportingContainerColor(MaterialTheme.colorScheme).copy(alpha = 0.5f),
     disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
 )
 
@@ -1700,6 +1734,24 @@ internal fun landscapeWorkoutRingDiameter(columnWidth: Dp, containerHeight: Dp):
     min((columnWidth - 24.dp).value, (containerHeight - 52.dp).value)
         .coerceIn(120f, 240f)
         .dp
+
+internal const val LANDSCAPE_WORKOUT_SIDE_FRACTION = 0.28f
+internal const val WORKOUT_METRIC_SEPARATOR_COUNT = 2
+
+internal fun landscapeWorkoutSideWidth(containerWidth: Dp): Dp =
+    containerWidth * LANDSCAPE_WORKOUT_SIDE_FRACTION
+
+internal fun workoutMetricSeparatorCount(layout: WorkoutLayout): Int = when (layout) {
+    WorkoutLayout.PORTRAIT,
+    WorkoutLayout.LANDSCAPE -> WORKOUT_METRIC_SEPARATOR_COUNT
+}
+
+internal fun workoutSupportingContainerColor(colorScheme: ColorScheme): Color =
+    if (colorScheme.background.luminance() > 0.5f) {
+        lerp(colorScheme.surfaceVariant, colorScheme.surface, 0.35f)
+    } else {
+        colorScheme.surfaceVariant
+    }
 
 internal fun usefulAreaCenter(
     screenWidth: Int,

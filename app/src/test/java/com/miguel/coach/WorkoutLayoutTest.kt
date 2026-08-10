@@ -1,6 +1,7 @@
 package com.miguel.coach
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.lerp
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -61,9 +62,37 @@ class WorkoutLayoutTest {
     }
 
     @Test
+    fun landscapeUsesSymmetricSideColumnsAroundTheCenteredTimer() {
+        assertEquals(224.dp, landscapeWorkoutSideWidth(800.dp))
+        assertEquals(0.28f, LANDSCAPE_WORKOUT_SIDE_FRACTION)
+    }
+
+    @Test
+    fun portraitAndLandscapeMetricsBothHaveTwoInternalSeparators() {
+        assertEquals(2, workoutMetricSeparatorCount(WorkoutLayout.PORTRAIT))
+        assertEquals(2, workoutMetricSeparatorCount(WorkoutLayout.LANDSCAPE))
+    }
+
+    @Test
     fun timerProgressAlwaysUsesThemePrimary() {
         CoachTheme.entries.forEach { theme ->
             assertEquals(theme.colorScheme.primary, timerProgressColor(theme.colorScheme))
+        }
+    }
+
+    @Test
+    fun lightWorkoutSurfacesAreBrighterAndDarkThemesStayUnchanged() {
+        appearanceLightThemes.forEach { theme ->
+            assertEquals(
+                lerp(theme.colorScheme.surfaceVariant, theme.colorScheme.surface, 0.35f),
+                workoutSupportingContainerColor(theme.colorScheme)
+            )
+        }
+        appearanceDarkThemes.forEach { theme ->
+            assertEquals(
+                theme.colorScheme.surfaceVariant,
+                workoutSupportingContainerColor(theme.colorScheme)
+            )
         }
     }
 
