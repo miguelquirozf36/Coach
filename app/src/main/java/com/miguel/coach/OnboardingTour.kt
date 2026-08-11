@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
@@ -323,46 +326,51 @@ internal fun GreetingScreen(name: String, onContinue: () -> Unit) {
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxWidth(0.52f).aspectRatio(460.34f / 332.73f)
             )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    onboardingGreeting(name),
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    "Te mostraremos rápidamente cómo funciona Coach.",
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
-            if (useHorizontalCards) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
-                        OnboardingBenefitCard(
-                            benefit = benefit,
-                            icon = onboardingBenefitIcons[index],
-                            modifier = Modifier.weight(1f).heightIn(min = 208.dp)
-                        )
-                    }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        onboardingGreeting(name),
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "Te mostraremos rápidamente cómo funciona Coach.",
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
-                        OnboardingBenefitCard(
-                            benefit = benefit,
-                            icon = onboardingBenefitIcons[index],
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                if (useHorizontalCards) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(IntrinsicSize.Min),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
+                            OnboardingBenefitCard(
+                                benefit = benefit,
+                                icon = onboardingBenefitIcons[index],
+                                modifier = Modifier.weight(1f).fillMaxHeight()
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
+                            OnboardingBenefitCard(
+                                benefit = benefit,
+                                icon = onboardingBenefitIcons[index],
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -385,7 +393,7 @@ private fun OnboardingBenefitCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -417,8 +425,10 @@ private fun OnboardingBenefitCard(
 private val onboardingBenefitIcons = listOf(
     simpleOnboardingIcon("Dumbbell") {
         path(fill = SolidColor(Color.Transparent), stroke = SolidColor(Color.Black), strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round) {
-            moveTo(7f, 7f); lineTo(17f, 17f); moveTo(5f, 5f); lineTo(3f, 7f); lineTo(7f, 11f); lineTo(9f, 9f)
-            moveTo(19f, 19f); lineTo(21f, 17f); lineTo(17f, 13f); lineTo(15f, 15f)
+            moveTo(3f, 9f); lineTo(5f, 9f); lineTo(5f, 7f); lineTo(7f, 7f); lineTo(7f, 11f)
+            lineTo(17f, 11f); lineTo(17f, 7f); lineTo(19f, 7f); lineTo(19f, 9f); lineTo(21f, 9f)
+            lineTo(21f, 15f); lineTo(19f, 15f); lineTo(19f, 17f); lineTo(17f, 17f); lineTo(17f, 13f)
+            lineTo(7f, 13f); lineTo(7f, 17f); lineTo(5f, 17f); lineTo(5f, 15f); lineTo(3f, 15f); close()
         }
     },
     simpleOnboardingIcon("Timer") {
