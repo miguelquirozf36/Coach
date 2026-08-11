@@ -21,6 +21,30 @@ class TrainingProgramTest {
     }
 
     @Test
+    fun onboardingCardsShowTheApprovedProgramGuidance() {
+        val programs = OfficialTrainingPrograms.create().associateBy(TrainingProgram::id)
+
+        assertEquals(
+            listOf("Ideal si entrenas pocos días.", "Alta frecuencia por músculo.", "Buena opción para empezar."),
+            programOnboardingGuidance(programs.getValue(OfficialTrainingPrograms.FULL_BODY_ID))
+        )
+        assertEquals(
+            listOf("Ideal si entrenas con frecuencia.", "Mayor volumen por grupo muscular.", "Requiere 6 días disponibles."),
+            programOnboardingGuidance(programs.getValue(OfficialTrainingPrograms.PPL_ID))
+        )
+        assertEquals(
+            listOf("Equilibrio entre frecuencia y descanso.", "Cada grupo se trabaja 2 veces/semana.", "Ideal para 4 días de entrenamiento."),
+            programOnboardingGuidance(programs.getValue(OfficialTrainingPrograms.UPPER_LOWER_ID))
+        )
+        assertEquals(
+            listOf("Mayor enfoque en cada grupo muscular.", "Sesiones más especializadas.", "Ideal si prefieres entrenar a diario."),
+            programOnboardingGuidance(programs.getValue(OfficialTrainingPrograms.WEIDER_ID))
+        )
+        assertEquals("7 sesiones", programOnboardingFrequency(programs.getValue(OfficialTrainingPrograms.WEIDER_ID)))
+        assertEquals("WEIDER / GRUPOS MUSCULARES", programDisplayName(programs.getValue(OfficialTrainingPrograms.WEIDER_ID)).uppercase())
+    }
+
+    @Test
     fun selectedProgramPersistsWithoutDeletingPrograms() {
         val storage = MemoryProgramStorage()
         val repository = TrainingProgramRepository(storage)

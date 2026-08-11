@@ -64,6 +64,7 @@ fun ProgramOnboardingScreen(
                     program = program,
                     active = false,
                     showSelectionCue = true,
+                    showOnboardingGuidance = true,
                     onClick = { onSelect(program) }
                 )
             }
@@ -203,6 +204,7 @@ private fun ProgramCard(
     program: TrainingProgram,
     active: Boolean,
     showSelectionCue: Boolean = false,
+    showOnboardingGuidance: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
@@ -218,7 +220,7 @@ private fun ProgramCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ProgramCardText(program, Modifier.weight(1f))
+                    ProgramCardText(program, showOnboardingGuidance, Modifier.weight(1f))
                     Icon(
                         imageVector = RoutineChevronRightIcon,
                         contentDescription = null,
@@ -228,18 +230,64 @@ private fun ProgramCard(
                 }
             }
         } else {
-            ProgramCardText(program, Modifier.padding(16.dp))
+            ProgramCardText(program, showOnboardingGuidance, Modifier.padding(16.dp))
         }
     }
 }
 
 @Composable
-private fun ProgramCardText(program: TrainingProgram, modifier: Modifier = Modifier) {
+private fun ProgramCardText(
+    program: TrainingProgram,
+    showOnboardingGuidance: Boolean,
+    modifier: Modifier = Modifier
+) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(programDisplayName(program).uppercase(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(program.frequency)
+        Text(if (showOnboardingGuidance) programOnboardingFrequency(program) else program.frequency)
         Text(program.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (showOnboardingGuidance) {
+            Column(
+                modifier = Modifier.padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                programOnboardingGuidance(program).forEach { guidance ->
+                    Text(
+                        text = "• $guidance",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
+}
+
+internal fun programOnboardingFrequency(program: TrainingProgram): String =
+    if (program.id == OfficialTrainingPrograms.WEIDER_ID) "7 sesiones" else program.frequency
+
+internal fun programOnboardingGuidance(program: TrainingProgram): List<String> = when (program.id) {
+    OfficialTrainingPrograms.FULL_BODY_ID -> listOf(
+        "Ideal si entrenas pocos días.",
+        "Alta frecuencia por músculo.",
+        "Buena opción para empezar."
+    )
+    OfficialTrainingPrograms.PPL_ID -> listOf(
+        "Ideal si entrenas con frecuencia.",
+        "Mayor volumen por grupo muscular.",
+        "Requiere 6 días disponibles."
+    )
+    OfficialTrainingPrograms.UPPER_LOWER_ID -> listOf(
+        "Equilibrio entre frecuencia y descanso.",
+        "Cada grupo se trabaja 2 veces/semana.",
+        "Ideal para 4 días de entrenamiento."
+    )
+    OfficialTrainingPrograms.WEIDER_ID -> listOf(
+        "Mayor enfoque en cada grupo muscular.",
+        "Sesiones más especializadas.",
+        "Ideal si prefieres entrenar a diario."
+    )
+    else -> emptyList()
 }
 
 internal fun programDisplayName(program: TrainingProgram): String =
