@@ -264,6 +264,13 @@ internal fun WelcomeScreen(onContinue: (String) -> String?) {
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { submit() })
                 )
+                Text(
+                    "Puedes cambiarlo más adelante en Ajustes.",
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
             }
             Button(onClick = { submit() }, enabled = name.trim().isNotEmpty(), modifier = Modifier.fillMaxWidth().padding(top = 32.dp)) {
                 Text("CONTINUAR")
