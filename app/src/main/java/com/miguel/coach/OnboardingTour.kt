@@ -53,6 +53,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
@@ -215,34 +216,58 @@ internal fun WelcomeScreen(onContinue: (String) -> String?) {
         error = onContinue(name)
         if (error == null) focusManager.clearFocus()
     }
-    Column(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.Top
-    ) {
-        Image(
-            painter = painterResource(R.drawable.coach_logo_full),
-            contentDescription = "Logo de Coach",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxWidth().aspectRatio(460.34f / 332.73f)
-        )
-        Spacer(Modifier.padding(12.dp))
-        Text("Bienvenido a Coach", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.padding(12.dp))
-        Text("¿Cómo te llamas?", style = MaterialTheme.typography.headlineSmall)
-        Text("Usaremos tu nombre para personalizar tu experiencia.", modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(
-            value = name,
-            onValueChange = { if (it.length <= MAX_USER_NAME_LENGTH) { name = it; error = null } },
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-            label = { Text("Tu nombre") },
-            singleLine = true,
-            isError = error != null,
-            supportingText = { error?.let { Text(it) } },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { submit() })
-        )
-        Button(onClick = { submit() }, enabled = name.trim().isNotEmpty(), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-            Text("CONTINUAR")
+    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Image(
+                painter = painterResource(R.drawable.coach_logo_full),
+                contentDescription = "Logo de Coach",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth(0.84f).aspectRatio(460.34f / 332.73f)
+            )
+            Text(
+                "Bienvenido a Coach",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "¿Cómo te llamas?",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Usaremos tu nombre para personalizar tu experiencia.",
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { if (it.length <= MAX_USER_NAME_LENGTH) { name = it; error = null } },
+                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                    label = { Text("Tu nombre") },
+                    singleLine = true,
+                    isError = error != null,
+                    supportingText = { error?.let { Text(it) } },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() })
+                )
+            }
+            Button(onClick = { submit() }, enabled = name.trim().isNotEmpty(), modifier = Modifier.fillMaxWidth().padding(top = 32.dp)) {
+                Text("CONTINUAR")
+            }
         }
     }
 }
