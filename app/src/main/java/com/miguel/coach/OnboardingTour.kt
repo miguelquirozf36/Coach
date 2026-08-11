@@ -317,7 +317,7 @@ internal fun GreetingScreen(name: String, onContinue: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .heightIn(min = maxHeight)
                 .padding(24.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
@@ -326,51 +326,46 @@ internal fun GreetingScreen(name: String, onContinue: () -> Unit) {
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxWidth(0.52f).aspectRatio(460.34f / 332.73f)
             )
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        onboardingGreeting(name),
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        "Te mostraremos rápidamente cómo funciona Coach.",
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-                if (useHorizontalCards) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 20.dp).height(IntrinsicSize.Min),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
-                            OnboardingBenefitCard(
-                                benefit = benefit,
-                                icon = onboardingBenefitIcons[index],
-                                modifier = Modifier.weight(1f).fillMaxHeight()
-                            )
-                        }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    onboardingGreeting(name),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Te mostraremos rápidamente cómo funciona Coach.",
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+            if (useHorizontalCards) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
+                        OnboardingBenefitCard(
+                            benefit = benefit,
+                            icon = onboardingBenefitIcons[index],
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
                     }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
-                            OnboardingBenefitCard(
-                                benefit = benefit,
-                                icon = onboardingBenefitIcons[index],
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
+                        OnboardingBenefitCard(
+                            benefit = benefit,
+                            icon = onboardingBenefitIcons[index],
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
