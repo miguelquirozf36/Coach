@@ -16,6 +16,8 @@ interface TrainingProgramStorage {
     fun writePrograms(value: String): Boolean
     fun readSelectedProgramId(): String?
     fun writeSelectedProgramId(id: String?): Boolean
+    fun isMigrationComplete(key: String): Boolean = false
+    fun markMigrationComplete(key: String): Boolean = false
 }
 
 class SharedPreferencesTrainingProgramStorage(
@@ -27,6 +29,8 @@ class SharedPreferencesTrainingProgramStorage(
     override fun writeSelectedProgramId(id: String?): Boolean = preferences.edit().run {
         if (id == null) remove(SELECTED_KEY) else putString(SELECTED_KEY, id)
     }.commit()
+    override fun isMigrationComplete(key: String): Boolean = preferences.getBoolean(key, false)
+    override fun markMigrationComplete(key: String): Boolean = preferences.edit().putBoolean(key, true).commit()
 
     private companion object {
         const val PROGRAMS_KEY = "training_programs_json"
@@ -39,7 +43,9 @@ class TrainingProgramRepository(
 ) {
     fun hasStoredPrograms(): Boolean = storage.readPrograms() != null
     fun loadPrograms(legacyRoutines: List<Routine>, existingInstallation: Boolean): List<TrainingProgram> {
-        TrainingProgramCodec.decode(storage.readPrograms())?.takeIf { validPrograms(it) }?.let { return it }
+        TrainingProgramCodec.decode(storage.readPrograms())?.takeIf { validPrograms(it) }?.let {
+            return migrateLegacyWeiderDay1Once(it)
+        }
         val legacyWeider = legacyRoutines.filterNot(Routine::isCustom)
         val official = OfficialTrainingPrograms.create(
             weiderRoutines = legacyWeider.takeIf { existingInstallation && it.isNotEmpty() } ?: Routines.all
@@ -69,6 +75,20 @@ class TrainingProgramRepository(
 
     fun acceptsPrograms(programs: List<TrainingProgram>): Boolean = validPrograms(programs)
 
+    private fun migrateLegacyWeiderDay1Once(programs: List<TrainingProgram>): List<TrainingProgram> {
+        if (storage.isMigrationComplete(WEIDER_DAY1_MIGRATION_V18)) return programs
+        val currentTemplate = Routines.all.firstOrNull { it.id == WEIDER_DAY1_ID } ?: return programs
+        val migrated = programs.map { program ->
+            if (program.id != OfficialTrainingPrograms.WEIDER_ID || !program.builtIn) return@map program
+            program.copy(routines = program.routines.map { routine ->
+                if (routine == LEGACY_WEIDER_DAY1_TEMPLATE) currentTemplate else routine
+            })
+        }
+        if (migrated != programs && !savePrograms(migrated)) return programs
+        storage.markMigrationComplete(WEIDER_DAY1_MIGRATION_V18)
+        return migrated
+    }
+
     private fun validPrograms(programs: List<TrainingProgram>): Boolean {
         if (programs.isEmpty() || programs.map(TrainingProgram::id).toSet().size != programs.size) return false
         return programs.all { program ->
@@ -76,6 +96,26 @@ class TrainingProgramRepository(
                 program.frequency.isNotBlank() && program.routines.isNotEmpty() &&
                 RoutineJsonCodec.decode(RoutineJsonCodec.encode(program.routines)) == program.routines
         }
+    }
+
+    private companion object {
+        const val WEIDER_DAY1_MIGRATION_V18 = "weider_day1_template_migration_v18"
+        const val WEIDER_DAY1_ID = "day-1-chest-triceps"
+        val LEGACY_WEIDER_DAY1_TEMPLATE = Routine(
+            id = WEIDER_DAY1_ID,
+            name = "DÍA 1 — PECHO Y TRÍCEPS",
+            isCustom = false,
+            exercises = listOf(
+                Exercise("press-banca-plana-mancuernas", "Press banca plana mancuernas", 3, 10, 1, 2, 120),
+                Exercise("press-inclinado-mancuernas", "Press inclinado mancuernas", 4, 10, 1, 2, 120),
+                Exercise("aperturas", "Aperturas", 4, 10, 1, 2, 120),
+                Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
+                Exercise("extension-triceps-alta", "Extensión de tríceps alta", 4, 10, 1, 2, 120),
+                Exercise("extension-triceps-polea-alta", "Extensión de tríceps polea alta", 4, 10, 1, 2, 120)
+            ),
+            restBetweenExercisesSeconds = 180,
+            warmupSeconds = 600
+        )
     }
 }
 
