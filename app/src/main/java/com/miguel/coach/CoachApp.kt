@@ -103,8 +103,15 @@ internal const val BRANDED_LAUNCH_DURATION_MILLIS = 1_000L
 
 internal enum class LaunchStage { INITIALIZING, WELCOME, BRANDED, CONTENT }
 
-internal fun launchStageFor(onboardingPending: Boolean): LaunchStage =
-    if (onboardingPending) LaunchStage.WELCOME else LaunchStage.BRANDED
+internal fun launchStageFor(
+    onboardingPending: Boolean,
+    restoredStage: LaunchStage = LaunchStage.INITIALIZING
+): LaunchStage = when {
+    restoredStage == LaunchStage.BRANDED -> LaunchStage.CONTENT
+    restoredStage != LaunchStage.INITIALIZING -> restoredStage
+    onboardingPending -> LaunchStage.WELCOME
+    else -> LaunchStage.BRANDED
+}
 
 internal fun launchStageAfterBranded(): LaunchStage = LaunchStage.CONTENT
 
@@ -235,7 +242,7 @@ fun CoachApp(
             programRepository.hasStoredPrograms() || programRepository.loadSelectedProgramId() != null
         val onboardingPending = userPreferenceRepository.initializeOnboarding(existingInstallation) &&
             userPreferenceRepository.loadUserName().isBlank()
-        launchStage = launchStageFor(onboardingPending)
+        launchStage = launchStageFor(onboardingPending, launchStage)
         val legacyRoutines = routineRepository.load()
         programs = programRepository.loadPrograms(legacyRoutines, existingInstallation)
         selectedProgramId = programRepository.loadSelectedProgramId()

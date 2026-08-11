@@ -18,6 +18,26 @@ class OnboardingTourTest {
     }
 
     @Test
+    fun restoredContentSurvivesActivityRecreationWithoutBrandedLaunch() {
+        assertEquals(
+            LaunchStage.CONTENT,
+            launchStageFor(onboardingPending = false, restoredStage = LaunchStage.CONTENT)
+        )
+        assertEquals(
+            LaunchStage.CONTENT,
+            launchStageFor(onboardingPending = false, restoredStage = LaunchStage.BRANDED)
+        )
+    }
+
+    @Test
+    fun independentRealLaunchAllowsBrandedLaunchAgain() {
+        assertEquals(
+            LaunchStage.BRANDED,
+            launchStageFor(onboardingPending = false, restoredStage = LaunchStage.INITIALIZING)
+        )
+    }
+
+    @Test
     fun brandedLaunchUsesTheApprovedDuration() {
         assertEquals(1_000L, BRANDED_LAUNCH_DURATION_MILLIS)
     }
