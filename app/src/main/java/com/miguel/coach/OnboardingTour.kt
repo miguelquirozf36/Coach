@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -43,6 +45,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.ContentScale
@@ -61,7 +68,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.Image
 import kotlin.math.roundToInt
 
-internal const val ONBOARDING_GREETING_DURATION_MILLIS = 3_000L
 private const val BUBBLE_MARGIN_DP = 24
 private const val TARGET_GAP_DP = 16
 
@@ -84,6 +90,25 @@ internal data class TourArrowGeometry(
 internal enum class TourStep { TRAIN, EDIT, PROGRAMS, CUSTOM }
 
 internal enum class TourTarget { TRAIN_ROUTINE, EDIT_BUTTON, PROGRAMS_TAB, CREATE_PROGRAM }
+
+internal data class OnboardingBenefit(val title: String, val description: String)
+
+internal val ONBOARDING_BENEFITS = listOf(
+    OnboardingBenefit(
+        title = "Rutinas personalizadas",
+        description = "Crea o elige rutinas y adapta series, repeticiones y más."
+    ),
+    OnboardingBenefit(
+        title = "Entrenamiento guiado",
+        description = "Voz y temporizador para cada repetición y descanso."
+    ),
+    OnboardingBenefit(
+        title = "Sigue tu progreso",
+        description = "Registra tu avance y alcanza tus objetivos."
+    )
+)
+
+internal fun onboardingGreeting(name: String): String = "Hola, $name"
 
 internal fun tourTargetForStep(step: TourStep): TourTarget = when (step) {
     TourStep.TRAIN -> TourTarget.TRAIN_ROUTINE
@@ -280,12 +305,145 @@ internal fun WelcomeScreen(onContinue: (String) -> String?) {
 }
 
 @Composable
-internal fun GreetingScreen(name: String) {
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Hola, $name 👋", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Text("Te mostraremos rápidamente cómo funciona Coach.", modifier = Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyLarge)
+internal fun GreetingScreen(name: String, onContinue: () -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+        val useHorizontalCards = maxWidth >= 300.dp
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(R.drawable.coach_logo_full),
+                contentDescription = "Logo de Coach",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth(0.52f).aspectRatio(460.34f / 332.73f)
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    onboardingGreeting(name),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Te mostraremos rápidamente cómo funciona Coach.",
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+            if (useHorizontalCards) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
+                        OnboardingBenefitCard(
+                            benefit = benefit,
+                            icon = onboardingBenefitIcons[index],
+                            modifier = Modifier.weight(1f).heightIn(min = 208.dp)
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ONBOARDING_BENEFITS.forEachIndexed { index, benefit ->
+                        OnboardingBenefitCard(
+                            benefit = benefit,
+                            icon = onboardingBenefitIcons[index],
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+            Button(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
+                Text("COMENZAR TOUR")
+            }
+        }
     }
 }
+
+@Composable
+private fun OnboardingBenefitCard(
+    benefit: OnboardingBenefit,
+    icon: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                benefit.title,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                benefit.description,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+private val onboardingBenefitIcons = listOf(
+    simpleOnboardingIcon("Dumbbell") {
+        path(fill = SolidColor(Color.Transparent), stroke = SolidColor(Color.Black), strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round) {
+            moveTo(7f, 7f); lineTo(17f, 17f); moveTo(5f, 5f); lineTo(3f, 7f); lineTo(7f, 11f); lineTo(9f, 9f)
+            moveTo(19f, 19f); lineTo(21f, 17f); lineTo(17f, 13f); lineTo(15f, 15f)
+        }
+    },
+    simpleOnboardingIcon("Timer") {
+        path(fill = SolidColor(Color.Transparent), stroke = SolidColor(Color.Black), strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round) {
+            moveTo(9f, 2f); lineTo(15f, 2f); moveTo(12f, 6f); lineTo(12f, 13f); lineTo(16f, 15f)
+            moveTo(19f, 6f); lineTo(17.5f, 7.5f); moveTo(12f, 6f); curveTo(7.6f, 6f, 4f, 9.6f, 4f, 14f); curveTo(4f, 18.4f, 7.6f, 22f, 12f, 22f); curveTo(16.4f, 22f, 20f, 18.4f, 20f, 14f); curveTo(20f, 9.6f, 16.4f, 6f, 12f, 6f)
+        }
+    },
+    simpleOnboardingIcon("Progress") {
+        path(fill = SolidColor(Color.Transparent), stroke = SolidColor(Color.Black), strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round) {
+            moveTo(4f, 20f); lineTo(4f, 14f); lineTo(8f, 14f); lineTo(8f, 20f)
+            moveTo(10f, 20f); lineTo(10f, 10f); lineTo(14f, 10f); lineTo(14f, 20f)
+            moveTo(16f, 20f); lineTo(16f, 5f); lineTo(20f, 5f); lineTo(20f, 20f)
+        }
+    }
+)
+
+private fun simpleOnboardingIcon(name: String, paths: ImageVector.Builder.() -> Unit): ImageVector =
+    ImageVector.Builder(
+        name = name,
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply(paths).build()
 
 @Composable
 internal fun CoachMarkOverlay(target: Rect?, step: TourStep, onNext: () -> Unit, onSkip: () -> Unit) {

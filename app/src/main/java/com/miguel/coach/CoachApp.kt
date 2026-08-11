@@ -290,11 +290,7 @@ fun CoachApp(
                         return@Surface
                     }
                     if (showGreeting) {
-                        GreetingScreen(userName)
-                        LaunchedEffect(userName) {
-                            kotlinx.coroutines.delay(ONBOARDING_GREETING_DURATION_MILLIS)
-                            showGreeting = false
-                        }
+                        GreetingScreen(userName) { showGreeting = false }
                         return@Surface
                     }
                     if (shouldShowProgramOnboarding(selectedProgramId)) {

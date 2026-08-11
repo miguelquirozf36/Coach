@@ -23,8 +23,27 @@ class OnboardingTourTest {
     }
 
     @Test
-    fun greetingRemainsVisibleForThreeSeconds() {
-        assertEquals(3_000L, ONBOARDING_GREETING_DURATION_MILLIS)
+    fun introductionGreetingUsesTheDynamicNameWithoutEmoji() {
+        val greeting = onboardingGreeting("Miguel")
+
+        assertEquals("Hola, Miguel", greeting)
+        assertTrue("👋" !in greeting)
+    }
+
+    @Test
+    fun introductionShowsTheThreeApprovedBenefits() {
+        assertEquals(
+            listOf("Rutinas personalizadas", "Entrenamiento guiado", "Sigue tu progreso"),
+            ONBOARDING_BENEFITS.map { it.title }
+        )
+        assertEquals(
+            listOf(
+                "Crea o elige rutinas y adapta series, repeticiones y más.",
+                "Voz y temporizador para cada repetición y descanso.",
+                "Registra tu avance y alcanza tus objetivos."
+            ),
+            ONBOARDING_BENEFITS.map { it.description }
+        )
     }
 
     @Test
