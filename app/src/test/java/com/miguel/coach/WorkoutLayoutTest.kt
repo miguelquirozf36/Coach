@@ -19,6 +19,13 @@ class WorkoutLayoutTest {
     }
 
     @Test
+    fun betweenExerciseRestUsesTheShortMetricLabelOnly() {
+        assertEquals("Descanso", workoutMetricPhaseLabel(TrainingPhase.REST_BETWEEN_EXERCISES))
+        assertEquals("Concéntrica", workoutMetricPhaseLabel(TrainingPhase.CONCENTRIC))
+        assertEquals("Excéntrica", workoutMetricPhaseLabel(TrainingPhase.ECCENTRIC))
+    }
+
+    @Test
     fun usefulCenterExcludesSystemInsets() {
         assertEquals(544f, usefulAreaCenter(1080, 2400, 24, 80, 16, 120).first)
         assertEquals(1180f, usefulAreaCenter(1080, 2400, 24, 80, 16, 120).second)

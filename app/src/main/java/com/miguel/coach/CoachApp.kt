@@ -1484,7 +1484,7 @@ fun WorkoutScreen(
             seriesTotal = exercise.sets,
             repetitionNumber = state.repetitionNumber,
             repetitionTotal = exercise.repetitions,
-            phase = state.phase.label.orEmpty()
+            phase = workoutMetricPhaseLabel(state.phase)
         )
         when (workoutLayoutFor(maxWidth, maxHeight)) {
             WorkoutLayout.PORTRAIT -> WorkoutPortraitLayout(
@@ -1669,7 +1669,7 @@ private fun LandscapeWorkoutMetrics(metrics: WorkoutMetricTexts, modifier: Modif
 @Composable
 private fun LandscapeWorkoutMetric(icon: ImageVector, label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+        WorkoutMetricIcon(icon)
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
@@ -1782,12 +1782,7 @@ private fun WorkoutMetricColumn(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
+        WorkoutMetricIcon(icon)
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium.copy(
@@ -1803,6 +1798,21 @@ private fun WorkoutMetricColumn(
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun WorkoutMetricIcon(icon: ImageVector) {
+    Box(
+        modifier = Modifier.size(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(if (icon == RepeatIcon) 20.dp else 24.dp),
+            tint = MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -1966,6 +1976,9 @@ private val TrainingPhase.label: String?
         TrainingPhase.REST -> "Descanso"
         TrainingPhase.REST_BETWEEN_EXERCISES -> "Descanso entre ejercicios"
     }
+
+internal fun workoutMetricPhaseLabel(phase: TrainingPhase): String =
+    if (phase == TrainingPhase.REST_BETWEEN_EXERCISES) "Descanso" else phase.label.orEmpty()
 
 private fun Int.toClockFormat(): String {
     val safeSeconds = coerceAtLeast(0)
