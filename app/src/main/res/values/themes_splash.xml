@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.Coach.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/coach_black</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_coach</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
         <item name="postSplashScreenTheme">@style/Theme.Coach</item>
     </style>
 </resources>

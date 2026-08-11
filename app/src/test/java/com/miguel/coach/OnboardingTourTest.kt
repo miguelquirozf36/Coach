@@ -7,6 +7,17 @@ import org.junit.Test
 
 class OnboardingTourTest {
     @Test
+    fun newUserGoesDirectlyToWelcomeWithoutBrandedLaunch() {
+        assertEquals(LaunchStage.WELCOME, launchStageFor(onboardingPending = true))
+    }
+
+    @Test
+    fun returningUserSeesBrandedLaunchBeforeNormalContent() {
+        assertEquals(LaunchStage.BRANDED, launchStageFor(onboardingPending = false))
+        assertEquals(LaunchStage.CONTENT, launchStageAfterBranded())
+    }
+
+    @Test
     fun brandedLaunchUsesTheApprovedDuration() {
         assertEquals(1_000L, BRANDED_LAUNCH_DURATION_MILLIS)
     }

@@ -101,6 +101,13 @@ import java.time.LocalDate
 
 internal const val BRANDED_LAUNCH_DURATION_MILLIS = 1_000L
 
+internal enum class LaunchStage { INITIALIZING, WELCOME, BRANDED, CONTENT }
+
+internal fun launchStageFor(onboardingPending: Boolean): LaunchStage =
+    if (onboardingPending) LaunchStage.WELCOME else LaunchStage.BRANDED
+
+internal fun launchStageAfterBranded(): LaunchStage = LaunchStage.CONTENT
+
 private val LocalSystemBackAction = compositionLocalOf<((() -> Unit)?) -> Unit> {
     error("System back action registrar is not available")
 }
@@ -168,8 +175,7 @@ fun CoachApp(
     }
     var selectedThemeId by rememberSaveable { mutableStateOf(themeRepository.load().id) }
     var userName by rememberSaveable { mutableStateOf(userPreferenceRepository.loadUserName()) }
-    var onboardingInitialized by rememberSaveable { mutableStateOf(false) }
-    var needsWelcome by rememberSaveable { mutableStateOf(false) }
+    var launchStage by rememberSaveable { mutableStateOf(LaunchStage.INITIALIZING) }
     var showGreeting by rememberSaveable { mutableStateOf(false) }
     var tourStep by rememberSaveable { mutableStateOf<TourStep?>(null) }
     var tourTargets by remember { mutableStateOf<Map<TourTarget, Rect>>(emptyMap()) }
@@ -185,7 +191,6 @@ fun CoachApp(
     var showAppearance by rememberSaveable { mutableStateOf(false) }
     var backupMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingBackupImport by remember { mutableStateOf<CoachBackupDocument?>(null) }
-    var showBrandedLaunch by remember { mutableStateOf(true) }
     val backupManager = remember(routineRepository, userPreferenceRepository, themeRepository, programRepository) {
         CoachBackupManager(routineRepository, userPreferenceRepository, themeRepository, programRepository)
     }
@@ -228,9 +233,9 @@ fun CoachApp(
     LaunchedEffect(routineRepository, programRepository) {
         val existingInstallation = routineRepository.hasStoredRoutines() ||
             programRepository.hasStoredPrograms() || programRepository.loadSelectedProgramId() != null
-        needsWelcome = userPreferenceRepository.initializeOnboarding(existingInstallation) &&
+        val onboardingPending = userPreferenceRepository.initializeOnboarding(existingInstallation) &&
             userPreferenceRepository.loadUserName().isBlank()
-        onboardingInitialized = true
+        launchStage = launchStageFor(onboardingPending)
         val legacyRoutines = routineRepository.load()
         programs = programRepository.loadPrograms(legacyRoutines, existingInstallation)
         selectedProgramId = programRepository.loadSelectedProgramId()
@@ -243,13 +248,29 @@ fun CoachApp(
     CoachTheme(selectedTheme) {
         SystemBackHost {
             Surface(modifier = Modifier.fillMaxSize()) {
-                if (showBrandedLaunch) {
-                    BrandedLaunchScreen()
-                    LaunchedEffect(Unit) {
-                        kotlinx.coroutines.delay(BRANDED_LAUNCH_DURATION_MILLIS)
-                        showBrandedLaunch = false
+                when (launchStage) {
+                    LaunchStage.INITIALIZING -> return@Surface
+                    LaunchStage.WELCOME -> {
+                        WelcomeScreen { input ->
+                            val validation = userPreferenceRepository.saveUserName(input)
+                            validation.value?.let {
+                                userName = it
+                                launchStage = LaunchStage.CONTENT
+                                showGreeting = true
+                            }
+                            validation.message
+                        }
+                        return@Surface
                     }
-                    return@Surface
+                    LaunchStage.BRANDED -> {
+                        BrandedLaunchScreen()
+                        LaunchedEffect(launchStage) {
+                            kotlinx.coroutines.delay(BRANDED_LAUNCH_DURATION_MILLIS)
+                            launchStage = launchStageAfterBranded()
+                        }
+                        return@Surface
+                    }
+                    LaunchStage.CONTENT -> Unit
                 }
                 when (val state = trainingEngine.state) {
                 TrainingUiState.Home -> {
@@ -266,19 +287,6 @@ fun CoachApp(
                     }
                     if (isLoadingRoutines) {
                         LoadingRoutinesScreen()
-                        return@Surface
-                    }
-                    if (!onboardingInitialized) return@Surface
-                    if (needsWelcome) {
-                        WelcomeScreen { input ->
-                            val validation = userPreferenceRepository.saveUserName(input)
-                            validation.value?.let {
-                                userName = it
-                                needsWelcome = false
-                                showGreeting = true
-                            }
-                            validation.message
-                        }
                         return@Surface
                     }
                     if (showGreeting) {
