@@ -44,7 +44,7 @@ class TrainingProgramRepository(
     fun hasStoredPrograms(): Boolean = storage.readPrograms() != null
     fun loadPrograms(legacyRoutines: List<Routine>, existingInstallation: Boolean): List<TrainingProgram> {
         TrainingProgramCodec.decode(storage.readPrograms())?.takeIf { validPrograms(it) }?.let {
-            return migrateLegacyWeiderDay1Once(it)
+            return migratePreviousWeiderDay1Once(migrateLegacyWeiderDay1Once(it))
         }
         val legacyWeider = legacyRoutines.filterNot(Routine::isCustom)
         val official = OfficialTrainingPrograms.create(
@@ -89,6 +89,20 @@ class TrainingProgramRepository(
         return migrated
     }
 
+    private fun migratePreviousWeiderDay1Once(programs: List<TrainingProgram>): List<TrainingProgram> {
+        if (storage.isMigrationComplete(WEIDER_DAY1_MIGRATION_V19)) return programs
+        val currentTemplate = Routines.all.firstOrNull { it.id == WEIDER_DAY1_ID } ?: return programs
+        val migrated = programs.map { program ->
+            if (program.id != OfficialTrainingPrograms.WEIDER_ID || !program.builtIn) return@map program
+            program.copy(routines = program.routines.map { routine ->
+                if (routine == PREVIOUS_WEIDER_DAY1_TEMPLATE) currentTemplate else routine
+            })
+        }
+        if (migrated != programs && !savePrograms(migrated)) return programs
+        storage.markMigrationComplete(WEIDER_DAY1_MIGRATION_V19)
+        return migrated
+    }
+
     private fun validPrograms(programs: List<TrainingProgram>): Boolean {
         if (programs.isEmpty() || programs.map(TrainingProgram::id).toSet().size != programs.size) return false
         return programs.all { program ->
@@ -100,6 +114,7 @@ class TrainingProgramRepository(
 
     private companion object {
         const val WEIDER_DAY1_MIGRATION_V18 = "weider_day1_template_migration_v18"
+        const val WEIDER_DAY1_MIGRATION_V19 = "weider_day1_machine_flyes_migration_v19"
         const val WEIDER_DAY1_ID = "day-1-chest-triceps"
         val LEGACY_WEIDER_DAY1_TEMPLATE = Routine(
             id = WEIDER_DAY1_ID,
@@ -112,6 +127,20 @@ class TrainingProgramRepository(
                 Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
                 Exercise("extension-triceps-alta", "Extensión de tríceps alta", 4, 10, 1, 2, 120),
                 Exercise("extension-triceps-polea-alta", "Extensión de tríceps polea alta", 4, 10, 1, 2, 120)
+            ),
+            restBetweenExercisesSeconds = 180,
+            warmupSeconds = 600
+        )
+        val PREVIOUS_WEIDER_DAY1_TEMPLATE = Routine(
+            id = WEIDER_DAY1_ID,
+            name = "DÍA 1 — PECHO Y TRÍCEPS",
+            isCustom = false,
+            exercises = listOf(
+                Exercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12, 1, 2, 120),
+                Exercise("fondos-triceps", "Fondos en paralelas", 4, 10, 1, 1, 120),
+                Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
+                Exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12, 1, 2, 120),
+                Exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12, 1, 2, 120)
             ),
             restBetweenExercisesSeconds = 180,
             warmupSeconds = 600

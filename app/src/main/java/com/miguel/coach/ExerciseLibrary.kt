@@ -29,6 +29,7 @@ object ExerciseLibrary {
         listOf(
             definition("aperturas", "Aperturas", CHEST),
             definition("aperturas-cables", "Aperturas con cables", CHEST),
+            definition("aperturas-maquina", "Aperturas en máquina", CHEST),
             definition("fondos-pecho", "Fondos para pecho", CHEST),
             definition("press-banca-barra", "Press banca con barra", CHEST),
             definition("press-banca-plana-mancuernas", "Press banca plana mancuernas", CHEST),

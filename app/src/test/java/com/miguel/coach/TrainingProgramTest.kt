@@ -28,6 +28,7 @@ class TrainingProgramTest {
             listOf(
                 "Press inclinado con mancuernas",
                 "Fondos en paralelas",
+                "Aperturas en máquina",
                 "Hombro frontal",
                 "Extensión de tríceps en polea baja",
                 "Extensión de tríceps en polea alta"
@@ -44,16 +45,20 @@ class TrainingProgramTest {
             session.exercises[1]
         )
         assertEquals(
-            Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
+            Exercise("aperturas-maquina", "Aperturas en máquina", 4, 12, 1, 2, 120),
             session.exercises[2]
         )
         assertEquals(
-            Exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12, 1, 2, 120),
+            Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
             session.exercises[3]
         )
         assertEquals(
-            Exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12, 1, 2, 120),
+            Exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12, 1, 2, 120),
             session.exercises[4]
+        )
+        assertEquals(
+            Exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12, 1, 2, 120),
+            session.exercises[5]
         )
     }
 
@@ -169,6 +174,64 @@ class TrainingProgramTest {
         val cleanLoad = TrainingProgramRepository(cleanStorage).loadPrograms(emptyList(), existingInstallation = false)
         assertEquals(currentWeiderDayOne(), cleanLoad.weiderDayOne())
         assertEquals(1, cleanStorage.programWriteCount)
+    }
+
+    @Test
+    fun previousFiveExerciseTemplateMigratesEvenWhenV18IsComplete() {
+        val original = programsWithWeiderDayOne(previousWeiderDayOne())
+        val storage = MemoryProgramStorage().apply {
+            programs = TrainingProgramCodec.encode(original)
+            selected = OfficialTrainingPrograms.WEIDER_ID
+            completedMigrations += "weider_day1_template_migration_v18"
+        }
+
+        val loaded = TrainingProgramRepository(storage).loadPrograms(emptyList(), existingInstallation = true)
+
+        assertEquals(currentWeiderDayOne(), loaded.weiderDayOne())
+        assertEquals(OfficialTrainingPrograms.WEIDER_ID, storage.selected)
+        assertEquals(1, storage.programWriteCount)
+        assertTrue("weider_day1_machine_flyes_migration_v19" in storage.completedMigrations)
+        assertEquals(original.filterNot { it.id == OfficialTrainingPrograms.WEIDER_ID }, loaded.filterNot { it.id == OfficialTrainingPrograms.WEIDER_ID })
+        assertEquals(original.weiderOtherDays(), loaded.weiderOtherDays())
+    }
+
+    @Test
+    fun editedPreviousTemplateVariantsAreNotMigrated() {
+        val previous = previousWeiderDayOne()
+        val variants = listOf(
+            previous.copy(exercises = previous.exercises.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(repetitions = 11) else exercise
+            }),
+            previous.copy(exercises = previous.exercises.reversed()),
+            previous.copy(exercises = previous.exercises.dropLast(1)),
+            previous.copy(exercises = previous.exercises + previous.exercises.last().copy(id = "manual-extra"))
+        )
+
+        variants.forEach { variant ->
+            val storage = storedProgramsWithWeiderDayOne(variant).apply {
+                completedMigrations += "weider_day1_template_migration_v18"
+            }
+            val loaded = TrainingProgramRepository(storage).loadPrograms(emptyList(), existingInstallation = true)
+
+            assertEquals(variant, loaded.weiderDayOne())
+            assertEquals(0, storage.programWriteCount)
+            assertTrue("weider_day1_machine_flyes_migration_v19" in storage.completedMigrations)
+        }
+    }
+
+    @Test
+    fun v19MarkerPreventsRepeatedMigration() {
+        val storage = storedProgramsWithWeiderDayOne(previousWeiderDayOne()).apply {
+            completedMigrations += "weider_day1_template_migration_v18"
+        }
+        val repository = TrainingProgramRepository(storage)
+        repository.loadPrograms(emptyList(), existingInstallation = true)
+        storage.programs = TrainingProgramCodec.encode(programsWithWeiderDayOne(previousWeiderDayOne()))
+
+        val secondLoad = repository.loadPrograms(emptyList(), existingInstallation = true)
+
+        assertEquals(previousWeiderDayOne(), secondLoad.weiderDayOne())
+        assertEquals(1, storage.programWriteCount)
     }
 
     @Test
@@ -301,19 +364,35 @@ private fun legacyWeiderDayOne() = Routine(
 
 private fun currentWeiderDayOne(): Routine = Routines.all.single { it.id == "day-1-chest-triceps" }
 
-private fun programsWithLegacyWeiderDayOne(): List<TrainingProgram> = OfficialTrainingPrograms.create().map { program ->
+private fun previousWeiderDayOne() = Routine(
+    id = "day-1-chest-triceps",
+    name = "DÍA 1 — PECHO Y TRÍCEPS",
+    isCustom = false,
+    exercises = listOf(
+        Exercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12, 1, 2, 120),
+        Exercise("fondos-triceps", "Fondos en paralelas", 4, 10, 1, 1, 120),
+        Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
+        Exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12, 1, 2, 120),
+        Exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12, 1, 2, 120)
+    ),
+    restBetweenExercisesSeconds = 180,
+    warmupSeconds = 600
+)
+
+private fun programsWithWeiderDayOne(routine: Routine): List<TrainingProgram> = OfficialTrainingPrograms.create().map { program ->
     if (program.id != OfficialTrainingPrograms.WEIDER_ID) program else program.copy(
-        routines = program.routines.map { if (it.id == "day-1-chest-triceps") legacyWeiderDayOne() else it }
+        routines = program.routines.map { if (it.id == routine.id) routine else it }
     )
 }
 
+private fun programsWithLegacyWeiderDayOne(): List<TrainingProgram> = programsWithWeiderDayOne(legacyWeiderDayOne())
+
 private fun storedProgramsWithWeiderDayOne(routine: Routine) = MemoryProgramStorage().apply {
-    programs = TrainingProgramCodec.encode(programsWithLegacyWeiderDayOne().map { program ->
-        if (program.id != OfficialTrainingPrograms.WEIDER_ID) program else program.copy(
-            routines = program.routines.map { if (it.id == routine.id) routine else it }
-        )
-    })
+    programs = TrainingProgramCodec.encode(programsWithWeiderDayOne(routine))
 }
 
 private fun List<TrainingProgram>.weiderDayOne(): Routine =
     single { it.id == OfficialTrainingPrograms.WEIDER_ID }.routines.single { it.id == "day-1-chest-triceps" }
+
+private fun List<TrainingProgram>.weiderOtherDays(): List<Routine> =
+    single { it.id == OfficialTrainingPrograms.WEIDER_ID }.routines.filterNot { it.id == "day-1-chest-triceps" }

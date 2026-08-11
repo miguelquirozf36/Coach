@@ -243,6 +243,7 @@ object Routines {
             exercises = listOf(
                 exercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12),
                 exercise("fondos-triceps", "Fondos en paralelas", 4, 10, eccentricSeconds = 1),
+                exercise("aperturas-maquina", "Aperturas en máquina", 4, 12),
                 exercise("hombro-frontal", "Hombro frontal", 4, 12),
                 exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12),
                 exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12)
