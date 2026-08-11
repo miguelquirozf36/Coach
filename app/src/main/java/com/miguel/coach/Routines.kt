@@ -241,12 +241,11 @@ object Routines {
             id = "day-1-chest-triceps",
             name = "DÍA 1 — PECHO Y TRÍCEPS",
             exercises = listOf(
-                exercise("press-banca-plana-mancuernas", "Press banca plana mancuernas", 3, 10),
-                exercise("press-inclinado-mancuernas", "Press inclinado mancuernas", 4, 10),
-                exercise("aperturas", "Aperturas", 4, 10),
+                exercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12),
+                exercise("fondos-triceps", "Fondos en paralelas", 4, 10, eccentricSeconds = 1),
                 exercise("hombro-frontal", "Hombro frontal", 4, 12),
-                exercise("extension-triceps-alta", "Extensión de tríceps alta", 4, 10),
-                exercise("extension-triceps-polea-alta", "Extensión de tríceps polea alta", 4, 10)
+                exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12),
+                exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12)
             )
         ),
         routine(

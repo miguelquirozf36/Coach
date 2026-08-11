@@ -21,6 +21,43 @@ class TrainingProgramTest {
     }
 
     @Test
+    fun weiderPushSessionUsesTheApprovedExercisesAndConfiguration() {
+        val session = Routines.all.single { it.id == "day-1-chest-triceps" }
+
+        assertEquals(
+            listOf(
+                "Press inclinado con mancuernas",
+                "Fondos en paralelas",
+                "Hombro frontal",
+                "Extensión de tríceps en polea baja",
+                "Extensión de tríceps en polea alta"
+            ),
+            session.exercises.map(Exercise::name)
+        )
+        assertFalse(session.exercises.any { it.id == "press-banca-plana-mancuernas" })
+        assertEquals(
+            Exercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12, 1, 2, 120),
+            session.exercises[0]
+        )
+        assertEquals(
+            Exercise("fondos-triceps", "Fondos en paralelas", 4, 10, 1, 1, 120),
+            session.exercises[1]
+        )
+        assertEquals(
+            Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
+            session.exercises[2]
+        )
+        assertEquals(
+            Exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12, 1, 2, 120),
+            session.exercises[3]
+        )
+        assertEquals(
+            Exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12, 1, 2, 120),
+            session.exercises[4]
+        )
+    }
+
+    @Test
     fun onboardingCardsShowTheApprovedProgramGuidance() {
         val programs = OfficialTrainingPrograms.create().associateBy(TrainingProgram::id)
 
