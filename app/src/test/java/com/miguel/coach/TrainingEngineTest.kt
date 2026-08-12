@@ -139,6 +139,7 @@ class TrainingEngineTest {
         fixture.engine.start(fixture.routine)
         repeat(10) { fixture.scheduler.advance() }
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         assertEquals(2, fixture.currentWorkout().phaseDurationSeconds)
 
         repeat(2) { fixture.scheduler.advance() }
@@ -317,6 +318,7 @@ class TrainingEngineTest {
         fixture.engine.start(editedRoutine)
         repeat(10) { fixture.scheduler.advance() }
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 2, 0, 1, 1, false)
     }
@@ -368,6 +370,7 @@ class TrainingEngineTest {
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
 
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 2, 1, false)
     }
@@ -393,6 +396,7 @@ class TrainingEngineTest {
         fixture.engine.skip()
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
 
         fixture.completeCurrentRepetition()
@@ -429,6 +433,7 @@ class TrainingEngineTest {
         fixture.engine.skip()
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 2, 1, false)
 
         fixture.engine.skip()
@@ -477,6 +482,7 @@ class TrainingEngineTest {
             if (seconds == 0) {
                 assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
                 fixture.voice.completeLatest()
+                fixture.scheduler.advance()
                 fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
             } else {
                 fixture.scheduler.advance()
@@ -528,14 +534,14 @@ class TrainingEngineTest {
 
         repeat(2) { fixture.scheduler.advance() }
         fixture.assertWorkout(TrainingPhase.REST, 10, 0, 1, 1, false)
-        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 10 segundos" })
 
         fixture.engine.pause()
         fixture.engine.resume()
         fixture.scheduler.advance()
 
         fixture.assertWorkout(TrainingPhase.REST, 9, 0, 1, 1, false)
-        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 10 segundos" })
     }
 
     @Test
@@ -551,11 +557,12 @@ class TrainingEngineTest {
 
         fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 12, 1, 1, 1, false)
         repeat(2) { fixture.scheduler.advance() }
-        assertEquals("Quedan diez segundos.", fixture.voice.phrases.last())
+        assertEquals("Quedan 10 segundos", fixture.voice.phrases.last())
         repeat(10) { fixture.scheduler.advance() }
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
 
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
     }
@@ -583,6 +590,7 @@ class TrainingEngineTest {
         fixture.engine.skip()
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
     }
 
@@ -595,6 +603,7 @@ class TrainingEngineTest {
         repeat(10) { fixture.scheduler.advance() }
         fixture.assertWorkout(TrainingPhase.COUNTDOWN, 0, 0, 1, 1, false)
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
 
         fixture.scheduler.advance()
@@ -658,6 +667,7 @@ class TrainingEngineTest {
                 fixture.assertWorkout(TrainingPhase.REST, 2, 0, series, 2, false)
                 repeat(2) { fixture.scheduler.advance() }
                 fixture.voice.completeLatest()
+                fixture.scheduler.advance()
                 fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, series + 1, 1, false)
             }
         }
@@ -698,6 +708,7 @@ class TrainingEngineTest {
 
         repeat(3) { fixture.scheduler.advance() }
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
         visitedExerciseIndexes += fixture.currentWorkout().exerciseIndex
         fixture.completeCurrentRepetition()
@@ -781,6 +792,7 @@ class TrainingEngineTest {
         fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
     }
 
@@ -833,6 +845,81 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun repetitionCuesBeepAtEachStartAndNeverAfterTheLastEccentric() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 30, repetitions = 3))
+        fixture.startFirstConcentricPhase()
+        assertEquals("beep", fixture.events.last())
+
+        repeat(3) { index ->
+            fixture.scheduler.advance()
+            assertEquals("voice:${index + 1}", fixture.events.last())
+            fixture.voice.completeLatest()
+            fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, index + 1, false)
+            fixture.scheduler.advance()
+            if (index < 2) assertEquals("beep", fixture.events.last())
+        }
+
+        fixture.assertWorkout(TrainingPhase.REST, 30, 0, 1, 3, false)
+        assertEquals("voice:Descansa.", fixture.events.last())
+        assertEquals(3, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun vamosCompletionWaitsOneSilentSecondBeforeFirstBeep() {
+        val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 1))
+        fixture.engine.start(fixture.routine)
+        repeat(10) { fixture.scheduler.advance() }
+        val eventsAtVamos = fixture.events.toList()
+
+        fixture.voice.completeLatest()
+        assertEquals(eventsAtVamos, fixture.events)
+        val silenceStartedAt = fixture.clock.now
+        fixture.scheduler.advance()
+
+        assertEquals("beep", fixture.events.last())
+        assertEquals(1_000L, fixture.clock.now - silenceStartedAt)
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+    }
+
+    @Test
+    fun warmupWarningsUseCrossedRealTimeThresholdsAndSkipStaleOnes() {
+        val fixture = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 600)
+        fixture.engine.start(fixture.routine)
+        fixture.scheduler.fireAfter(540_400L)
+        assertEquals(1, fixture.voice.phrases.count { it == "Queda 1 minuto" })
+        fixture.scheduler.fireAfter(49_600L)
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 10 segundos" })
+
+        val short = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 45)
+        short.engine.start(short.routine)
+        short.scheduler.fireAfter(35_000L)
+        assertEquals(0, short.voice.phrases.count { it == "Queda 1 minuto" })
+        assertEquals(1, short.voice.phrases.count { it == "Quedan 10 segundos" })
+
+        val stale = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 40)
+        stale.engine.start(stale.routine)
+        stale.scheduler.fireAfter(35_000L)
+        assertEquals(0, stale.voice.phrases.count { it == "Quedan 30 segundos" || it == "Quedan 10 segundos" })
+    }
+
+    @Test
+    fun restWarningsCrossThirtyAndTenOnceAndSurvivePause() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 120))
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+        fixture.scheduler.fireAfter(90_500L)
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 30 segundos" })
+
+        fixture.engine.pause()
+        fixture.clock.advanceBy(300_000L)
+        fixture.engine.resume()
+        fixture.scheduler.fireAfter(19_500L)
+
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 30 segundos" })
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 10 segundos" })
+    }
+
+    @Test
     fun disabledWarmupKeepsTheExistingInitialCountdownFlow() {
         val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1))
 
@@ -853,7 +940,7 @@ class TrainingEngineTest {
         repeat(2) { fixture.scheduler.advance() }
 
         fixture.assertWorkout(TrainingPhase.WARMUP, 10, 0, 1, 1, false)
-        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 10 segundos" })
         assertEquals(0, fixture.beep.playCalls)
     }
 
@@ -870,6 +957,7 @@ class TrainingEngineTest {
         fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
         assertEquals(listOf("Tres", "Dos", "Uno", "¡Vamos!"), fixture.voice.phrases.takeLast(4))
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
         assertEquals(0, fixture.voice.phrases.count { it == "Comenzamos en diez segundos." })
@@ -892,7 +980,7 @@ class TrainingEngineTest {
         fixture.scheduler.advance()
 
         fixture.assertWorkout(TrainingPhase.WARMUP, 10, 0, 1, 1, false)
-        assertEquals(1, fixture.voice.phrases.count { it == "Quedan diez segundos." })
+        assertEquals(1, fixture.voice.phrases.count { it == "Quedan 10 segundos" })
     }
 
     @Test
@@ -908,6 +996,7 @@ class TrainingEngineTest {
         fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
         assertEquals(1, fixture.voice.phrases.count { it == "¡Vamos!" })
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
         assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
     }
@@ -944,6 +1033,7 @@ class TrainingEngineTest {
 
         fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
         assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
     }
@@ -1015,6 +1105,7 @@ class TrainingEngineTest {
         repeat(2) { fixture.scheduler.advance() }
         assertEquals("Nota anterior", fixture.currentWorkout().currentExerciseNotes)
         fixture.voice.completeLatest()
+        fixture.scheduler.advance()
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
         assertEquals("Nota nueva", fixture.currentWorkout().currentExerciseNotes)
@@ -1059,8 +1150,9 @@ class TrainingEngineTest {
     ) {
         constructor(exercise: Exercise) : this(listOf(exercise))
 
-        val voice = FakeVoiceSpeaker()
-        val beep = FakeBeepPlayer()
+        val events = mutableListOf<String>()
+        val voice = FakeVoiceSpeaker(events)
+        val beep = FakeBeepPlayer(events)
         val clock = FakeMonotonicClock()
         val scheduler = FakeTrainingScheduler(clock)
         val engine = TrainingEngine(voice, beep, scheduler, clock)
@@ -1077,6 +1169,7 @@ class TrainingEngineTest {
             engine.start(routine)
             repeat(10) { scheduler.advance() }
             voice.completeLatest()
+            scheduler.advance()
             assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
         }
 
@@ -1112,7 +1205,7 @@ class TrainingEngineTest {
         fun currentWorkout(): TrainingUiState.Workout = engine.state as TrainingUiState.Workout
     }
 
-    private class FakeVoiceSpeaker : VoiceSpeaker {
+    private class FakeVoiceSpeaker(private val events: MutableList<String>) : VoiceSpeaker {
         override var isReady = true
         val phrases = mutableListOf<String>()
         var stopCalls = 0
@@ -1122,6 +1215,7 @@ class TrainingEngineTest {
 
         override fun speak(phrase: String, onCompleted: (() -> Unit)?) {
             phrases += phrase
+            events += "voice:$phrase"
             onCompleted?.let(completions::add)
         }
 
@@ -1138,12 +1232,13 @@ class TrainingEngineTest {
         }
     }
 
-    private class FakeBeepPlayer : BeepSoundPlayer {
+    private class FakeBeepPlayer(private val events: MutableList<String>) : BeepSoundPlayer {
         var playCalls = 0
         var stopCalls = 0
 
         override fun play() {
             playCalls += 1
+            events += "beep"
         }
 
         override fun stop() {

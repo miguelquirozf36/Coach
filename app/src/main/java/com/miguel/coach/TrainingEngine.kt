@@ -26,12 +26,17 @@ class TrainingEngine(
         get() = voiceSpeaker.isReady
 
     private var sessionId = 0L
+    private val announcedThresholds = mutableSetOf<Int>()
+    private var previousTimedSeconds = 0
+    private var startDelayRemainingMillis: Long? = null
+    private var startDelayDeadlineMillis: Long? = null
 
     fun start(routine: Routine) {
         if (routine.exercises.isEmpty()) return
         if (!voiceSpeaker.isReady) return
 
         beginNewSession()
+        clearStartDelay()
         val sessionRoutine = routine.copy(exercises = routine.exercises.toList())
         val hasWarmup = sessionRoutine.warmupSeconds > 0
         state = TrainingUiState.Workout(
@@ -47,6 +52,7 @@ class TrainingEngine(
             isPaused = false,
             currentExerciseNotes = sessionRoutine.exercises.first().notes
         )
+        resetTimedAnnouncements(if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS)
         if (hasWarmup) {
             voiceSpeaker.speak(WARMUP_ANNOUNCEMENT)
             scheduleWarmupTick(sessionId)
@@ -61,6 +67,10 @@ class TrainingEngine(
         if (workout.isPaused) return
 
         val pausedAtMillis = monotonicClock.nowMillis()
+        startDelayDeadlineMillis?.let { deadline ->
+            startDelayRemainingMillis = (deadline - pausedAtMillis).coerceAtLeast(0L)
+            startDelayDeadlineMillis = null
+        }
         if (workout.phase.usesElapsedTime) {
             workout = workout.copy(secondsRemaining = remainingSeconds(workout, pausedAtMillis))
         }
@@ -92,6 +102,11 @@ class TrainingEngine(
         invalidatePendingWork()
         sessionId += 1
         val activeSession = sessionId
+        if (startDelayRemainingMillis != null) {
+            clearStartDelay()
+            startConcentricPhase(activeSession)
+            return
+        }
         when (workout.phase) {
             TrainingPhase.WARMUP -> {
                 state = workout.copy(secondsRemaining = 0)
@@ -115,6 +130,7 @@ class TrainingEngine(
 
     fun finish() {
         invalidatePendingWork()
+        clearStartDelay()
         state = TrainingUiState.Home
     }
 
@@ -132,6 +148,10 @@ class TrainingEngine(
 
     private fun resumePhase(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
+        if (startDelayRemainingMillis != null) {
+            scheduleStartDelay(activeSession)
+            return
+        }
         when (workout.phase) {
             TrainingPhase.WARMUP -> {
                 if (workout.secondsRemaining == 0) announceStart(activeSession)
@@ -141,7 +161,6 @@ class TrainingEngine(
                 if (workout.secondsRemaining == 0) announceStart(activeSession)
                 else scheduleCountdownTick(activeSession)
             }
-
             TrainingPhase.CONCENTRIC -> schedulePhaseTick(activeSession)
             TrainingPhase.REPETITION_ANNOUNCEMENT -> announceRepetition(activeSession)
             TrainingPhase.ECCENTRIC -> schedulePhaseTick(activeSession)
@@ -170,16 +189,15 @@ class TrainingEngine(
 
         val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
-        when (secondsRemaining) {
-            10 -> voiceSpeaker.speak(TEN_SECONDS_ANNOUNCEMENT)
-            3 -> voiceSpeaker.speak("Tres")
-            2 -> voiceSpeaker.speak("Dos")
-            1 -> voiceSpeaker.speak("Uno")
-            0 -> {
-                announceStart(activeSession)
-                return
-            }
+        if (secondsRemaining == 0) {
+            announceStart(activeSession)
+            return
         }
+        announceCrossedThreshold(
+            secondsRemaining,
+            listOf(60 to ONE_MINUTE_ANNOUNCEMENT, 10 to TEN_SECONDS_ANNOUNCEMENT, 3 to "Tres", 2 to "Dos", 1 to "Uno")
+        )
+        previousTimedSeconds = secondsRemaining
         scheduleWarmupTick(activeSession)
     }
 
@@ -189,20 +207,38 @@ class TrainingEngine(
 
         val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
-        when (secondsRemaining) {
-            3 -> voiceSpeaker.speak("Tres")
-            2 -> voiceSpeaker.speak("Dos")
-            1 -> voiceSpeaker.speak("Uno")
-            0 -> {
-                announceStart(activeSession)
-                return
-            }
+        if (secondsRemaining == 0) {
+            announceStart(activeSession)
+            return
         }
+        announceCrossedThreshold(
+            secondsRemaining,
+            listOf(3 to "Tres", 2 to "Dos", 1 to "Uno")
+        )
+        previousTimedSeconds = secondsRemaining
         scheduleCountdownTick(activeSession)
     }
 
     private fun announceStart(activeSession: Long) {
-        voiceSpeaker.speak("\u00A1Vamos!") { startConcentricPhase(activeSession) }
+        voiceSpeaker.speak("\u00A1Vamos!") { startStartDelay(activeSession) }
+    }
+
+    private fun startStartDelay(activeSession: Long) {
+        activeWorkout(activeSession) ?: return
+        startDelayRemainingMillis = ONE_SECOND_MILLIS
+        scheduleStartDelay(activeSession)
+    }
+
+    private fun scheduleStartDelay(activeSession: Long) {
+        activeWorkout(activeSession) ?: return
+        val delayMillis = startDelayRemainingMillis ?: return
+        startDelayDeadlineMillis = monotonicClock.nowMillis() + delayMillis
+        scheduler.schedule(delayMillis) {
+            activeWorkout(activeSession) ?: return@schedule
+            startDelayRemainingMillis = null
+            startDelayDeadlineMillis = null
+            startConcentricPhase(activeSession)
+        }
     }
 
     private fun startConcentricPhase(activeSession: Long) {
@@ -215,6 +251,7 @@ class TrainingEngine(
         ) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
+        beepPlayer.play()
         state = workout.copy(
             phase = TrainingPhase.CONCENTRIC,
             secondsRemaining = exercise.concentricSeconds,
@@ -286,7 +323,6 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.ECCENTRIC) return
 
-        beepPlayer.play()
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (workout.repetitionNumber < exercise.repetitions) {
             state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
@@ -303,6 +339,7 @@ class TrainingEngine(
                 phasePausedAtMillis = null
             )
             voiceSpeaker.speak(REST_ANNOUNCEMENT)
+            resetTimedAnnouncements(exercise.restSeconds)
             scheduleRestTick(activeSession)
             return
         }
@@ -321,6 +358,7 @@ class TrainingEngine(
                 phasePausedAtMillis = null
             )
             voiceSpeaker.speak("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
+            resetTimedAnnouncements(workout.routine.restBetweenExercisesSeconds)
             scheduleRestTick(activeSession)
             return
         }
@@ -345,21 +383,42 @@ class TrainingEngine(
 
         val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
-        when (secondsRemaining) {
-            10 -> voiceSpeaker.speak(TEN_SECONDS_ANNOUNCEMENT)
-            3 -> voiceSpeaker.speak("Tres")
-            2 -> voiceSpeaker.speak("Dos")
-            1 -> voiceSpeaker.speak("Uno")
-            0 -> {
-                when (workout.phase) {
-                    TrainingPhase.REST -> announceNextSeries(activeSession)
-                    TrainingPhase.REST_BETWEEN_EXERCISES -> announceNextExercise(activeSession)
-                    else -> Unit
-                }
-                return
+        if (secondsRemaining == 0) {
+            when (workout.phase) {
+                TrainingPhase.REST -> announceNextSeries(activeSession)
+                TrainingPhase.REST_BETWEEN_EXERCISES -> announceNextExercise(activeSession)
+                else -> Unit
             }
+            return
         }
+        announceCrossedThreshold(
+            secondsRemaining,
+            listOf(30 to THIRTY_SECONDS_ANNOUNCEMENT, 10 to TEN_SECONDS_ANNOUNCEMENT, 3 to "Tres", 2 to "Dos", 1 to "Uno")
+        )
+        previousTimedSeconds = secondsRemaining
         scheduleRestTick(activeSession)
+    }
+
+    private fun resetTimedAnnouncements(durationSeconds: Int) {
+        announcedThresholds.clear()
+        previousTimedSeconds = durationSeconds + 1
+    }
+
+    private fun announceCrossedThreshold(
+        secondsRemaining: Int,
+        thresholds: List<Pair<Int, String>>
+    ) {
+        val useful = thresholds
+            .filter { (threshold, _) ->
+                threshold <= previousTimedSeconds &&
+                    threshold >= secondsRemaining &&
+                    threshold - secondsRemaining <= MAX_USEFUL_ANNOUNCEMENT_LATENESS_SECONDS &&
+                    threshold !in announcedThresholds
+            }
+            .minByOrNull { (threshold, _) -> threshold - secondsRemaining }
+            ?: return
+        announcedThresholds += useful.first
+        voiceSpeaker.speak(useful.second)
     }
 
     private fun remainingSeconds(
@@ -403,13 +462,18 @@ class TrainingEngine(
             seriesNumber = workout.seriesNumber + 1,
             repetitionNumber = 1
         )
-        startConcentricPhase(activeSession)
+        startStartDelay(activeSession)
     }
 
     private fun startNextExercise(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES) return
-        startConcentricPhase(activeSession)
+        startStartDelay(activeSession)
+    }
+
+    private fun clearStartDelay() {
+        startDelayRemainingMillis = null
+        startDelayDeadlineMillis = null
     }
 
     private fun completeTraining() {
@@ -429,10 +493,13 @@ class TrainingEngine(
         const val INITIAL_COUNTDOWN_SECONDS = 10
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
         const val WARMUP_ANNOUNCEMENT = "Comienza el calentamiento."
+        const val ONE_MINUTE_ANNOUNCEMENT = "Queda 1 minuto"
+        const val THIRTY_SECONDS_ANNOUNCEMENT = "Quedan 30 segundos"
         const val REST_ANNOUNCEMENT = "Descansa."
         const val REST_BETWEEN_EXERCISES_ANNOUNCEMENT =
             "Descansa y prepárate para el siguiente ejercicio."
-        const val TEN_SECONDS_ANNOUNCEMENT = "Quedan diez segundos."
+        const val TEN_SECONDS_ANNOUNCEMENT = "Quedan 10 segundos"
+        const val MAX_USEFUL_ANNOUNCEMENT_LATENESS_SECONDS = 1
         const val TRAINING_COMPLETE_ANNOUNCEMENT = "Entrenamiento finalizado."
     }
 }

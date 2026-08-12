@@ -55,7 +55,7 @@ class WorkoutSessionLifecycleTest {
         val engine = TrainingEngine(voice, ReusableBeepPlayer(), scheduler, clock)
 
         engine.start(routine)
-        repeat(12) { scheduler.runNext() }
+        repeat(13) { scheduler.runNext() }
         assertEquals(TrainingUiState.Completed, engine.state)
 
         engine.finish()
