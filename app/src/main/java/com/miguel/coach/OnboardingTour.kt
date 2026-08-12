@@ -149,6 +149,8 @@ internal fun nextTourStep(step: TourStep): TourStep? = when (step) {
     TourStep.CUSTOM -> null
 }
 
+internal fun showsTourSkipAction(step: TourStep): Boolean = step != TourStep.CUSTOM
+
 internal fun tourTargetLabel(step: TourStep): String = when (step) {
     TourStep.TRAIN -> "TARJETA DE RUTINA"
     TourStep.EDIT -> "EDITAR"
@@ -537,7 +539,11 @@ internal fun CoachMarkOverlay(target: Rect?, step: TourStep, onNext: () -> Unit,
                 Text(copy.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(copy.body, style = MaterialTheme.typography.bodyLarge)
                 Button(onClick = onNext, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)) { Text(copy.button) }
-                TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("OMITIR RECORRIDO") }
+                if (showsTourSkipAction(step)) {
+                    TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("OMITIR RECORRIDO") }
+                } else {
+                    Spacer(Modifier.height(48.dp))
+                }
             }
         }
     }

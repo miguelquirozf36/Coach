@@ -2,6 +2,7 @@ package com.miguel.coach
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -86,6 +87,15 @@ class OnboardingTourTest {
     fun fourthStepTargetsCreateProgramAndUsesFinalAction() {
         assertEquals("CREAR PROGRAMA", tourTargetLabel(TourStep.CUSTOM))
         assertEquals("EMPEZAR", tourCopy(TourStep.CUSTOM).button)
+        assertFalse(showsTourSkipAction(TourStep.CUSTOM))
+        assertNull(nextTourStep(TourStep.CUSTOM))
+    }
+
+    @Test
+    fun skipActionRemainsAvailableOnTheFirstThreeStepsOnly() {
+        listOf(TourStep.TRAIN, TourStep.EDIT, TourStep.PROGRAMS).forEach { step ->
+            assertTrue(showsTourSkipAction(step))
+        }
     }
 
     @Test
