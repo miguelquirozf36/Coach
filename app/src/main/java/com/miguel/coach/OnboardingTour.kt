@@ -541,8 +541,6 @@ internal fun CoachMarkOverlay(target: Rect?, step: TourStep, onNext: () -> Unit,
                 Button(onClick = onNext, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)) { Text(copy.button) }
                 if (showsTourSkipAction(step)) {
                     TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("OMITIR RECORRIDO") }
-                } else {
-                    Spacer(Modifier.height(48.dp))
                 }
             }
         }
