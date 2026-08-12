@@ -49,7 +49,6 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -98,7 +97,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.min
-import kotlin.math.roundToInt
 import java.time.LocalDate
 
 internal const val BRANDED_LAUNCH_DURATION_MILLIS = 1_000L
@@ -365,6 +363,12 @@ fun CoachApp(
                             SettingsScreen(
                                 userName = userName,
                                 currentTheme = selectedTheme,
+                                beepVolumeLevel = beepVolumeLevel,
+                                onBeepVolumeLevelChanged = { level ->
+                                    if (userPreferenceRepository.saveBeepVolumeLevel(level)) {
+                                        beepVolumeLevel = normalizeBeepVolumeLevel(level)
+                                    }
+                                },
                                 onSaveUserName = { input ->
                                     val validation = userPreferenceRepository.saveUserName(input)
                                     validation.value?.let { userName = it }
@@ -443,19 +447,13 @@ fun CoachApp(
                         } else {
                             HomeScreen(
                                 routines = activeProgram.routines,
-                                isCustomTab = !activeProgram.builtIn,
+                                isCustomTab = false,
                                 userName = userName,
                                 activeProgramName = activeProgram.name,
                                 activeProgramFrequency = activeProgram.frequency,
                                 onOpen = { selectedRoutineId = it.id },
                                 onCreate = {},
                                 onDelete = {},
-                                beepVolumeLevel = beepVolumeLevel,
-                                onBeepVolumeLevelChanged = { level ->
-                                    if (userPreferenceRepository.saveBeepVolumeLevel(level)) {
-                                        beepVolumeLevel = normalizeBeepVolumeLevel(level)
-                                    }
-                                },
                                 selectedTab = selectedTab,
                                 onTabSelected = { selectedTab = it }
                                 , onRoutinePositioned = { tourTargets = registerTourTargetBounds(tourTargets, TourTarget.TRAIN_ROUTINE, it) }
@@ -614,8 +612,6 @@ fun HomeScreen(
     onOpen: (Routine) -> Unit,
     onCreate: () -> Unit,
     onDelete: (Routine) -> Unit,
-    beepVolumeLevel: Int = DEFAULT_BEEP_VOLUME_LEVEL,
-    onBeepVolumeLevelChanged: (Int) -> Unit = {},
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     onRoutinePositioned: (Rect) -> Unit = {}
@@ -648,7 +644,6 @@ fun HomeScreen(
         ) {
             if (isCustomTab) {
                 Text("Crea, edita o inicia tus rutinas.", style = MaterialTheme.typography.headlineSmall)
-                BeepVolumeControl(beepVolumeLevel, onBeepVolumeLevelChanged)
             } else {
                 Column(
                     modifier = Modifier.padding(top = 24.dp, bottom = 4.dp),
@@ -793,27 +788,6 @@ fun HomeScreen(
             if (isCustomTab && routines.isNotEmpty()) {
                 Button(modifier = Modifier.fillMaxWidth(), onClick = onCreate) { Text("CREAR RUTINA") }
             }
-        }
-    }
-}
-
-@Composable
-private fun BeepVolumeControl(level: Int, onLevelChanged: (Int) -> Unit) {
-    val normalizedLevel = normalizeBeepVolumeLevel(level)
-    Card(modifier = Modifier.fillMaxWidth(), colors = contentCardColors()) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text("Volumen del pitido", style = MaterialTheme.typography.titleMedium)
-            Text("Nivel $normalizedLevel", style = MaterialTheme.typography.bodyMedium)
-            Slider(
-                value = normalizedLevel.toFloat(),
-                onValueChange = { onLevelChanged(it.roundToInt().coerceIn(1, 5)) },
-                valueRange = 1f..5f,
-                steps = 3,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
     }
 }

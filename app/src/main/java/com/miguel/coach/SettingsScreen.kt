@@ -18,6 +18,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -28,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 internal enum class SettingsDestination { ROOT, APPEARANCE }
 
@@ -42,6 +44,8 @@ internal const val EXPORT_BACKUP_DESCRIPTION = "Guardar los datos en un archivo 
 fun SettingsScreen(
     userName: String,
     currentTheme: CoachTheme,
+    beepVolumeLevel: Int,
+    onBeepVolumeLevelChanged: (Int) -> Unit,
     onSaveUserName: (String) -> String?,
     onAppearance: () -> Unit,
     onExportBackup: () -> Unit,
@@ -126,6 +130,12 @@ fun SettingsScreen(
                 onClick = onReplayTour
             )
             Text(
+                "ENTRENAMIENTO",
+                modifier = Modifier.padding(top = 12.dp),
+                style = MaterialTheme.typography.titleMedium
+            )
+            BeepVolumeControl(beepVolumeLevel, onBeepVolumeLevelChanged)
+            Text(
                 "DATOS",
                 modifier = Modifier.padding(top = 12.dp),
                 style = MaterialTheme.typography.titleMedium
@@ -139,6 +149,27 @@ fun SettingsScreen(
                 title = "IMPORTAR COPIA",
                 value = "Restaurar los datos desde un archivo JSON.",
                 onClick = onImportBackup
+            )
+        }
+    }
+}
+
+@Composable
+internal fun BeepVolumeControl(level: Int, onLevelChanged: (Int) -> Unit) {
+    val normalizedLevel = normalizeBeepVolumeLevel(level)
+    Card(modifier = Modifier.fillMaxWidth(), colors = contentCardColors()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text("Volumen del pitido", style = MaterialTheme.typography.titleMedium)
+            Text("Nivel $normalizedLevel", style = MaterialTheme.typography.bodyMedium)
+            Slider(
+                value = normalizedLevel.toFloat(),
+                onValueChange = { onLevelChanged(it.roundToInt().coerceIn(1, 5)) },
+                valueRange = 1f..5f,
+                steps = 3,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
