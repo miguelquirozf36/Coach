@@ -157,11 +157,11 @@ class TrainingEngine(
     }
 
     private fun scheduleCountdownTick(activeSession: Long) {
-        scheduler.schedule(ONE_SECOND_MILLIS) { advanceCountdown(activeSession) }
+        scheduleTimedTick(activeSession) { advanceCountdown(activeSession) }
     }
 
     private fun scheduleWarmupTick(activeSession: Long) {
-        scheduler.schedule(ONE_SECOND_MILLIS) { advanceWarmup(activeSession) }
+        scheduleTimedTick(activeSession) { advanceWarmup(activeSession) }
     }
 
     private fun advanceWarmup(activeSession: Long) {
@@ -329,7 +329,12 @@ class TrainingEngine(
     }
 
     private fun scheduleRestTick(activeSession: Long) {
-        scheduler.schedule(ONE_SECOND_MILLIS) { advanceRest(activeSession) }
+        scheduleTimedTick(activeSession) { advanceRest(activeSession) }
+    }
+
+    private fun scheduleTimedTick(activeSession: Long, action: () -> Unit) {
+        val workout = activeWorkout(activeSession) ?: return
+        scheduler.schedule(nextTickDelayMillis(workout)) { action() }
     }
 
     private fun advanceRest(activeSession: Long) {
@@ -365,6 +370,15 @@ class TrainingEngine(
             workout.phaseDurationSeconds.coerceAtLeast(0) * ONE_SECOND_MILLIS
         val remainingMillis = (endMillis - nowMillis).coerceAtLeast(0L)
         return ((remainingMillis + ONE_SECOND_MILLIS - 1) / ONE_SECOND_MILLIS).toInt()
+    }
+
+    private fun nextTickDelayMillis(workout: TrainingUiState.Workout): Long {
+        val endMillis = workout.phaseStartedAtMillis +
+            workout.phaseDurationSeconds.coerceAtLeast(0) * ONE_SECOND_MILLIS
+        val remainingMillis = (endMillis - monotonicClock.nowMillis()).coerceAtLeast(0L)
+        if (remainingMillis == 0L) return 0L
+        return (remainingMillis % ONE_SECOND_MILLIS).takeIf { it > 0L }
+            ?: ONE_SECOND_MILLIS
     }
 
     private fun announceNextSeries(activeSession: Long) {

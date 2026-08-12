@@ -1920,16 +1920,13 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
             frameTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
         } else {
             while (true) {
-                frameTimeMillis = withFrameNanos { it / 1_000_000L }
+                withFrameNanos { }
+                frameTimeMillis = android.os.SystemClock.elapsedRealtime()
             }
         }
     }
     val effectiveTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
-    val durationMillis = state.phaseDurationSeconds.coerceAtLeast(0) * 1_000L
-    val elapsedMillis = (effectiveTimeMillis - state.phaseStartedAtMillis).coerceAtLeast(0L)
-    val progress = if (durationMillis > 0) {
-        ((durationMillis - elapsedMillis).toFloat() / durationMillis).coerceIn(0f, 1f)
-    } else 0f
+    val progress = workoutRemainingFraction(state, effectiveTimeMillis)
     val progressColor = timerProgressColor(MaterialTheme.colorScheme)
     val trackColor = MaterialTheme.colorScheme.outlineVariant
 
@@ -1969,6 +1966,14 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
             )
         }
     }
+}
+
+internal fun workoutRemainingFraction(state: TrainingUiState.Workout, nowMillis: Long): Float {
+    val durationMillis = state.phaseDurationSeconds.coerceAtLeast(0) * 1_000L
+    if (durationMillis == 0L) return 0f
+    val endMillis = state.phaseStartedAtMillis + durationMillis
+    val remainingMillis = (endMillis - nowMillis).coerceIn(0L, durationMillis)
+    return remainingMillis.toFloat() / durationMillis
 }
 
 internal fun timerProgressColor(colorScheme: ColorScheme): Color = colorScheme.primary

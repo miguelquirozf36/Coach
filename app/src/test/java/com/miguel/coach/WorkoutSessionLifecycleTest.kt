@@ -89,10 +89,10 @@ class WorkoutSessionLifecycleTest {
     }
 
     private class QueueScheduler(private val clock: TestClock) : TrainingScheduler {
-        private var action: (() -> Unit)? = null
+        private var action: ScheduledAction? = null
         var cancelCount = 0
         override fun schedule(delayMillis: Long, action: () -> Unit) {
-            this.action = action
+            this.action = ScheduledAction(delayMillis, action)
         }
         override fun cancelAll() {
             action = null
@@ -101,9 +101,11 @@ class WorkoutSessionLifecycleTest {
         fun runNext() {
             val next = action ?: return
             action = null
-            clock.now += 1_000L
-            next()
+            clock.now += next.delayMillis
+            next.action()
         }
+
+        private data class ScheduledAction(val delayMillis: Long, val action: () -> Unit)
     }
 
     private companion object {

@@ -818,6 +818,21 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun restEndingBetweenCallbacksTransitionsOnceAtTheElapsedDeadline() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 30))
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+        val vamosBeforeRestEnds = fixture.voice.phrases.count { it == "\u00A1Vamos!" }
+
+        fixture.scheduler.fireAfter(30_250L)
+
+        fixture.assertWorkout(TrainingPhase.REST, 0, 0, 1, 1, false)
+        assertEquals(vamosBeforeRestEnds + 1, fixture.voice.phrases.count { it == "\u00A1Vamos!" })
+        fixture.scheduler.advance()
+        assertEquals(vamosBeforeRestEnds + 1, fixture.voice.phrases.count { it == "\u00A1Vamos!" })
+    }
+
+    @Test
     fun disabledWarmupKeepsTheExistingInitialCountdownFlow() {
         val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1))
 
@@ -1145,7 +1160,7 @@ class TrainingEngineTest {
     private class FakeTrainingScheduler(
         private val clock: FakeMonotonicClock
     ) : TrainingScheduler {
-        private var pendingAction: (() -> Unit)? = null
+        private var pendingAction: ScheduledAction? = null
         private var cancelledAction: (() -> Unit)? = null
         var overlappingScheduleRequests = 0
             private set
@@ -1156,26 +1171,26 @@ class TrainingEngineTest {
             if (pendingAction != null) {
                 overlappingScheduleRequests += 1
             }
-            pendingAction = action
+            pendingAction = ScheduledAction(delayMillis, action)
         }
 
         override fun cancelAll() {
-            cancelledAction = pendingAction
+            cancelledAction = pendingAction?.action
             pendingAction = null
         }
 
         fun advance() {
-            val action = pendingAction ?: return
+            val scheduled = pendingAction ?: return
             pendingAction = null
-            clock.advanceBy(1_000L)
-            action()
+            clock.advanceBy(scheduled.delayMillis)
+            scheduled.action()
         }
 
         fun fireAfter(millis: Long) {
-            val action = pendingAction ?: return
+            val scheduled = pendingAction ?: return
             pendingAction = null
             clock.advanceBy(millis)
-            action()
+            scheduled.action()
         }
 
         fun advanceCancelled() {
@@ -1183,6 +1198,8 @@ class TrainingEngineTest {
             cancelledAction = null
             action()
         }
+
+        private data class ScheduledAction(val delayMillis: Long, val action: () -> Unit)
     }
 
     private companion object {

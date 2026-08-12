@@ -107,6 +107,7 @@ object WorkoutSessionController {
 
 class WorkoutSessionService : Service() {
     private lateinit var workoutNotification: WorkoutNotification
+    private lateinit var workoutWakeLock: WorkoutWakeLock
     private val notificationTracker = WorkoutNotificationTracker()
     private var intentionalStop = false
     private val stateObserver: (TrainingUiState) -> Unit = ::handleState
@@ -114,6 +115,7 @@ class WorkoutSessionService : Service() {
     override fun onCreate() {
         super.onCreate()
         workoutNotification = WorkoutNotification(this)
+        workoutWakeLock = createWorkoutWakeLock(this)
         workoutNotification.createChannel()
         WorkoutSessionController.attachObserver(stateObserver)
     }
@@ -132,6 +134,7 @@ class WorkoutSessionService : Service() {
 
     override fun onDestroy() {
         WorkoutSessionController.detachObserver(stateObserver)
+        workoutWakeLock.release()
         workoutNotification.cancel()
         if (!intentionalStop) WorkoutSessionController.handleUnexpectedServiceStop()
         super.onDestroy()
@@ -164,6 +167,7 @@ class WorkoutSessionService : Service() {
     }
 
     private fun handleState(state: TrainingUiState) {
+        workoutWakeLock.update(state)
         when (val change = notificationTracker.next(state)) {
             is WorkoutNotificationChange.Show -> workoutNotification.notify(change.content)
             WorkoutNotificationChange.None -> Unit
