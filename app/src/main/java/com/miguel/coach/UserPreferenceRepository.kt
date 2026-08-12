@@ -10,6 +10,8 @@ interface UserPreferenceStorage {
     fun writeUserName(name: String): Boolean
     fun readTourCompleted(): Boolean? = null
     fun writeTourCompleted(completed: Boolean): Boolean = false
+    fun readBeepVolumeLevel(): Int? = null
+    fun writeBeepVolumeLevel(level: Int): Boolean = false
 }
 
 class SharedPreferencesUserStorage(
@@ -25,9 +27,16 @@ class SharedPreferencesUserStorage(
     override fun writeTourCompleted(completed: Boolean): Boolean =
         preferences.edit().putBoolean(TOUR_COMPLETED, completed).commit()
 
+    override fun readBeepVolumeLevel(): Int? =
+        if (preferences.contains(BEEP_VOLUME_LEVEL)) preferences.getInt(BEEP_VOLUME_LEVEL, DEFAULT_BEEP_VOLUME_LEVEL) else null
+
+    override fun writeBeepVolumeLevel(level: Int): Boolean =
+        preferences.edit().putInt(BEEP_VOLUME_LEVEL, level).commit()
+
     private companion object {
         const val USER_NAME = "user_name"
         const val TOUR_COMPLETED = "onboarding_tour_completed_v17"
+        const val BEEP_VOLUME_LEVEL = "workout_beep_volume_level"
     }
 }
 
@@ -79,7 +88,19 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
     fun isTourCompleted(): Boolean = storage.readTourCompleted() == true
 
     fun completeTour(): Boolean = storage.writeTourCompleted(true)
+
+    fun loadBeepVolumeLevel(): Int = normalizeBeepVolumeLevel(storage.readBeepVolumeLevel())
+
+    fun saveBeepVolumeLevel(level: Int): Boolean =
+        storage.writeBeepVolumeLevel(normalizeBeepVolumeLevel(level))
 }
+
+const val DEFAULT_BEEP_VOLUME_LEVEL = 1
+const val MIN_BEEP_VOLUME_LEVEL = 1
+const val MAX_BEEP_VOLUME_LEVEL = 5
+
+fun normalizeBeepVolumeLevel(level: Int?): Int =
+    (level ?: DEFAULT_BEEP_VOLUME_LEVEL).coerceIn(MIN_BEEP_VOLUME_LEVEL, MAX_BEEP_VOLUME_LEVEL)
 
 fun homeGreeting(userName: String): List<String> = buildList {
     userName.trim().takeIf(String::isNotEmpty)?.let { add("Hola, $it") }

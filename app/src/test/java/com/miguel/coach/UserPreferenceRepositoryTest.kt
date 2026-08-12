@@ -7,6 +7,24 @@ import org.junit.Test
 
 class UserPreferenceRepositoryTest {
     @Test
+    fun beepVolumeDefaultsToLevelOneAndNormalizesStoredValues() {
+        val storage = InMemoryUserStorage()
+        val repository = UserPreferenceRepository(storage)
+        assertEquals(1, repository.loadBeepVolumeLevel())
+        storage.beepVolumeLevel = 99
+        assertEquals(5, repository.loadBeepVolumeLevel())
+        storage.beepVolumeLevel = -4
+        assertEquals(1, repository.loadBeepVolumeLevel())
+    }
+
+    @Test
+    fun savedBeepVolumeIsRestoredByANewRepository() {
+        val storage = InMemoryUserStorage()
+        assertTrue(UserPreferenceRepository(storage).saveBeepVolumeLevel(4))
+        assertEquals(4, UserPreferenceRepository(storage).loadBeepVolumeLevel())
+        assertTrue("workout_beep_volume_level" in storage.writtenKeys)
+    }
+    @Test
     fun emptyNameIsTheDefault() {
         assertEquals("", UserPreferenceRepository(InMemoryUserStorage()).loadUserName())
     }
@@ -158,6 +176,7 @@ class UserPreferenceRepositoryTest {
 private class InMemoryUserStorage(var userName: String? = null) : UserPreferenceStorage {
     val writtenKeys = mutableSetOf<String>()
     var tourCompleted: Boolean? = null
+    var beepVolumeLevel: Int? = null
     override fun readUserName(): String? = userName
     override fun writeUserName(name: String): Boolean {
         userName = name
@@ -168,6 +187,12 @@ private class InMemoryUserStorage(var userName: String? = null) : UserPreference
     override fun writeTourCompleted(completed: Boolean): Boolean {
         tourCompleted = completed
         writtenKeys += "onboarding_tour_completed_v17"
+        return true
+    }
+    override fun readBeepVolumeLevel(): Int? = beepVolumeLevel
+    override fun writeBeepVolumeLevel(level: Int): Boolean {
+        beepVolumeLevel = level
+        writtenKeys += "workout_beep_volume_level"
         return true
     }
 }

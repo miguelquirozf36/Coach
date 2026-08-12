@@ -86,7 +86,12 @@ object WorkoutSessionController {
     }
 
     private fun createEngine(context: Context): TrainingEngine {
-        val beep = BeepPlayer()
+        val preferences = UserPreferenceRepository(
+            SharedPreferencesUserStorage(
+                context.applicationContext.getSharedPreferences("coach_user", Context.MODE_PRIVATE)
+            )
+        )
+        val beep = BeepPlayer(preferences::loadBeepVolumeLevel)
         val voice = VoiceCoach(context.applicationContext)
         beepPlayer = beep
         voiceCoach = voice
