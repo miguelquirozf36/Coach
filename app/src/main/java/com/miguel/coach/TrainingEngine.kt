@@ -2,6 +2,7 @@ package com.miguel.coach
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -56,10 +57,13 @@ class TrainingEngine(
     }
 
     fun pause() {
-        val workout = state as? TrainingUiState.Workout ?: return
+        var workout = state as? TrainingUiState.Workout ?: return
         if (workout.isPaused) return
 
         val pausedAtMillis = monotonicClock.nowMillis()
+        if (workout.phase.usesElapsedTime) {
+            workout = workout.copy(secondsRemaining = remainingSeconds(workout, pausedAtMillis))
+        }
         invalidatePendingWork()
         state = workout.copy(isPaused = true, phasePausedAtMillis = pausedAtMillis)
     }
@@ -164,7 +168,7 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.WARMUP) return
 
-        val secondsRemaining = (workout.secondsRemaining - 1).coerceAtLeast(0)
+        val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
         when (secondsRemaining) {
             10 -> voiceSpeaker.speak(TEN_SECONDS_ANNOUNCEMENT)
@@ -183,7 +187,7 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.COUNTDOWN) return
 
-        val secondsRemaining = (workout.secondsRemaining - 1).coerceAtLeast(0)
+        val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
         when (secondsRemaining) {
             3 -> voiceSpeaker.speak("Tres")
@@ -334,7 +338,7 @@ class TrainingEngine(
             workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES
         ) return
 
-        val secondsRemaining = (workout.secondsRemaining - 1).coerceAtLeast(0)
+        val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
         when (secondsRemaining) {
             10 -> voiceSpeaker.speak(TEN_SECONDS_ANNOUNCEMENT)
@@ -351,6 +355,16 @@ class TrainingEngine(
             }
         }
         scheduleRestTick(activeSession)
+    }
+
+    private fun remainingSeconds(
+        workout: TrainingUiState.Workout,
+        nowMillis: Long = monotonicClock.nowMillis()
+    ): Int {
+        val endMillis = workout.phaseStartedAtMillis +
+            workout.phaseDurationSeconds.coerceAtLeast(0) * ONE_SECOND_MILLIS
+        val remainingMillis = (endMillis - nowMillis).coerceAtLeast(0L)
+        return ((remainingMillis + ONE_SECOND_MILLIS - 1) / ONE_SECOND_MILLIS).toInt()
     }
 
     private fun announceNextSeries(activeSession: Long) {
@@ -414,7 +428,7 @@ fun interface MonotonicClock {
 }
 
 private object SystemMonotonicClock : MonotonicClock {
-    override fun nowMillis(): Long = System.nanoTime() / 1_000_000L
+    override fun nowMillis(): Long = SystemClock.elapsedRealtime()
 }
 
 interface TrainingScheduler {
@@ -448,6 +462,12 @@ enum class TrainingPhase {
     REST,
     REST_BETWEEN_EXERCISES
 }
+
+private val TrainingPhase.usesElapsedTime: Boolean
+    get() = this == TrainingPhase.WARMUP ||
+        this == TrainingPhase.COUNTDOWN ||
+        this == TrainingPhase.REST ||
+        this == TrainingPhase.REST_BETWEEN_EXERCISES
 
 sealed interface TrainingUiState {
     data object Home : TrainingUiState

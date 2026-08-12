@@ -742,6 +742,82 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun warmupRemainingTimeComesFromElapsedTime() {
+        val fixture = Fixture(listOf(seriesExercise(sets = 1, restSeconds = 1)), warmupSeconds = 600)
+        fixture.engine.start(fixture.routine)
+
+        fixture.scheduler.fireAfter(100_000L)
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 500, 0, 1, 1, false)
+    }
+
+    @Test
+    fun warmupReconcilesAThreeMinuteGapWithoutTicks() {
+        val fixture = Fixture(listOf(seriesExercise(sets = 1, restSeconds = 1)), warmupSeconds = 600)
+        fixture.engine.start(fixture.routine)
+
+        fixture.scheduler.fireAfter(300_000L)
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 300, 0, 1, 1, false)
+    }
+
+    @Test
+    fun repeatedWarmupGapsDoNotAccumulateSchedulingDrift() {
+        val fixture = Fixture(listOf(seriesExercise(sets = 1, restSeconds = 1)), warmupSeconds = 600)
+        fixture.engine.start(fixture.routine)
+
+        listOf(37, 21, 84, 15).forEach { fixture.scheduler.fireAfter(it * 1_000L) }
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 443, 0, 1, 1, false)
+    }
+
+    @Test
+    fun warmupThatEndsWithoutTicksAdvancesToItsCompletionAnnouncement() {
+        val fixture = Fixture(listOf(seriesExercise(sets = 1, restSeconds = 1)), warmupSeconds = 30)
+        fixture.engine.start(fixture.routine)
+
+        fixture.scheduler.fireAfter(45_000L)
+
+        fixture.assertWorkout(TrainingPhase.WARMUP, 0, 0, 1, 1, false)
+        assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
+        fixture.voice.completeLatest()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+    }
+
+    @Test
+    fun pausingFreezesElapsedWarmupTimeAndResumeUsesOnlyActiveTime() {
+        val fixture = Fixture(listOf(seriesExercise(sets = 1, restSeconds = 1)), warmupSeconds = 100)
+        fixture.engine.start(fixture.routine)
+
+        fixture.scheduler.fireAfter(0L)
+        fixture.engine.pause()
+        fixture.clock.advanceBy(300_000L)
+        fixture.assertWorkout(TrainingPhase.WARMUP, 100, 0, 1, 1, true)
+
+        fixture.engine.resume()
+        fixture.scheduler.fireAfter(20_000L)
+        fixture.assertWorkout(TrainingPhase.WARMUP, 80, 0, 1, 1, false)
+    }
+
+    @Test
+    fun bothRestTypesReconcileAgainstElapsedTime() {
+        val seriesRest = Fixture(seriesExercise(sets = 2, restSeconds = 100))
+        seriesRest.startFirstConcentricPhase()
+        seriesRest.completeCurrentRepetition()
+        seriesRest.scheduler.fireAfter(20_000L)
+        seriesRest.assertWorkout(TrainingPhase.REST, 80, 0, 1, 1, false)
+
+        val exerciseRest = Fixture(
+            listOf(seriesExercise(1, 1), seriesExercise(1, 1)),
+            restBetweenExercisesSeconds = 100
+        )
+        exerciseRest.startFirstConcentricPhase()
+        exerciseRest.completeCurrentRepetition()
+        exerciseRest.scheduler.fireAfter(20_000L)
+        exerciseRest.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 80, 1, 1, 1, false)
+    }
+
+    @Test
     fun disabledWarmupKeepsTheExistingInitialCountdownFlow() {
         val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1))
 
@@ -970,8 +1046,9 @@ class TrainingEngineTest {
 
         val voice = FakeVoiceSpeaker()
         val beep = FakeBeepPlayer()
-        val scheduler = FakeTrainingScheduler()
-        val engine = TrainingEngine(voice, beep, scheduler)
+        val clock = FakeMonotonicClock()
+        val scheduler = FakeTrainingScheduler(clock)
+        val engine = TrainingEngine(voice, beep, scheduler, clock)
         val routine = Routine(
             id = "test",
             name = "Test",
@@ -1059,7 +1136,15 @@ class TrainingEngineTest {
         }
     }
 
-    private class FakeTrainingScheduler : TrainingScheduler {
+    private class FakeMonotonicClock : MonotonicClock {
+        var now = 0L
+        override fun nowMillis(): Long = now
+        fun advanceBy(millis: Long) { now += millis }
+    }
+
+    private class FakeTrainingScheduler(
+        private val clock: FakeMonotonicClock
+    ) : TrainingScheduler {
         private var pendingAction: (() -> Unit)? = null
         private var cancelledAction: (() -> Unit)? = null
         var overlappingScheduleRequests = 0
@@ -1082,6 +1167,14 @@ class TrainingEngineTest {
         fun advance() {
             val action = pendingAction ?: return
             pendingAction = null
+            clock.advanceBy(1_000L)
+            action()
+        }
+
+        fun fireAfter(millis: Long) {
+            val action = pendingAction ?: return
+            pendingAction = null
+            clock.advanceBy(millis)
             action()
         }
 

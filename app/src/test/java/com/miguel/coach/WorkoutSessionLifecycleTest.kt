@@ -10,8 +10,9 @@ class WorkoutSessionLifecycleTest {
     fun manualFinishAllowsASecondWorkoutWithTheSameReadyInfrastructure() {
         val voice = ReusableVoiceSpeaker()
         val beep = ReusableBeepPlayer()
-        val scheduler = QueueScheduler()
-        val engine = TrainingEngine(voice, beep, scheduler)
+        val clock = TestClock()
+        val scheduler = QueueScheduler(clock)
+        val engine = TrainingEngine(voice, beep, scheduler, clock)
         val originalEngine = engine
 
         engine.start(routine)
@@ -29,8 +30,9 @@ class WorkoutSessionLifecycleTest {
     fun repeatedStartFinishSequencesInvalidateOldCallbacksWithoutNewResources() {
         val voice = ReusableVoiceSpeaker()
         val beep = ReusableBeepPlayer()
-        val scheduler = QueueScheduler()
-        val engine = TrainingEngine(voice, beep, scheduler)
+        val clock = TestClock()
+        val scheduler = QueueScheduler(clock)
+        val engine = TrainingEngine(voice, beep, scheduler, clock)
 
         repeat(3) {
             engine.start(routine)
@@ -48,8 +50,9 @@ class WorkoutSessionLifecycleTest {
     @Test
     fun normalCompletionCanReturnHomeAndStartANewWorkout() {
         val voice = ReusableVoiceSpeaker()
-        val scheduler = QueueScheduler()
-        val engine = TrainingEngine(voice, ReusableBeepPlayer(), scheduler)
+        val clock = TestClock()
+        val scheduler = QueueScheduler(clock)
+        val engine = TrainingEngine(voice, ReusableBeepPlayer(), scheduler, clock)
 
         engine.start(routine)
         repeat(12) { scheduler.runNext() }
@@ -80,7 +83,12 @@ class WorkoutSessionLifecycleTest {
         }
     }
 
-    private class QueueScheduler : TrainingScheduler {
+    private class TestClock : MonotonicClock {
+        var now = 0L
+        override fun nowMillis(): Long = now
+    }
+
+    private class QueueScheduler(private val clock: TestClock) : TrainingScheduler {
         private var action: (() -> Unit)? = null
         var cancelCount = 0
         override fun schedule(delayMillis: Long, action: () -> Unit) {
@@ -93,6 +101,7 @@ class WorkoutSessionLifecycleTest {
         fun runNext() {
             val next = action ?: return
             action = null
+            clock.now += 1_000L
             next()
         }
     }
