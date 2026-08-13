@@ -114,6 +114,8 @@ class RoutineRepositoryTest {
         assertEquals(2, loaded.single().exercises.single().eccentricSeconds)
         assertEquals(120, loaded.single().exercises.single().restSeconds)
         assertEquals(ExerciseExecutionMode.SIMULTANEOUS, loaded.single().exercises.single().executionMode)
+        assertEquals(IsometricPauseMode.NONE, loaded.single().exercises.single().isometricPauseMode)
+        assertEquals(0, loaded.single().exercises.single().isometricDurationSeconds)
     }
 
     @Test
@@ -135,6 +137,69 @@ class RoutineRepositoryTest {
         assertEquals(
             ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
             routine.toDraft().validate(isCustom = false).routine!!.exercises.single().executionMode
+        )
+    }
+
+    @Test
+    fun isometricPauseDefaultsRoundTripsAndSurvivesDraftEditing() {
+        assertEquals(IsometricPauseMode.NONE, emptyCustomExercise("default-isometric").isometricPauseMode)
+        assertEquals(0, emptyCustomExercise("default-isometric").isometricDurationSeconds)
+        IsometricPauseMode.entries.forEach { mode ->
+            val duration = if (mode == IsometricPauseMode.NONE) 0 else 3
+            val exercise = Routines.all.first().exercises.first().copy(
+                isometricPauseMode = mode,
+                isometricDurationSeconds = duration
+            )
+            val routine = Routines.all.first().copy(exercises = listOf(exercise))
+
+            assertEquals(listOf(routine), RoutineJsonCodec.decode(RoutineJsonCodec.encode(listOf(routine))))
+            assertEquals(exercise, routine.toDraft().validate(false).routine!!.exercises.single())
+        }
+    }
+
+    @Test
+    fun activeIsometricPauseRequiresAPositiveDuration() {
+        val base = Routines.all.first().toDraft()
+        listOf(IsometricPauseMode.SHORTENED, IsometricPauseMode.STRETCHED).forEach { mode ->
+            listOf("", "0", "-1", "abc").forEach { invalid ->
+                val draft = base.copy(exercises = base.exercises.mapIndexed { index, exercise ->
+                    if (index == 0) exercise.copy(isometricPauseMode = mode, isometricDurationSeconds = invalid) else exercise
+                })
+                assertNull(draft.validate(false).routine)
+                assertTrue(draft.validate(false).message.orEmpty().contains(ISOMETRIC_DURATION_ERROR))
+            }
+            val valid = base.copy(exercises = base.exercises.mapIndexed { index, exercise ->
+                if (index == 0) exercise.copy(isometricPauseMode = mode, isometricDurationSeconds = "2") else exercise
+            })
+            assertEquals(2, valid.validate(false).routine!!.exercises.first().isometricDurationSeconds)
+        }
+        val none = base.copy(exercises = base.exercises.mapIndexed { index, exercise ->
+            if (index == 0) exercise.copy(isometricPauseMode = IsometricPauseMode.NONE, isometricDurationSeconds = "") else exercise
+        })
+        assertNotNull(none.validate(false).routine)
+    }
+
+    @Test
+    fun estimatedDurationCountsOneIsometricPausePerRepetitionAndPerSide() {
+        val exercise = Exercise(
+            id = "estimated-isometric",
+            name = "Estimado",
+            sets = 2,
+            repetitions = 10,
+            concentricSeconds = 1,
+            eccentricSeconds = 1,
+            restSeconds = 0,
+            isometricPauseMode = IsometricPauseMode.STRETCHED,
+            isometricDurationSeconds = 10
+        )
+        val routine = Routine("estimated", "Estimado", true, listOf(exercise), 0, warmupSeconds = 0)
+
+        assertEquals(4, routine.estimatedDurationMinutes())
+        assertEquals(
+            8,
+            routine.copy(exercises = listOf(exercise.copy(
+                executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+            ))).estimatedDurationMinutes()
         )
     }
 

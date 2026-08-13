@@ -423,6 +423,7 @@ fun trainingRingColor(
     TrainingPhase.CONCENTRIC,
     TrainingPhase.REPETITION_ANNOUNCEMENT -> colors.concentricRing
     TrainingPhase.ECCENTRIC -> colors.eccentricRing
+    TrainingPhase.ISOMETRIC -> colors.concentricRing
     TrainingPhase.REST -> colors.restSeriesRing
     TrainingPhase.REST_BETWEEN_EXERCISES -> colors.restExerciseRing
 }

@@ -23,6 +23,7 @@ class WorkoutLayoutTest {
         assertEquals("Descanso", workoutMetricPhaseLabel(TrainingPhase.REST_BETWEEN_EXERCISES))
         assertEquals("Concéntrica", workoutMetricPhaseLabel(TrainingPhase.CONCENTRIC))
         assertEquals("Excéntrica", workoutMetricPhaseLabel(TrainingPhase.ECCENTRIC))
+        assertEquals("Isométrica", workoutMetricPhaseLabel(TrainingPhase.ISOMETRIC))
     }
 
     @Test

@@ -123,6 +123,7 @@ class TrainingEngine(
 
             TrainingPhase.REPETITION_ANNOUNCEMENT -> startEccentricPhase(activeSession)
             TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
+            TrainingPhase.ISOMETRIC -> completeIsometricPhase(activeSession)
             TrainingPhase.REST -> announceNextSeries(activeSession)
             TrainingPhase.REST_BETWEEN_EXERCISES -> announceNextExercise(activeSession)
             TrainingPhase.COUNTDOWN -> Unit
@@ -165,6 +166,7 @@ class TrainingEngine(
             TrainingPhase.CONCENTRIC -> schedulePhaseTick(activeSession)
             TrainingPhase.REPETITION_ANNOUNCEMENT -> announceRepetition(activeSession)
             TrainingPhase.ECCENTRIC -> schedulePhaseTick(activeSession)
+            TrainingPhase.ISOMETRIC -> schedulePhaseTick(activeSession)
             TrainingPhase.REST -> {
                 if (workout.secondsRemaining == 0) announceNextSeries(activeSession)
                 else scheduleRestTick(activeSession)
@@ -248,7 +250,8 @@ class TrainingEngine(
             workout.phase != TrainingPhase.WARMUP &&
             workout.phase != TrainingPhase.ECCENTRIC &&
             workout.phase != TrainingPhase.REST &&
-            workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES
+            workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES &&
+            workout.phase != TrainingPhase.ISOMETRIC
         ) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
@@ -268,15 +271,23 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
         voiceSpeaker.speak(workout.repetitionNumber.toString()) {
-            startEccentricPhase(activeSession)
+            val exercise = workout.routine.exercises[workout.exerciseIndex]
+            if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
+                startIsometricPhase(activeSession)
+            } else {
+                startEccentricPhase(activeSession)
+            }
         }
     }
 
     private fun startEccentricPhase(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
+        if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT &&
+            workout.phase != TrainingPhase.ISOMETRIC
+        ) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (workout.phase == TrainingPhase.ISOMETRIC) beepPlayer.play()
         state = workout.copy(
             phase = TrainingPhase.ECCENTRIC,
             secondsRemaining = exercise.eccentricSeconds,
@@ -287,15 +298,43 @@ class TrainingEngine(
         schedulePhaseTick(activeSession)
     }
 
+    private fun startIsometricPhase(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (exercise.isometricPauseMode == IsometricPauseMode.NONE) return
+        if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) beepPlayer.play()
+        state = workout.copy(
+            phase = TrainingPhase.ISOMETRIC,
+            secondsRemaining = exercise.isometricDurationSeconds,
+            phaseDurationSeconds = exercise.isometricDurationSeconds,
+            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phasePausedAtMillis = null
+        )
+        schedulePhaseTick(activeSession)
+    }
+
     private fun schedulePhaseTick(activeSession: Long) {
-        scheduler.schedule(ONE_SECOND_MILLIS) { advanceExercisePhase(activeSession) }
+        val workout = activeWorkout(activeSession) ?: return
+        val delay = if (workout.phase == TrainingPhase.ISOMETRIC) {
+            nextTickDelayMillis(workout)
+        } else {
+            ONE_SECOND_MILLIS
+        }
+        scheduler.schedule(delay) { advanceExercisePhase(activeSession) }
     }
 
     private fun advanceExercisePhase(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        if (workout.phase != TrainingPhase.CONCENTRIC && workout.phase != TrainingPhase.ECCENTRIC) return
+        if (workout.phase != TrainingPhase.CONCENTRIC &&
+            workout.phase != TrainingPhase.ECCENTRIC &&
+            workout.phase != TrainingPhase.ISOMETRIC
+        ) return
 
-        val secondsRemaining = (workout.secondsRemaining - 1).coerceAtLeast(0)
+        val secondsRemaining = if (workout.phase == TrainingPhase.ISOMETRIC) {
+            remainingSeconds(workout)
+        } else {
+            (workout.secondsRemaining - 1).coerceAtLeast(0)
+        }
         state = workout.copy(secondsRemaining = secondsRemaining)
         if (secondsRemaining > 0) {
             schedulePhaseTick(activeSession)
@@ -312,6 +351,7 @@ class TrainingEngine(
             }
 
             TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
+            TrainingPhase.ISOMETRIC -> completeIsometricPhase(activeSession)
             TrainingPhase.WARMUP,
             TrainingPhase.COUNTDOWN,
             TrainingPhase.REPETITION_ANNOUNCEMENT,
@@ -320,10 +360,31 @@ class TrainingEngine(
         }
     }
 
+    private fun completeIsometricPhase(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.ISOMETRIC) return
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
+            startEccentricPhase(activeSession)
+        } else {
+            completeRepetition(activeSession)
+        }
+    }
+
     private fun completeEccentricPhase(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.ECCENTRIC) return
 
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
+            startIsometricPhase(activeSession)
+            return
+        }
+        completeRepetition(activeSession)
+    }
+
+    private fun completeRepetition(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (workout.repetitionNumber < exercise.repetitions) {
             state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
@@ -554,6 +615,7 @@ enum class TrainingPhase {
     CONCENTRIC,
     REPETITION_ANNOUNCEMENT,
     ECCENTRIC,
+    ISOMETRIC,
     REST,
     REST_BETWEEN_EXERCISES
 }
@@ -562,7 +624,8 @@ private val TrainingPhase.usesElapsedTime: Boolean
     get() = this == TrainingPhase.WARMUP ||
         this == TrainingPhase.COUNTDOWN ||
         this == TrainingPhase.REST ||
-        this == TrainingPhase.REST_BETWEEN_EXERCISES
+        this == TrainingPhase.REST_BETWEEN_EXERCISES ||
+        this == TrainingPhase.ISOMETRIC
 
 sealed interface TrainingUiState {
     data object Home : TrainingUiState

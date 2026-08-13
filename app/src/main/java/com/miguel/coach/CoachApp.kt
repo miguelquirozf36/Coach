@@ -1409,6 +1409,28 @@ private fun ExerciseEditor(
                     selected = exercise.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
                     onClick = { onChange(exercise.copy(executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME)) }
                 )
+                Text("Pausa isométrica", style = MaterialTheme.typography.labelLarge)
+                IsometricPauseMode.entries.forEach { mode ->
+                    ExecutionModeOption(
+                        title = mode.editorLabel(),
+                        description = "",
+                        selected = exercise.isometricPauseMode == mode,
+                        onClick = { onChange(exercise.copy(isometricPauseMode = mode)) }
+                    )
+                }
+                if (exercise.isometricPauseMode != IsometricPauseMode.NONE) {
+                    val invalidDuration = exercise.isometricDurationSeconds.toIntOrNull()?.let { it <= 0 } ?: true
+                    OutlinedTextField(
+                        value = exercise.isometricDurationSeconds,
+                        onValueChange = { onChange(exercise.copy(isometricDurationSeconds = it)) },
+                        modifier = rememberImeAwareFieldModifier(),
+                        label = { Text("Duración (s)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = invalidDuration,
+                        supportingText = { if (invalidDuration) Text(ISOMETRIC_DURATION_ERROR) }
+                    )
+                }
                 OutlinedTextField(
                     value = exercise.notes,
                     onValueChange = {
@@ -1443,9 +1465,17 @@ private fun ExecutionModeOption(
         RadioButton(selected = selected, onClick = onClick)
         Column {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (description.isNotEmpty()) {
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
+}
+
+private fun IsometricPauseMode.editorLabel(): String = when (this) {
+    IsometricPauseMode.NONE -> "Sin pausa isométrica"
+    IsometricPauseMode.SHORTENED -> "Músculo acortado"
+    IsometricPauseMode.STRETCHED -> "Músculo estirado"
 }
 
 @Composable
@@ -2031,6 +2061,7 @@ private val TrainingPhase.label: String?
         TrainingPhase.CONCENTRIC -> "Concéntrica"
         TrainingPhase.REPETITION_ANNOUNCEMENT -> "Concéntrica"
         TrainingPhase.ECCENTRIC -> "Excéntrica"
+        TrainingPhase.ISOMETRIC -> "Isométrica"
         TrainingPhase.REST -> "Descanso"
         TrainingPhase.REST_BETWEEN_EXERCISES -> "Descanso entre ejercicios"
     }

@@ -20,16 +20,21 @@ data class Exercise(
     val eccentricSeconds: Int,
     val restSeconds: Int,
     val notes: String = "",
-    val executionMode: ExerciseExecutionMode = ExerciseExecutionMode.SIMULTANEOUS
+    val executionMode: ExerciseExecutionMode = ExerciseExecutionMode.SIMULTANEOUS,
+    val isometricPauseMode: IsometricPauseMode = IsometricPauseMode.NONE,
+    val isometricDurationSeconds: Int = 0
 )
 
 enum class ExerciseExecutionMode { SIMULTANEOUS, ONE_SIDE_AT_A_TIME }
 
 enum class ExerciseSide { RIGHT, LEFT }
 
+enum class IsometricPauseMode { NONE, SHORTENED, STRETCHED }
+
 fun Routine.estimatedDurationMinutes(): Int {
     val exerciseSeconds = exercises.sumOf { exercise ->
-        val repetitionSeconds = exercise.concentricSeconds + exercise.eccentricSeconds
+        val repetitionSeconds = exercise.concentricSeconds + exercise.eccentricSeconds +
+            exercise.isometricDurationSeconds.takeIf { exercise.isometricPauseMode != IsometricPauseMode.NONE }.orZero()
         val executions = exercise.sets * if (exercise.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) 2 else 1
         val repetitionsSeconds = executions * exercise.repetitions * repetitionSeconds
         val seriesRestSeconds = (executions - 1).coerceAtLeast(0) * exercise.restSeconds
@@ -59,7 +64,9 @@ data class ExerciseDraft(
     val eccentricSeconds: String,
     val restSeconds: String,
     val notes: String = "",
-    val executionMode: ExerciseExecutionMode = ExerciseExecutionMode.SIMULTANEOUS
+    val executionMode: ExerciseExecutionMode = ExerciseExecutionMode.SIMULTANEOUS,
+    val isometricPauseMode: IsometricPauseMode = IsometricPauseMode.NONE,
+    val isometricDurationSeconds: String = "0"
 )
 
 data class RoutineDraftValidation(
@@ -123,7 +130,9 @@ fun Exercise.toDraft() = ExerciseDraft(
     eccentricSeconds = eccentricSeconds.toString(),
     restSeconds = restSeconds.toWholeMinutesString(),
     notes = notes,
-    executionMode = executionMode
+    executionMode = executionMode,
+    isometricPauseMode = isometricPauseMode,
+    isometricDurationSeconds = isometricDurationSeconds.toString()
 )
 
 fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
@@ -154,7 +163,14 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
             "El descanso entre series",
             errors
         )
-        if (listOf(sets, repetitions, concentric, eccentric, rest).any { it == null }) {
+        val isometricDuration = if (exercise.isometricPauseMode == IsometricPauseMode.NONE) {
+            0
+        } else {
+            exercise.isometricDurationSeconds.toIntOrNull()?.takeIf { it > 0 }.also {
+                if (it == null) errors += ISOMETRIC_DURATION_ERROR
+            }
+        }
+        if (listOf(sets, repetitions, concentric, eccentric, rest, isometricDuration).any { it == null }) {
             null
         } else {
             Exercise(
@@ -166,7 +182,9 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
                 eccentricSeconds = eccentric!!,
                 restSeconds = rest!!,
                 notes = exerciseNotes,
-                executionMode = exercise.executionMode
+                executionMode = exercise.executionMode,
+                isometricPauseMode = exercise.isometricPauseMode,
+                isometricDurationSeconds = isometricDuration!!
             )
         }
     }
@@ -191,6 +209,9 @@ const val DEFAULT_WARMUP_SECONDS = 600
 const val DEFAULT_ROUTINE_REST_SECONDS = 180
 const val DEFAULT_ECCENTRIC_SECONDS = 2
 const val DEFAULT_SERIES_REST_SECONDS = 120
+const val ISOMETRIC_DURATION_ERROR = "Ingresa una duración mayor a 0 segundos."
+
+private fun Int?.orZero(): Int = this ?: 0
 
 fun emptyCustomRoutine(id: String): Routine = Routine(
     id = id,

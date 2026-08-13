@@ -227,6 +227,9 @@ internal object RoutineJsonCodec {
                 appendQuoted(exercise.notes)
                 append(",\"executionMode\":")
                 appendQuoted(exercise.executionMode.name)
+                append(",\"isometricPauseMode\":")
+                appendQuoted(exercise.isometricPauseMode.name)
+                append(",\"isometricDurationSeconds\":${exercise.isometricDurationSeconds}")
                 append('}')
             }
             append("]}")
@@ -267,8 +270,17 @@ internal object RoutineJsonCodec {
             eccentricSeconds = fields.requiredInt("eccentricSeconds"),
             restSeconds = fields.requiredInt("restSeconds"),
             notes = fields.optionalString("notes"),
-            executionMode = fields.optionalExecutionMode()
+            executionMode = fields.optionalExecutionMode(),
+            isometricPauseMode = fields.optionalIsometricPauseMode(),
+            isometricDurationSeconds = fields.optionalInt("isometricDurationSeconds", 0)
         )
+    }
+
+    private fun MutableMap<String, JsonValue>.optionalIsometricPauseMode(): IsometricPauseMode {
+        val value = (this["isometricPauseMode"] as? JsonValue.StringValue)?.value
+            ?: return IsometricPauseMode.NONE
+        return IsometricPauseMode.entries.firstOrNull { it.name == value }
+            ?: throw IllegalArgumentException()
     }
 
     private fun MutableMap<String, JsonValue>.optionalExecutionMode(): ExerciseExecutionMode {

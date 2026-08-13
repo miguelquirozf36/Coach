@@ -1204,6 +1204,94 @@ class TrainingEngineTest {
         assertEquals(null, null.displayLabel())
     }
 
+    @Test
+    fun shortenedPauseRunsAfterTheNumberAndBeepsBeforeEccentric() {
+        val fixture = Fixture(seriesExercise(1, 1).copy(
+            isometricPauseMode = IsometricPauseMode.SHORTENED,
+            isometricDurationSeconds = 2
+        ))
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        fixture.voice.completeLatest()
+
+        fixture.assertWorkout(TrainingPhase.ISOMETRIC, 2, 0, 1, 1, false)
+        assertEquals(listOf("beep", "voice:1"), fixture.events.takeLast(2))
+        fixture.scheduler.advance()
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, 1, false)
+        assertEquals("beep", fixture.events.last())
+        fixture.scheduler.advance()
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertEquals(2, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun stretchedPauseBeepsAfterEccentricAndHasNoExtraFinalBeep() {
+        val fixture = Fixture(seriesExercise(1, 1).copy(
+            isometricPauseMode = IsometricPauseMode.STRETCHED,
+            isometricDurationSeconds = 2
+        ))
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+
+        fixture.assertWorkout(TrainingPhase.ISOMETRIC, 2, 0, 1, 1, false)
+        assertEquals("beep", fixture.events.last())
+        fixture.scheduler.advance()
+        fixture.scheduler.advance()
+
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertEquals(2, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun isometricPauseUsesMonotonicDeadlineAndResumesWithFractionalTimeRemaining() {
+        val fixture = Fixture(seriesExercise(1, 1).copy(
+            isometricPauseMode = IsometricPauseMode.STRETCHED,
+            isometricDurationSeconds = 2
+        ))
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+        fixture.scheduler.fireAfter(600)
+        fixture.engine.pause()
+        val paused = fixture.currentWorkout()
+
+        assertEquals(TrainingPhase.ISOMETRIC, paused.phase)
+        assertEquals(2, paused.secondsRemaining)
+        fixture.clock.advanceBy(5_000)
+        fixture.scheduler.advanceCancelled()
+        assertEquals(paused.copy(phasePausedAtMillis = paused.phasePausedAtMillis), fixture.currentWorkout())
+        fixture.engine.resume()
+        fixture.scheduler.fireAfter(1_400)
+
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertEquals(2, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun oneSideAtATimeAppliesIsometricPauseOnRightAndLeft() {
+        val fixture = Fixture(seriesExercise(1, 0).copy(
+            executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
+            isometricPauseMode = IsometricPauseMode.SHORTENED,
+            isometricDurationSeconds = 1
+        ))
+        fixture.startFirstConcentricPhase()
+        repeat(2) { execution ->
+            fixture.scheduler.advance()
+            fixture.voice.completeLatest()
+            assertEquals(TrainingPhase.ISOMETRIC, fixture.currentWorkout().phase)
+            fixture.scheduler.advance()
+            fixture.scheduler.advance()
+            if (execution == 0) {
+                fixture.scheduler.advance()
+                fixture.voice.completeLatest()
+                fixture.scheduler.advance()
+                assertEquals(ExerciseSide.LEFT, fixture.currentWorkout().currentSide)
+            }
+        }
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+    }
+
     private class Fixture(
         exercises: List<Exercise>,
         private val restBetweenExercisesSeconds: Int = 12,
