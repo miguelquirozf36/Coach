@@ -91,6 +91,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -1007,7 +1010,23 @@ private fun RoutineDetailScreen(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            Text("Descanso entre ejercicios: ${routine.restBetweenExercisesSeconds.toClockFormat()} min")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = ScheduleIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    buildAnnotatedString {
+                        append("Descanso entre ejercicios: ")
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+                            append("${routine.restBetweenExercisesSeconds.toClockFormat()} min")
+                        }
+                    }
+                )
+            }
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
