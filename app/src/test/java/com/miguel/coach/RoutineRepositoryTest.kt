@@ -113,6 +113,29 @@ class RoutineRepositoryTest {
         assertEquals(180, loaded.single().restBetweenExercisesSeconds)
         assertEquals(2, loaded.single().exercises.single().eccentricSeconds)
         assertEquals(120, loaded.single().exercises.single().restSeconds)
+        assertEquals(ExerciseExecutionMode.SIMULTANEOUS, loaded.single().exercises.single().executionMode)
+    }
+
+    @Test
+    fun executionModeDefaultsAndRoundTripsThroughRoutineJson() {
+        assertEquals(ExerciseExecutionMode.SIMULTANEOUS, emptyCustomExercise("default").executionMode)
+        val routine = Routines.all.first().copy(
+            exercises = listOf(
+                Routines.all.first().exercises.first().copy(
+                    executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+                )
+            )
+        )
+
+        val encoded = RoutineJsonCodec.encode(listOf(routine))
+        val decoded = RoutineJsonCodec.decode(encoded)
+
+        assertTrue(encoded.contains("\"executionMode\":\"ONE_SIDE_AT_A_TIME\""))
+        assertEquals(listOf(routine), decoded)
+        assertEquals(
+            ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
+            routine.toDraft().validate(isCustom = false).routine!!.exercises.single().executionMode
+        )
     }
 
     @Test

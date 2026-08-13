@@ -48,6 +48,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -1395,6 +1396,19 @@ private fun ExerciseEditor(
                 DraftTextField(exercise.concentricSeconds, "Tiempo concéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(concentricSeconds = it)) })
                 DraftTextField(exercise.eccentricSeconds, "Tiempo excéntrico (segundos)", KeyboardType.Number, { onChange(exercise.copy(eccentricSeconds = it)) })
                 DraftTextField(exercise.restSeconds, "Descanso entre series (minutos)", KeyboardType.Number, { onChange(exercise.copy(restSeconds = it)) })
+                Text("Modo de ejecución", style = MaterialTheme.typography.labelLarge)
+                ExecutionModeOption(
+                    title = "Simultáneo",
+                    description = "Ambos lados se entrenan en la misma serie.",
+                    selected = exercise.executionMode == ExerciseExecutionMode.SIMULTANEOUS,
+                    onClick = { onChange(exercise.copy(executionMode = ExerciseExecutionMode.SIMULTANEOUS)) }
+                )
+                ExecutionModeOption(
+                    title = "Un lado a la vez",
+                    description = "Alterna entre lado derecho e izquierdo en cada serie.",
+                    selected = exercise.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
+                    onClick = { onChange(exercise.copy(executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME)) }
+                )
                 OutlinedTextField(
                     value = exercise.notes,
                     onValueChange = {
@@ -1411,6 +1425,25 @@ private fun ExerciseEditor(
                     }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ExecutionModeOption(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -1640,12 +1673,18 @@ private fun WorkoutHeader(
             overflow = TextOverflow.Ellipsis
         )
     } else {
-        Text(
-            exercise.name,
-            style = MaterialTheme.typography.headlineMedium,
-            maxLines = nameMaxLines,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                exercise.name,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineMedium,
+                maxLines = nameMaxLines,
+                overflow = TextOverflow.Ellipsis
+            )
+            state.currentSide.displayLabel()?.let { side ->
+                Text(side, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+            }
+        }
     }
     if (state.phase != TrainingPhase.WARMUP && state.currentExerciseNotes.isNotBlank()) {
         Text(

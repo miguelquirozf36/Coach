@@ -50,7 +50,8 @@ class TrainingEngine(
             phaseStartedAtMillis = monotonicClock.nowMillis(),
             phasePausedAtMillis = null,
             isPaused = false,
-            currentExerciseNotes = sessionRoutine.exercises.first().notes
+            currentExerciseNotes = sessionRoutine.exercises.first().notes,
+            currentSide = sessionRoutine.exercises.first().initialSide()
         )
         resetTimedAnnouncements(if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS)
         if (hasWarmup) {
@@ -330,7 +331,9 @@ class TrainingEngine(
             return
         }
 
-        if (workout.seriesNumber < exercise.sets) {
+        val hasAnotherExecution = workout.currentSide == ExerciseSide.RIGHT ||
+            workout.seriesNumber < exercise.sets
+        if (hasAnotherExecution) {
             state = workout.copy(
                 phase = TrainingPhase.REST,
                 secondsRemaining = exercise.restSeconds,
@@ -351,6 +354,7 @@ class TrainingEngine(
                 exerciseIndex = nextExerciseIndex,
                 seriesNumber = 1,
                 repetitionNumber = 1,
+                currentSide = workout.routine.exercises[nextExerciseIndex].initialSide(),
                 phase = TrainingPhase.REST_BETWEEN_EXERCISES,
                 secondsRemaining = workout.routine.restBetweenExercisesSeconds,
                 phaseDurationSeconds = workout.routine.restBetweenExercisesSeconds,
@@ -456,10 +460,20 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.seriesNumber >= exercise.sets) return
-
+        val nextSide = when (workout.currentSide) {
+            ExerciseSide.RIGHT -> ExerciseSide.LEFT
+            ExerciseSide.LEFT -> ExerciseSide.RIGHT
+            null -> null
+        }
+        val nextSeries = if (workout.currentSide == ExerciseSide.RIGHT) {
+            workout.seriesNumber
+        } else {
+            workout.seriesNumber + 1
+        }
+        if (nextSeries > exercise.sets) return
         state = workout.copy(
-            seriesNumber = workout.seriesNumber + 1,
+            seriesNumber = nextSeries,
+            currentSide = nextSide,
             repetitionNumber = 1
         )
         startStartDelay(activeSession)
@@ -565,6 +579,16 @@ sealed interface TrainingUiState {
         val phaseStartedAtMillis: Long,
         val phasePausedAtMillis: Long?,
         val isPaused: Boolean,
-        val currentExerciseNotes: String
+        val currentExerciseNotes: String,
+        val currentSide: ExerciseSide? = null
     ) : TrainingUiState
+}
+
+private fun Exercise.initialSide(): ExerciseSide? =
+    if (executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) ExerciseSide.RIGHT else null
+
+internal fun ExerciseSide?.displayLabel(): String? = when (this) {
+    ExerciseSide.RIGHT -> "Lado derecho"
+    ExerciseSide.LEFT -> "Lado izquierdo"
+    null -> null
 }

@@ -225,6 +225,8 @@ internal object RoutineJsonCodec {
                 append(",\"restSeconds\":${exercise.restSeconds}")
                 append(",\"notes\":")
                 appendQuoted(exercise.notes)
+                append(",\"executionMode\":")
+                appendQuoted(exercise.executionMode.name)
                 append('}')
             }
             append("]}")
@@ -264,8 +266,16 @@ internal object RoutineJsonCodec {
             concentricSeconds = fields.requiredInt("concentricSeconds"),
             eccentricSeconds = fields.requiredInt("eccentricSeconds"),
             restSeconds = fields.requiredInt("restSeconds"),
-            notes = fields.optionalString("notes")
+            notes = fields.optionalString("notes"),
+            executionMode = fields.optionalExecutionMode()
         )
+    }
+
+    private fun MutableMap<String, JsonValue>.optionalExecutionMode(): ExerciseExecutionMode {
+        val value = (this["executionMode"] as? JsonValue.StringValue)?.value
+            ?: return ExerciseExecutionMode.SIMULTANEOUS
+        return ExerciseExecutionMode.entries.firstOrNull { it.name == value }
+            ?: throw IllegalArgumentException()
     }
 
     private fun MutableMap<String, JsonValue>.required(name: String): JsonValue =

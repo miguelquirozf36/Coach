@@ -1143,6 +1143,67 @@ class TrainingEngineTest {
         assertTrue(fixture.beep.stopCalls > 0)
     }
 
+    @Test
+    fun oneSideAtATimeAlternatesSidesBeforeIncrementingTheSeries() {
+        val fixture = Fixture(
+            seriesExercise(sets = 3, repetitions = 1, restSeconds = 1).copy(
+                executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+            )
+        )
+        fixture.startFirstConcentricPhase()
+        val observed = mutableListOf<Pair<Int, ExerciseSide?>>()
+
+        repeat(6) { execution ->
+            val workout = fixture.currentWorkout()
+            observed += workout.seriesNumber to workout.currentSide
+            fixture.completeCurrentRepetition()
+            if (execution < 5) {
+                fixture.scheduler.advance()
+                fixture.voice.completeLatest()
+                fixture.scheduler.advance()
+            }
+        }
+
+        assertEquals(
+            listOf(
+                1 to ExerciseSide.RIGHT, 1 to ExerciseSide.LEFT,
+                2 to ExerciseSide.RIGHT, 2 to ExerciseSide.LEFT,
+                3 to ExerciseSide.RIGHT, 3 to ExerciseSide.LEFT
+            ),
+            observed
+        )
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertTrue(observed.all { (series, _) -> series in 1..3 })
+    }
+
+    @Test
+    fun simultaneousModeKeepsTheExistingSeriesFlowWithoutASide() {
+        val fixture = Fixture(seriesExercise(sets = 3, repetitions = 1, restSeconds = 1))
+        fixture.startFirstConcentricPhase()
+        val observed = mutableListOf<Pair<Int, ExerciseSide?>>()
+
+        repeat(3) { execution ->
+            val workout = fixture.currentWorkout()
+            observed += workout.seriesNumber to workout.currentSide
+            fixture.completeCurrentRepetition()
+            if (execution < 2) {
+                fixture.scheduler.advance()
+                fixture.voice.completeLatest()
+                fixture.scheduler.advance()
+            }
+        }
+
+        assertEquals(listOf(1 to null, 2 to null, 3 to null), observed)
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+    }
+
+    @Test
+    fun exerciseSideLabelsAreExactAndSimultaneousHasNoLabel() {
+        assertEquals("Lado derecho", ExerciseSide.RIGHT.displayLabel())
+        assertEquals("Lado izquierdo", ExerciseSide.LEFT.displayLabel())
+        assertEquals(null, null.displayLabel())
+    }
+
     private class Fixture(
         exercises: List<Exercise>,
         private val restBetweenExercisesSeconds: Int = 12,

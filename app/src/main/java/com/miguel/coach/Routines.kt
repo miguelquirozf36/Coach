@@ -19,14 +19,20 @@ data class Exercise(
     val concentricSeconds: Int,
     val eccentricSeconds: Int,
     val restSeconds: Int,
-    val notes: String = ""
+    val notes: String = "",
+    val executionMode: ExerciseExecutionMode = ExerciseExecutionMode.SIMULTANEOUS
 )
+
+enum class ExerciseExecutionMode { SIMULTANEOUS, ONE_SIDE_AT_A_TIME }
+
+enum class ExerciseSide { RIGHT, LEFT }
 
 fun Routine.estimatedDurationMinutes(): Int {
     val exerciseSeconds = exercises.sumOf { exercise ->
         val repetitionSeconds = exercise.concentricSeconds + exercise.eccentricSeconds
-        val repetitionsSeconds = exercise.sets * exercise.repetitions * repetitionSeconds
-        val seriesRestSeconds = (exercise.sets - 1).coerceAtLeast(0) * exercise.restSeconds
+        val executions = exercise.sets * if (exercise.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) 2 else 1
+        val repetitionsSeconds = executions * exercise.repetitions * repetitionSeconds
+        val seriesRestSeconds = (executions - 1).coerceAtLeast(0) * exercise.restSeconds
         repetitionsSeconds + seriesRestSeconds
     }
     val exerciseRestSeconds = (exercises.size - 1).coerceAtLeast(0) * restBetweenExercisesSeconds
@@ -52,7 +58,8 @@ data class ExerciseDraft(
     val concentricSeconds: String,
     val eccentricSeconds: String,
     val restSeconds: String,
-    val notes: String = ""
+    val notes: String = "",
+    val executionMode: ExerciseExecutionMode = ExerciseExecutionMode.SIMULTANEOUS
 )
 
 data class RoutineDraftValidation(
@@ -115,7 +122,8 @@ fun Exercise.toDraft() = ExerciseDraft(
     concentricSeconds = concentricSeconds.toString(),
     eccentricSeconds = eccentricSeconds.toString(),
     restSeconds = restSeconds.toWholeMinutesString(),
-    notes = notes
+    notes = notes,
+    executionMode = executionMode
 )
 
 fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
@@ -157,7 +165,8 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
                 concentricSeconds = concentric!!,
                 eccentricSeconds = eccentric!!,
                 restSeconds = rest!!,
-                notes = exerciseNotes
+                notes = exerciseNotes,
+                executionMode = exercise.executionMode
             )
         }
     }
