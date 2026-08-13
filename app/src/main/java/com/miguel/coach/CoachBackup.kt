@@ -93,7 +93,10 @@ object CoachBackupCodec {
             append(", \"concentricSeconds\": ").append(exercise.concentricSeconds)
             append(", \"eccentricSeconds\": ").append(exercise.eccentricSeconds)
             append(", \"restSeconds\": ").append(exercise.restSeconds)
-            append(", \"notes\": ").appendJsonString(exercise.notes).append('}')
+            append(", \"notes\": ").appendJsonString(exercise.notes)
+            append(", \"executionMode\": ").appendJsonString(exercise.executionMode.name)
+            append(", \"isometricPauseMode\": ").appendJsonString(exercise.isometricPauseMode.name)
+            append(", \"isometricDurationSeconds\": ").append(exercise.isometricDurationSeconds).append('}')
         }
         if (routine.exercises.isNotEmpty()) append('\n').append(indent)
         append("]}")
@@ -142,8 +145,24 @@ object CoachBackupCodec {
             concentricSeconds = fields.requiredInt("concentricSeconds"),
             eccentricSeconds = fields.requiredInt("eccentricSeconds"),
             restSeconds = fields.requiredInt("restSeconds"),
-            notes = fields.requiredString("notes")
+            notes = fields.requiredString("notes"),
+            executionMode = fields.optionalEnum("executionMode", ExerciseExecutionMode.SIMULTANEOUS),
+            isometricPauseMode = fields.optionalEnum("isometricPauseMode", IsometricPauseMode.NONE),
+            isometricDurationSeconds = fields.optionalInt("isometricDurationSeconds", 0)
         )
+    }
+
+    private inline fun <reified T : Enum<T>> JsonValue.ObjectValue.optionalEnum(
+        name: String,
+        default: T
+    ): T {
+        val value = (values[name] as? JsonValue.StringValue)?.value ?: return default
+        return enumValues<T>().firstOrNull { it.name == value } ?: throw IllegalArgumentException()
+    }
+
+    private fun JsonValue.ObjectValue.optionalInt(name: String, default: Int): Int {
+        val value = values[name] ?: return default
+        return (value as? JsonValue.NumberValue)?.value?.toIntOrNull() ?: throw IllegalArgumentException()
     }
 
     private fun decodeCustomExercise(value: JsonValue): ExerciseDefinition {

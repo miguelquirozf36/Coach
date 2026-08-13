@@ -44,7 +44,9 @@ class TrainingProgramRepository(
     fun hasStoredPrograms(): Boolean = storage.readPrograms() != null
     fun loadPrograms(legacyRoutines: List<Routine>, existingInstallation: Boolean): List<TrainingProgram> {
         TrainingProgramCodec.decode(storage.readPrograms())?.takeIf { validPrograms(it) }?.let {
-            return migratePreviousWeiderDay1Once(migrateLegacyWeiderDay1Once(it))
+            return migratePreviousWeiderDay1Once(
+                migrateLegacyWeiderDay1Once(migrateWeiderScheduleOnce(it))
+            )
         }
         val legacyWeider = legacyRoutines.filterNot(Routine::isCustom)
         val official = OfficialTrainingPrograms.create(
@@ -103,6 +105,18 @@ class TrainingProgramRepository(
         return migrated
     }
 
+    private fun migrateWeiderScheduleOnce(programs: List<TrainingProgram>): List<TrainingProgram> {
+        if (storage.isMigrationComplete(WEIDER_SCHEDULE_MIGRATION_V20)) return programs
+        val migrated = programs.map { program ->
+            if (program.id == OfficialTrainingPrograms.WEIDER_ID && program.builtIn &&
+                program.routines == PREVIOUS_WEIDER_TEMPLATE
+            ) program.copy(routines = Routines.all) else program
+        }
+        if (migrated != programs && !savePrograms(migrated)) return programs
+        storage.markMigrationComplete(WEIDER_SCHEDULE_MIGRATION_V20)
+        return migrated
+    }
+
     private fun validPrograms(programs: List<TrainingProgram>): Boolean {
         if (programs.isEmpty() || programs.map(TrainingProgram::id).toSet().size != programs.size) return false
         return programs.all { program ->
@@ -115,6 +129,7 @@ class TrainingProgramRepository(
     private companion object {
         const val WEIDER_DAY1_MIGRATION_V18 = "weider_day1_template_migration_v18"
         const val WEIDER_DAY1_MIGRATION_V19 = "weider_day1_machine_flyes_migration_v19"
+        const val WEIDER_SCHEDULE_MIGRATION_V20 = "weider_schedule_migration_v20"
         const val WEIDER_DAY1_ID = "day-1-chest-triceps"
         val LEGACY_WEIDER_DAY1_TEMPLATE = Routine(
             id = WEIDER_DAY1_ID,
@@ -145,6 +160,40 @@ class TrainingProgramRepository(
             restBetweenExercisesSeconds = 180,
             warmupSeconds = 600
         )
+        val PREVIOUS_WEIDER_TEMPLATE = listOf(
+            previousRoutine("day-1-chest-triceps", "DÍA 1 — PECHO Y TRÍCEPS",
+                previousExercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12),
+                previousExercise("fondos-triceps", "Fondos en paralelas", 4, 10, eccentric = 1),
+                previousExercise("aperturas-maquina", "Aperturas en máquina", 4, 12),
+                previousExercise("hombro-frontal", "Hombro frontal", 4, 12),
+                previousExercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12),
+                previousExercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12)),
+            previousRoutine("day-2-quadriceps", "DÍA 2 — CUÁDRICEPS",
+                previousExercise("prensa", "Prensa", 4, 10), previousExercise("bulgaras", "Búlgaras", 3, 10),
+                previousExercise("extension-pierna", "Extensión de pierna", 3, 10), previousExercise("extension-cadera", "Extensión de cadera", 4, 10)),
+            previousRoutine("day-3-back", "DÍA 3 — ESPALDA",
+                previousExercise("dominadas-polea", "Dominadas en polea", 3, 10), previousExercise("remo-polea-alta", "Remo con polea alta", 3, 10),
+                previousExercise("jalon-unilateral", "Jalón unilateral polea alta", 3, 10), previousExercise("remo-sentado", "Remo sentado", 4, 10),
+                previousExercise("hombro-posterior", "Hombro posterior", 3, 12)),
+            previousRoutine("day-4-shoulders-calves", "DÍA 4 — HOMBRO",
+                previousExercise("press-militar-mancuernas", "Press militar con mancuernas", 4, 10), previousExercise("elevaciones-laterales", "Elevaciones laterales", 4, 10),
+                previousExercise("elevaciones-laterales-ligas", "Elevaciones laterales con ligas", 3, 10), previousExercise("elevaciones-frontales", "Elevaciones frontales", 4, 10)),
+            previousRoutine("day-5-hamstrings", "DÍA 5 — ISQUIOS",
+                previousExercise("peso-muerto-rumano", "Peso muerto rumano", 5, 8), previousExercise("curl-femoral", "Curl femoral", 5, 10),
+                previousExercise("abdominales", "Abdominales", 5, 20)),
+            previousRoutine("day-6-biceps-forearm", "DÍA 6 — BÍCEPS Y ANTEBRAZO",
+                previousExercise("curl-predicador", "Curl de bíceps predicador", 4, 10), previousExercise("curl-mancuernas", "Curl de bíceps con mancuernas", 4, 10),
+                previousExercise("curl-martillo", "Curl de bíceps martillo", 4, 10), previousExercise("antebrazo", "Antebrazo", 4, 10)),
+            previousRoutine("day-7-calves", "DÍA 7 — PANTORRILLAS",
+                previousExercise("pantorrillas-day-7", "Pantorrillas", 5, 15, eccentric = 1))
+        )
+
+        private fun previousRoutine(id: String, name: String, vararg exercises: Exercise) = Routine(
+            id, name, false, exercises.toList(), DEFAULT_ROUTINE_REST_SECONDS, DEFAULT_WARMUP_SECONDS
+        )
+
+        private fun previousExercise(id: String, name: String, sets: Int, reps: Int, eccentric: Int = 2) =
+            Exercise(id, name, sets, reps, 1, eccentric, DEFAULT_SERIES_REST_SECONDS)
     }
 }
 

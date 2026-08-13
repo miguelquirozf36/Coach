@@ -21,45 +21,33 @@ class TrainingProgramTest {
     }
 
     @Test
-    fun weiderPushSessionUsesTheApprovedExercisesAndConfiguration() {
-        val session = Routines.all.single { it.id == "day-1-chest-triceps" }
+    fun weiderUsesTheDefinitiveSevenDaySchedule() {
+        val expected = listOf(
+            "DÍA 1 — PECHO Y TRÍCEPS" to listOf("Press inclinado mancuernas|4|10|120|S", "Fondos en paralelas|3|10|120|S", "Aperturas|4|10|60|S", "Extensión de tríceps polea baja|4|10|60|S", "Extensión de tríceps polea alta|4|10|60|S"),
+            "DÍA 2 — CUÁDRICEPS" to listOf("Prensa o sentadillas|4|10|120|S", "Búlgaras intercalado|3|10|60|U", "Extensión de pierna intercalado|4|10|60|U", "Extensión de cadera|4|10|120|S"),
+            "DÍA 3 — ESPALDA" to listOf("Dominadas en polea|3|10|120|S", "Remo con polea alta|3|10|120|S", "Pullover en polea alta|3|10|120|S", "Remo sentado|4|10|120|S", "Hombro posterior|3|12|60|S"),
+            "DÍA 4 — HOMBRO Y PANTORRILLAS" to listOf("Press militar con mancuernas|4|10|120|S", "Elevaciones laterales alternadas|4|10|60|U", "Elevaciones laterales ligas|4|10|60|U", "Elevaciones frontales|4|10|60|S"),
+            "DÍA 5 — ISQUIOS" to listOf("Peso muerto rumano|5|12|120|S", "Curl femoral alternado|3|10|60|U", "Abdominales|5|20|60|S"),
+            "DÍA 6 — BÍCEPS Y ANTEBRAZO" to listOf("Curl de bíceps predicador alternado|4|10|60|U", "Curl de bíceps con barra Z|4|10|60|S", "Curl de bíceps martillo|4|10|60|S", "Antebrazo|5|10|60|S"),
+            "DÍA 7 — PANTORRILLAS" to listOf("Pantorrillas|5|15|60|S")
+        )
+        val weider = OfficialTrainingPrograms.create().single { it.id == OfficialTrainingPrograms.WEIDER_ID }
 
-        assertEquals(
-            listOf(
-                "Press inclinado con mancuernas",
-                "Fondos en paralelas",
-                "Aperturas en máquina",
-                "Hombro frontal",
-                "Extensión de tríceps en polea baja",
-                "Extensión de tríceps en polea alta"
-            ),
-            session.exercises.map(Exercise::name)
-        )
-        assertFalse(session.exercises.any { it.id == "press-banca-plana-mancuernas" })
-        assertEquals(
-            Exercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12, 1, 2, 120),
-            session.exercises[0]
-        )
-        assertEquals(
-            Exercise("fondos-triceps", "Fondos en paralelas", 4, 10, 1, 1, 120),
-            session.exercises[1]
-        )
-        assertEquals(
-            Exercise("aperturas-maquina", "Aperturas en máquina", 4, 12, 1, 2, 120),
-            session.exercises[2]
-        )
-        assertEquals(
-            Exercise("hombro-frontal", "Hombro frontal", 4, 12, 1, 2, 120),
-            session.exercises[3]
-        )
-        assertEquals(
-            Exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12, 1, 2, 120),
-            session.exercises[4]
-        )
-        assertEquals(
-            Exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12, 1, 2, 120),
-            session.exercises[5]
-        )
+        assertEquals("weider", weider.id)
+        assertEquals(expected.map { it.first }, weider.routines.map { it.name })
+        assertEquals(listOf(5, 4, 5, 4, 3, 4, 1), weider.routines.map { it.exercises.size })
+        assertEquals(26, weider.routines.sumOf { it.exercises.size })
+        expected.zip(weider.routines).forEach { (expectedDay, routine) ->
+            assertEquals(expectedDay.second, routine.exercises.map { exercise ->
+                val mode = if (exercise.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) "U" else "S"
+                "${exercise.name}|${exercise.sets}|${exercise.repetitions}|${exercise.restSeconds}|$mode"
+            })
+        }
+        val exercises = weider.routines.flatMap { it.exercises }
+        assertTrue(exercises.all { it.concentricSeconds == 1 && it.eccentricSeconds == 2 })
+        assertTrue(exercises.all { it.isometricPauseMode == IsometricPauseMode.NONE && it.isometricDurationSeconds == 0 })
+        assertEquals(6, exercises.count { it.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME })
+        assertTrue(exercises.filter { it.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME }.all { it.sets in 3..4 })
     }
 
     @Test

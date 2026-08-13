@@ -332,11 +332,8 @@ class TrainingEngineTest {
             assertEquals(600, routine.warmupSeconds)
             routine.exercises.forEach { exercise ->
                 assertEquals(1, exercise.concentricSeconds)
-                assertEquals(
-                    if (exercise.id == "pantorrillas-day-7" || exercise.id == "fondos-triceps") 1 else 2,
-                    exercise.eccentricSeconds
-                )
-                assertEquals(120, exercise.restSeconds)
+                assertEquals(2, exercise.eccentricSeconds)
+                assertTrue(exercise.restSeconds == 60 || exercise.restSeconds == 120)
             }
         }
     }

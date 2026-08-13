@@ -84,10 +84,17 @@ class ExerciseLibraryTest {
         val seedNames = Routines.all.flatMap(Routine::exercises).map(Exercise::name).distinct()
         val libraryNames = ExerciseLibrary.all().map(ExerciseDefinition::name).toSet()
         val approvedRoutineSpecificNames = setOf(
-            "Press inclinado con mancuernas",
+            "Prensa o sentadillas",
+            "Búlgaras intercalado",
+            "Extensión de pierna intercalado",
+            "Pullover en polea alta",
+            "Elevaciones laterales alternadas",
+            "Elevaciones laterales ligas",
+            "Curl femoral alternado",
+            "Curl de bíceps predicador alternado",
+            "Curl de bíceps con barra Z",
             "Fondos en paralelas",
-            "Extensión de tríceps en polea baja",
-            "Extensión de tríceps en polea alta"
+            "Extensión de tríceps polea baja"
         )
 
         assertTrue(seedNames.all { it in libraryNames || it in approvedRoutineSpecificNames })

@@ -271,62 +271,61 @@ object Routines {
             id = "day-1-chest-triceps",
             name = "DÍA 1 — PECHO Y TRÍCEPS",
             exercises = listOf(
-                exercise("press-inclinado-mancuernas", "Press inclinado con mancuernas", 4, 12),
-                exercise("fondos-triceps", "Fondos en paralelas", 4, 10, eccentricSeconds = 1),
-                exercise("aperturas-maquina", "Aperturas en máquina", 4, 12),
-                exercise("hombro-frontal", "Hombro frontal", 4, 12),
-                exercise("extension-triceps-alta", "Extensión de tríceps en polea baja", 4, 12),
-                exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12)
+                exercise("press-inclinado-mancuernas", "Press inclinado mancuernas", 4, 10, 120),
+                exercise("fondos-triceps", "Fondos en paralelas", 3, 10, 120),
+                exercise("aperturas-maquina", "Aperturas", 4, 10, 60),
+                exercise("extension-triceps-alta", "Extensión de tríceps polea baja", 4, 10, 60),
+                exercise("extension-triceps-polea-alta", "Extensión de tríceps polea alta", 4, 10, 60)
             )
         ),
         routine(
             id = "day-2-quadriceps",
             name = "DÍA 2 — CUÁDRICEPS",
             exercises = listOf(
-                exercise("prensa", "Prensa", 4, 10),
-                exercise("bulgaras", "Búlgaras", 3, 10),
-                exercise("extension-pierna", "Extensión de pierna", 3, 10),
-                exercise("extension-cadera", "Extensión de cadera", 4, 10)
+                exercise("prensa", "Prensa o sentadillas", 4, 10, 120),
+                exercise("bulgaras", "Búlgaras intercalado", 3, 10, 60, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME),
+                exercise("extension-pierna", "Extensión de pierna intercalado", 4, 10, 60, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME),
+                exercise("extension-cadera", "Extensión de cadera", 4, 10, 120)
             )
         ),
         routine(
             id = "day-3-back",
             name = "DÍA 3 — ESPALDA",
             exercises = listOf(
-                exercise("dominadas-polea", "Dominadas en polea", 3, 10),
-                exercise("remo-polea-alta", "Remo con polea alta", 3, 10),
-                exercise("jalon-unilateral", "Jalón unilateral polea alta", 3, 10),
-                exercise("remo-sentado", "Remo sentado", 4, 10),
-                exercise("hombro-posterior", "Hombro posterior", 3, 12)
+                exercise("dominadas-polea", "Dominadas en polea", 3, 10, 120),
+                exercise("remo-polea-alta", "Remo con polea alta", 3, 10, 120),
+                exercise("jalon-unilateral", "Pullover en polea alta", 3, 10, 120),
+                exercise("remo-sentado", "Remo sentado", 4, 10, 120),
+                exercise("hombro-posterior", "Hombro posterior", 3, 12, 60)
             )
         ),
         routine(
             id = "day-4-shoulders-calves",
-            name = "DÍA 4 — HOMBRO",
+            name = "DÍA 4 — HOMBRO Y PANTORRILLAS",
             exercises = listOf(
-                exercise("press-militar-mancuernas", "Press militar con mancuernas", 4, 10),
-                exercise("elevaciones-laterales", "Elevaciones laterales", 4, 10),
-                exercise("elevaciones-laterales-ligas", "Elevaciones laterales con ligas", 3, 10),
-                exercise("elevaciones-frontales", "Elevaciones frontales", 4, 10)
+                exercise("press-militar-mancuernas", "Press militar con mancuernas", 4, 10, 120),
+                exercise("elevaciones-laterales", "Elevaciones laterales alternadas", 4, 10, 60, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME),
+                exercise("elevaciones-laterales-ligas", "Elevaciones laterales ligas", 4, 10, 60, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME),
+                exercise("elevaciones-frontales", "Elevaciones frontales", 4, 10, 60)
             )
         ),
         routine(
             id = "day-5-hamstrings",
             name = "DÍA 5 — ISQUIOS",
             exercises = listOf(
-                exercise("peso-muerto-rumano", "Peso muerto rumano", 5, 8),
-                exercise("curl-femoral", "Curl femoral", 5, 10),
-                exercise("abdominales", "Abdominales", 5, 20)
+                exercise("peso-muerto-rumano", "Peso muerto rumano", 5, 12, 120),
+                exercise("curl-femoral", "Curl femoral alternado", 3, 10, 60, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME),
+                exercise("abdominales", "Abdominales", 5, 20, 60)
             )
         ),
         routine(
             id = "day-6-biceps-forearm",
             name = "DÍA 6 — BÍCEPS Y ANTEBRAZO",
             exercises = listOf(
-                exercise("curl-predicador", "Curl de bíceps predicador", 4, 10),
-                exercise("curl-mancuernas", "Curl de bíceps con mancuernas", 4, 10),
-                exercise("curl-martillo", "Curl de bíceps martillo", 4, 10),
-                exercise("antebrazo", "Antebrazo", 4, 10)
+                exercise("curl-predicador", "Curl de bíceps predicador alternado", 4, 10, 60, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME),
+                exercise("curl-mancuernas", "Curl de bíceps con barra Z", 4, 10, 60),
+                exercise("curl-martillo", "Curl de bíceps martillo", 4, 10, 60),
+                exercise("antebrazo", "Antebrazo", 5, 10, 60)
             )
         ),
         routine(
@@ -338,7 +337,7 @@ object Routines {
                     name = "Pantorrillas",
                     sets = 5,
                     repetitions = 15,
-                    eccentricSeconds = 1
+                    restSeconds = 60
                 )
             ),
             warmupSeconds = 10 * 60
@@ -364,14 +363,18 @@ object Routines {
         name: String,
         sets: Int,
         repetitions: Int,
-        eccentricSeconds: Int = DEFAULT_ECCENTRIC_SECONDS
+        restSeconds: Int,
+        executionMode: ExerciseExecutionMode = ExerciseExecutionMode.SIMULTANEOUS
     ) = Exercise(
         id = id,
         name = name,
         sets = sets,
         repetitions = repetitions,
         concentricSeconds = DEFAULT_CONCENTRIC_SECONDS,
-        eccentricSeconds = eccentricSeconds,
-        restSeconds = DEFAULT_SERIES_REST_SECONDS
+        eccentricSeconds = DEFAULT_ECCENTRIC_SECONDS,
+        restSeconds = restSeconds,
+        executionMode = executionMode,
+        isometricPauseMode = IsometricPauseMode.NONE,
+        isometricDurationSeconds = 0
     )
 }
