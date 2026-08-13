@@ -45,6 +45,17 @@ fun Routine.estimatedDurationMinutes(): Int {
     return ((startSeconds + exerciseSeconds + exerciseRestSeconds) / 60.0).roundToInt()
 }
 
+fun Routine.totalExecutionSets(): Int = exercises.sumOf { exercise ->
+    exercise.sets * exercise.executionSideFactor()
+}
+
+fun Routine.totalRepetitions(): Int = exercises.sumOf { exercise ->
+    exercise.sets * exercise.repetitions * exercise.executionSideFactor()
+}
+
+private fun Exercise.executionSideFactor(): Int =
+    if (executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) 2 else 1
+
 private const val INITIAL_COUNTDOWN_SECONDS = 10
 
 data class RoutineDraft(

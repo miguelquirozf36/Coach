@@ -1034,6 +1034,9 @@ private fun RoutineDetailScreen(
                 items(routine.exercises, key = Exercise::id) { exercise ->
                     ExerciseSummary(exercise)
                 }
+                item(key = "routine-summary") {
+                    RoutineSummaryCard(routine)
+                }
             }
             Button(
                 modifier = Modifier.fillMaxWidth(),
@@ -1171,6 +1174,119 @@ fun attemptRoutineStart(routine: Routine, onStart: (Routine) -> Unit): String? {
     if (routine.exercises.isEmpty()) return EMPTY_ROUTINE_START_MESSAGE
     onStart(routine)
     return null
+}
+
+@Composable
+private fun RoutineSummaryCard(routine: Routine) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = contentCardColors()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DurationSummaryMetric(
+                modifier = Modifier.weight(1.35f),
+                value = "${routine.estimatedDurationMinutes()} min"
+            )
+            SummaryDivider()
+            RoutineSummaryMetric(
+                modifier = Modifier.weight(1f),
+                icon = PhaseIcon,
+                value = routine.exercises.size.toString(),
+                label = "Ejercicios"
+            )
+            SummaryDivider()
+            RoutineSummaryMetric(
+                modifier = Modifier.weight(1f),
+                icon = SeriesIcon,
+                value = routine.totalExecutionSets().toString(),
+                label = "Series totales"
+            )
+            SummaryDivider()
+            RoutineSummaryMetric(
+                modifier = Modifier.weight(1f),
+                icon = RepeatIcon,
+                value = routine.totalRepetitions().toString(),
+                label = "Repeticiones totales"
+            )
+        }
+    }
+}
+
+@Composable
+private fun DurationSummaryMetric(modifier: Modifier, value: String) {
+    Column(
+        modifier = modifier.padding(horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = ScheduleIcon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "Duración estimada del día",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun RoutineSummaryMetric(
+    modifier: Modifier,
+    icon: ImageVector,
+    value: String,
+    label: String
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun SummaryDivider() {
+    VerticalDivider(
+        modifier = Modifier.height(56.dp),
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
 }
 
 @Composable
