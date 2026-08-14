@@ -102,6 +102,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.min
 import java.time.LocalDate
+import java.util.Locale
 
 internal const val BRANDED_LAUNCH_DURATION_MILLIS = 1_000L
 
@@ -1300,9 +1301,10 @@ private fun ExerciseSummary(exercise: Exercise) {
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = exercise.name,
+                text = exerciseCardTitle(exercise.name),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text("${exercise.sets} series · ${exercise.repetitions} repeticiones")
             Text("Concéntrica: ${exercise.concentricSeconds.toClockFormat()} · Excéntrica: ${exercise.eccentricSeconds.toClockFormat()}")
@@ -1317,6 +1319,9 @@ private fun ExerciseSummary(exercise: Exercise) {
         }
     }
 }
+
+internal fun exerciseCardTitle(name: String, locale: Locale = Locale.getDefault()): String =
+    name.uppercase(locale)
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)

@@ -2,6 +2,7 @@ package com.miguel.coach
 
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -9,6 +10,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CoachUiConsistencyTest {
+    @Test
+    fun exerciseCardTitleIsUppercaseWithoutChangingTheStoredExerciseName() {
+        val exercise = Exercise("press-inclinado", "Press inclinado mancuernas", 3, 10, 1, 2, 60)
+
+        val visibleTitle = exerciseCardTitle(exercise.name, Locale.forLanguageTag("es-PE"))
+
+        assertEquals("PRESS INCLINADO MANCUERNAS", visibleTitle)
+        assertEquals("Press inclinado mancuernas", exercise.name)
+    }
+
     @Test
     fun routineCardTitleUsesTheApprovedCompactSize() {
         assertEquals(18.sp, ROUTINE_CARD_TITLE_FONT_SIZE)
