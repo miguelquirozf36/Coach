@@ -2,6 +2,7 @@ package com.miguel.coach
 
 import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -1289,6 +1290,106 @@ class TrainingEngineTest {
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
     }
 
+    @Test
+    fun startFromExerciseInitializesFirstMiddleAndLastIndexesCleanly() {
+        val exercises = listOf(
+            seriesExercise(1, 0).copy(id = "first", notes = "Primero"),
+            seriesExercise(1, 0).copy(id = "middle", notes = "Medio"),
+            seriesExercise(1, 0).copy(id = "last", notes = "Último")
+        )
+
+        exercises.indices.forEach { index ->
+            val fixture = Fixture(exercises, warmupSeconds = 600)
+
+            fixture.engine.startFromExercise(fixture.routine, index)
+
+            fixture.assertWorkout(TrainingPhase.COUNTDOWN, 10, index, 1, 1, false)
+            assertEquals(exercises[index].notes, fixture.currentWorkout().currentExerciseNotes)
+            assertEquals(exercises, fixture.currentWorkout().routine.exercises)
+            assertEquals(600, fixture.currentWorkout().routine.warmupSeconds)
+            assertEquals("Comenzamos en 10 segundos.", fixture.voice.phrases.single())
+        }
+    }
+
+    @Test
+    fun startFromExerciseCountdownIsSilentUntilThreeThenUsesVamosDelayAndBeep() {
+        val fixture = Fixture(listOf(seriesExercise(1, 0)), warmupSeconds = 600)
+        fixture.engine.startFromExercise(fixture.routine, 0)
+
+        repeat(6) { fixture.scheduler.advance() }
+        assertEquals(listOf("Comenzamos en 10 segundos."), fixture.voice.phrases)
+        repeat(4) { fixture.scheduler.advance() }
+
+        assertEquals(
+            listOf("Comenzamos en 10 segundos.", "Tres", "Dos", "Uno", "¡Vamos!"),
+            fixture.voice.phrases
+        )
+        assertEquals(0, fixture.beep.playCalls)
+        val eventsAtVamos = fixture.events.toList()
+        fixture.voice.completeLatest()
+        assertEquals(eventsAtVamos, fixture.events)
+        val delayStartedAt = fixture.clock.now
+        fixture.scheduler.advance()
+
+        assertEquals(1_000L, fixture.clock.now - delayStartedAt)
+        assertEquals("beep", fixture.events.last())
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertFalse(fixture.voice.phrases.any { it in listOf("Diez", "Nueve", "Ocho", "Siete", "Seis", "Cinco", "Cuatro") })
+    }
+
+    @Test
+    fun startFromMiddleContinuesOnlyWithFollowingExercises() {
+        val exercises = listOf("A", "B", "C").mapIndexed { index, name ->
+            seriesExercise(1, 0).copy(id = "exercise-$index", name = name)
+        }
+        val fixture = Fixture(exercises, restBetweenExercisesSeconds = 0, warmupSeconds = 600)
+        fixture.startFromExerciseConcentricPhase(1)
+
+        fixture.completeCurrentRepetition()
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 0, 2, 1, 1, false)
+        fixture.scheduler.advance()
+        fixture.voice.completeLatest()
+        fixture.scheduler.advance()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 2, 1, 1, false)
+        fixture.completeCurrentRepetition()
+
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertFalse(fixture.events.any { it.contains("A") })
+    }
+
+    @Test
+    fun startFromLastExerciseFinishesWithoutReturningToEarlierExercises() {
+        val exercises = listOf("A", "B", "C").mapIndexed { index, name ->
+            seriesExercise(1, 0).copy(id = "exercise-$index", name = name)
+        }
+        val fixture = Fixture(exercises, warmupSeconds = 600)
+        fixture.startFromExerciseConcentricPhase(2)
+
+        fixture.completeCurrentRepetition()
+
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertEquals(1, fixture.voice.phrases.count { it == "Entrenamiento finalizado." })
+    }
+
+    @Test
+    fun startFromOneSideExerciseBeginsOnRightAndKeepsExistingSideSequence() {
+        val exercises = listOf(
+            seriesExercise(1, 0),
+            seriesExercise(1, 0).copy(executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME)
+        )
+        val fixture = Fixture(exercises)
+        fixture.startFromExerciseConcentricPhase(1)
+
+        assertEquals(ExerciseSide.RIGHT, fixture.currentWorkout().currentSide)
+        fixture.completeCurrentRepetition()
+        fixture.scheduler.advance()
+        fixture.voice.completeLatest()
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
+        assertEquals(ExerciseSide.LEFT, fixture.currentWorkout().currentSide)
+    }
+
     private class Fixture(
         exercises: List<Exercise>,
         private val restBetweenExercisesSeconds: Int = 12,
@@ -1317,6 +1418,14 @@ class TrainingEngineTest {
             voice.completeLatest()
             scheduler.advance()
             assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        }
+
+        fun startFromExerciseConcentricPhase(exerciseIndex: Int) {
+            engine.startFromExercise(routine, exerciseIndex)
+            repeat(10) { scheduler.advance() }
+            voice.completeLatest()
+            scheduler.advance()
+            assertWorkout(TrainingPhase.CONCENTRIC, 1, exerciseIndex, 1, 1, false)
         }
 
         fun completeCurrentRepetition() {

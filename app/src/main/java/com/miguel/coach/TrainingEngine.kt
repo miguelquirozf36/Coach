@@ -32,16 +32,25 @@ class TrainingEngine(
     private var startDelayDeadlineMillis: Long? = null
 
     fun start(routine: Routine) {
-        if (routine.exercises.isEmpty()) return
+        startSession(routine, exerciseIndex = 0, useRoutineWarmup = true)
+    }
+
+    fun startFromExercise(routine: Routine, exerciseIndex: Int) {
+        startSession(routine, exerciseIndex, useRoutineWarmup = false)
+    }
+
+    private fun startSession(routine: Routine, exerciseIndex: Int, useRoutineWarmup: Boolean) {
+        if (routine.exercises.isEmpty() || exerciseIndex !in routine.exercises.indices) return
         if (!voiceSpeaker.isReady) return
 
         beginNewSession()
         clearStartDelay()
         val sessionRoutine = routine.copy(exercises = routine.exercises.toList())
-        val hasWarmup = sessionRoutine.warmupSeconds > 0
+        val hasWarmup = useRoutineWarmup && sessionRoutine.warmupSeconds > 0
+        val initialExercise = sessionRoutine.exercises[exerciseIndex]
         state = TrainingUiState.Workout(
             routine = sessionRoutine,
-            exerciseIndex = 0,
+            exerciseIndex = exerciseIndex,
             seriesNumber = 1,
             repetitionNumber = 1,
             phase = if (hasWarmup) TrainingPhase.WARMUP else TrainingPhase.COUNTDOWN,
@@ -50,15 +59,15 @@ class TrainingEngine(
             phaseStartedAtMillis = monotonicClock.nowMillis(),
             phasePausedAtMillis = null,
             isPaused = false,
-            currentExerciseNotes = sessionRoutine.exercises.first().notes,
-            currentSide = sessionRoutine.exercises.first().initialSide()
+            currentExerciseNotes = initialExercise.notes,
+            currentSide = initialExercise.initialSide()
         )
         resetTimedAnnouncements(if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS)
         if (hasWarmup) {
             voiceSpeaker.speak(WARMUP_ANNOUNCEMENT)
             scheduleWarmupTick(sessionId)
         } else {
-            voiceSpeaker.speak(START_ANNOUNCEMENT)
+            voiceSpeaker.speak(if (useRoutineWarmup) START_ANNOUNCEMENT else START_FROM_EXERCISE_ANNOUNCEMENT)
             scheduleCountdownTick(sessionId)
         }
     }
@@ -567,6 +576,7 @@ class TrainingEngine(
         const val ONE_SECOND_MILLIS = 1_000L
         const val INITIAL_COUNTDOWN_SECONDS = 10
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
+        const val START_FROM_EXERCISE_ANNOUNCEMENT = "Comenzamos en 10 segundos."
         const val WARMUP_ANNOUNCEMENT = "Comienza el calentamiento."
         const val ONE_MINUTE_ANNOUNCEMENT = "Queda 1 minuto"
         const val THIRTY_SECONDS_ANNOUNCEMENT = "Quedan 30 segundos"

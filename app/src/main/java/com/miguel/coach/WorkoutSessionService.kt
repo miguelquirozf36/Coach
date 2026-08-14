@@ -28,6 +28,17 @@ object WorkoutSessionController {
         if (routine.exercises.isEmpty()) return
         val activeEngine = ensureEngine(context)
         activeEngine.start(routine)
+        startSessionService(context, activeEngine)
+    }
+
+    fun startWorkoutFromExercise(context: Context, routine: Routine, exerciseIndex: Int) {
+        if (exerciseIndex !in routine.exercises.indices) return
+        val activeEngine = ensureEngine(context)
+        activeEngine.startFromExercise(routine, exerciseIndex)
+        startSessionService(context, activeEngine)
+    }
+
+    private fun startSessionService(context: Context, activeEngine: TrainingEngine) {
         if (activeEngine.state !is TrainingUiState.Workout) return
         sessionActive = true
         try {

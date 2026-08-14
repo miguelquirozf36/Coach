@@ -14,12 +14,12 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
     private lateinit var routineRepository: RoutineRepository
-    private var pendingRoutine: Routine? = null
+    private var pendingWorkoutStart: WorkoutStartRequest? = null
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
-        pendingRoutine?.let { WorkoutSessionController.startWorkout(applicationContext, it) }
-        pendingRoutine = null
+        pendingWorkoutStart?.let(::startWorkout)
+        pendingWorkoutStart = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
                 trainingEngine = trainingEngine,
                 routineRepository = routineRepository,
                 onStartWorkout = ::startWorkoutWithNotificationPermission,
+                onStartWorkoutFromExercise = ::startWorkoutFromExerciseWithNotificationPermission,
                 onFinishWorkout = WorkoutSessionController::finishWorkout
             )
         }
@@ -49,7 +50,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startWorkoutWithNotificationPermission(routine: Routine) {
-        if (routine.exercises.isEmpty()) return
+        requestWorkoutStart(WorkoutStartRequest(routine))
+    }
+
+    private fun startWorkoutFromExerciseWithNotificationPermission(routine: Routine, exerciseIndex: Int) {
+        if (exerciseIndex !in routine.exercises.indices) return
+        requestWorkoutStart(WorkoutStartRequest(routine, exerciseIndex))
+    }
+
+    private fun requestWorkoutStart(request: WorkoutStartRequest) {
+        if (request.routine.exercises.isEmpty()) return
         val preferences = getSharedPreferences("coach_notifications", MODE_PRIVATE)
         val action = notificationPermissionAction(
             sdkInt = Build.VERSION.SDK_INT,
@@ -59,16 +69,16 @@ class MainActivity : ComponentActivity() {
             previouslyAsked = preferences.getBoolean(NOTIFICATION_PERMISSION_ASKED, false)
         )
         if (action != NotificationPermissionAction.REQUEST_WITH_EXPLANATION) {
-            WorkoutSessionController.startWorkout(applicationContext, routine)
+            startWorkout(request)
             return
         }
-        pendingRoutine = routine
+        pendingWorkoutStart = request
         AlertDialog.Builder(this)
             .setMessage("Coach necesita mostrar el entrenamiento activo en la pantalla de bloqueo.")
             .setNegativeButton("CANCELAR") { _, _ ->
                 preferences.edit { putBoolean(NOTIFICATION_PERMISSION_ASKED, true) }
-                pendingRoutine?.let { WorkoutSessionController.startWorkout(applicationContext, it) }
-                pendingRoutine = null
+                pendingWorkoutStart?.let(::startWorkout)
+                pendingWorkoutStart = null
             }
             .setPositiveButton("PERMITIR") { _, _ ->
                 preferences.edit { putBoolean(NOTIFICATION_PERMISSION_ASKED, true) }
@@ -76,10 +86,19 @@ class MainActivity : ComponentActivity() {
             }
             .setOnCancelListener {
                 preferences.edit { putBoolean(NOTIFICATION_PERMISSION_ASKED, true) }
-                pendingRoutine?.let { WorkoutSessionController.startWorkout(applicationContext, it) }
-                pendingRoutine = null
+                pendingWorkoutStart?.let(::startWorkout)
+                pendingWorkoutStart = null
             }
             .show()
+    }
+
+    private fun startWorkout(request: WorkoutStartRequest) {
+        val exerciseIndex = request.exerciseIndex
+        if (exerciseIndex == null) {
+            WorkoutSessionController.startWorkout(applicationContext, request.routine)
+        } else {
+            WorkoutSessionController.startWorkoutFromExercise(applicationContext, request.routine, exerciseIndex)
+        }
     }
 
     private companion object {
@@ -87,3 +106,5 @@ class MainActivity : ComponentActivity() {
         const val POST_NOTIFICATIONS_PERMISSION = "android.permission.POST_NOTIFICATIONS"
     }
 }
+
+internal data class WorkoutStartRequest(val routine: Routine, val exerciseIndex: Int? = null)

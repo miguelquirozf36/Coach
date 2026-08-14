@@ -41,6 +41,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -161,6 +162,7 @@ fun CoachApp(
     trainingEngine: TrainingEngine,
     routineRepository: RoutineRepository,
     onStartWorkout: (Routine) -> Unit = trainingEngine::start,
+    onStartWorkoutFromExercise: (Routine, Int) -> Unit = trainingEngine::startFromExercise,
     onFinishWorkout: () -> Unit = trainingEngine::finish
 ) {
     val applicationContext = LocalContext.current.applicationContext
@@ -469,6 +471,7 @@ fun CoachApp(
                             routine = selectedRoutine,
                             onBack = { selectedRoutineId = null },
                             onStart = onStartWorkout,
+                            onStartFromExercise = onStartWorkoutFromExercise,
                             isVoiceReady = trainingEngine.isVoiceReady,
                             customExercises = customExercises,
                             onSaveCustomExercise = { id, name, category, notes ->
@@ -926,6 +929,7 @@ private fun RoutineDetailScreen(
     routine: Routine,
     onBack: () -> Unit,
     onStart: (Routine) -> Unit,
+    onStartFromExercise: (Routine, Int) -> Unit,
     isVoiceReady: Boolean,
     customExercises: List<ExerciseDefinition>,
     onSaveCustomExercise: (String?, String, String, String) -> String?,
@@ -937,6 +941,30 @@ private fun RoutineDetailScreen(
     var draft by remember(routine.id) { mutableStateOf(routine.toDraft()) }
     var validationMessage by remember(routine.id) { mutableStateOf<String?>(null) }
     var startValidationMessage by remember(routine.id) { mutableStateOf<String?>(null) }
+    var pendingStartExerciseIndex by rememberSaveable(routine.id) { mutableStateOf<Int?>(null) }
+
+    pendingStartExerciseIndex?.let { exerciseIndex ->
+        val exercise = routine.exercises.getOrNull(exerciseIndex)
+        if (exercise == null) {
+            pendingStartExerciseIndex = null
+        } else {
+            AlertDialog(
+                onDismissRequest = { pendingStartExerciseIndex = null },
+                containerColor = LocalDialogContainerColor.current,
+                title = { Text(startFromExerciseDialogTitle(exercise.name)) },
+                text = { Text(START_FROM_EXERCISE_DIALOG_MESSAGE) },
+                dismissButton = {
+                    TextButton(onClick = { pendingStartExerciseIndex = null }) { Text("CANCELAR") }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingStartExerciseIndex = null
+                        onStartFromExercise(routine, exerciseIndex)
+                    }) { Text("INICIAR") }
+                }
+            )
+        }
+    }
 
     startValidationMessage?.let { message ->
         AlertDialog(
@@ -1032,8 +1060,12 @@ private fun RoutineDetailScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(routine.exercises, key = Exercise::id) { exercise ->
-                    ExerciseSummary(exercise)
+                itemsIndexed(routine.exercises, key = { _, exercise -> exercise.id }) { index, exercise ->
+                    ExerciseSummary(
+                        exercise = exercise,
+                        startEnabled = isVoiceReady,
+                        onStartFromHere = { pendingStartExerciseIndex = index }
+                    )
                 }
                 item(key = "routine-summary") {
                     RoutineSummaryCard(routine)
@@ -1060,6 +1092,12 @@ private fun RoutineDetailScreen(
 
 const val EMPTY_ROUTINE_START_MESSAGE = "Agrega al menos un ejercicio antes de comenzar."
 const val START_WORKOUT_LABEL = "INICIAR"
+const val START_FROM_EXERCISE_DIALOG_MESSAGE =
+    "El entrenamiento comenzará desde este ejercicio y continuará con los siguientes."
+
+internal fun startFromExerciseDialogTitle(exerciseName: String) = "¿Iniciar desde $exerciseName?"
+
+internal fun startFromExerciseContentDescription(exerciseName: String) = "Iniciar desde $exerciseName"
 
 private val StartWorkoutPlayIcon: ImageVector = ImageVector.Builder(
     name = "PlayArrow",
@@ -1291,29 +1329,45 @@ private fun SummaryDivider() {
 }
 
 @Composable
-private fun ExerciseSummary(exercise: Exercise) {
+private fun ExerciseSummary(
+    exercise: Exercise,
+    startEnabled: Boolean,
+    onStartFromHere: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = contentCardColors()
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = exerciseCardTitle(exercise.name),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text("${exercise.sets} series · ${exercise.repetitions} repeticiones")
-            Text("Concéntrica: ${exercise.concentricSeconds.toClockFormat()} · Excéntrica: ${exercise.eccentricSeconds.toClockFormat()}")
-            Text("Descanso entre series: ${exercise.restSeconds.toClockFormat()} min")
-            if (exercise.notes.isNotBlank()) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
-                    text = exercise.notes,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = exerciseCardTitle(exercise.name),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("${exercise.sets} series · ${exercise.repetitions} repeticiones")
+                Text("Concéntrica: ${exercise.concentricSeconds.toClockFormat()} · Excéntrica: ${exercise.eccentricSeconds.toClockFormat()}")
+                Text("Descanso entre series: ${exercise.restSeconds.toClockFormat()} min")
+                if (exercise.notes.isNotBlank()) {
+                    Text(
+                        text = exercise.notes,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            IconButton(enabled = startEnabled, onClick = onStartFromHere) {
+                Icon(
+                    imageVector = StartWorkoutPlayIcon,
+                    contentDescription = startFromExerciseContentDescription(exercise.name),
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }

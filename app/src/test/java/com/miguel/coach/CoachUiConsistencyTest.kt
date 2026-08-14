@@ -11,6 +11,16 @@ import org.junit.Test
 
 class CoachUiConsistencyTest {
     @Test
+    fun startFromExerciseDialogAndAccessibilityCopyUseTheSelectedExercise() {
+        assertEquals("¿Iniciar desde Aperturas?", startFromExerciseDialogTitle("Aperturas"))
+        assertEquals("Iniciar desde Aperturas", startFromExerciseContentDescription("Aperturas"))
+        assertEquals(
+            "El entrenamiento comenzará desde este ejercicio y continuará con los siguientes.",
+            START_FROM_EXERCISE_DIALOG_MESSAGE
+        )
+    }
+
+    @Test
     fun exerciseCardTitleIsUppercaseWithoutChangingTheStoredExerciseName() {
         val exercise = Exercise("press-inclinado", "Press inclinado mancuernas", 3, 10, 1, 2, 60)
 
