@@ -1304,7 +1304,7 @@ private fun ExerciseSummary(exercise: Exercise) {
                 text = exerciseCardTitle(exercise.name),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text("${exercise.sets} series · ${exercise.repetitions} repeticiones")
             Text("Concéntrica: ${exercise.concentricSeconds.toClockFormat()} · Excéntrica: ${exercise.eccentricSeconds.toClockFormat()}")
