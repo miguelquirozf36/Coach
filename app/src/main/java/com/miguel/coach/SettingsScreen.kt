@@ -35,9 +35,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
@@ -281,14 +284,16 @@ private fun TrainerVoiceRow(
         colors = CardDefaults.cardColors(containerColor = containerColor, contentColor = contentColor)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 4.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = label,
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyLarge,
-                color = contentColor
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             IconButton(onClick = onPreview) {
                 Icon(
@@ -318,7 +323,7 @@ private val TrainerVoicePreviewIcon: ImageVector = ImageVector.Builder(
     viewportWidth = 24f,
     viewportHeight = 24f
 ).apply {
-    path {
+    path(fill = SolidColor(Color.Black)) {
         moveTo(3f, 9f)
         verticalLineTo(15f)
         horizontalLineTo(7f)
