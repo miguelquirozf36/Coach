@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -17,17 +18,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
@@ -60,6 +65,18 @@ fun SettingsScreen(
     onTabSelected: (Int) -> Unit
 ) {
     var showNameEditor by rememberSaveable { mutableStateOf(false) }
+    var showTrainerVoiceSelector by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val trainerVoiceCoach = remember(context) { WorkoutSessionController.trainerVoiceCoach(context) }
+    var selectedTrainerVoiceId by rememberSaveable { mutableStateOf(trainerVoiceCoach.selectedVoiceId()) }
+    var trainerVoiceOptions by remember { mutableStateOf(emptyList<TrainerVoiceOption>()) }
+
+    LaunchedEffect(trainerVoiceCoach.isReady, showTrainerVoiceSelector) {
+        if (trainerVoiceCoach.isReady && showTrainerVoiceSelector) {
+            trainerVoiceOptions = trainerVoiceCoach.availableSpanishVoices()
+            selectedTrainerVoiceId = trainerVoiceCoach.selectedVoiceId()
+        }
+    }
 
     if (showNameEditor) {
         UserNameDialog(
@@ -68,6 +85,23 @@ fun SettingsScreen(
             onSave = { input ->
                 onSaveUserName(input).also { message ->
                     if (message == null) showNameEditor = false
+                }
+            }
+        )
+    }
+    if (showTrainerVoiceSelector) {
+        TrainerVoiceDialog(
+            currentVoiceId = selectedTrainerVoiceId,
+            voices = trainerVoiceOptions,
+            onPreview = trainerVoiceCoach::previewVoice,
+            onCancel = { originalVoiceId ->
+                trainerVoiceCoach.applyVoice(originalVoiceId)
+                showTrainerVoiceSelector = false
+            },
+            onSave = { voiceId ->
+                if (trainerVoiceCoach.saveVoice(voiceId)) {
+                    selectedTrainerVoiceId = trainerVoiceCoach.selectedVoiceId()
+                    showTrainerVoiceSelector = false
                 }
             }
         )
@@ -135,6 +169,15 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium
             )
             BeepVolumeControl(beepVolumeLevel, onBeepVolumeLevelChanged)
+            SettingsCard(
+                title = "Voz del entrenador",
+                value = "Selecciona una de las voces en español disponibles en tu dispositivo.",
+                onClick = {
+                    trainerVoiceOptions = trainerVoiceCoach.availableSpanishVoices()
+                    selectedTrainerVoiceId = trainerVoiceCoach.selectedVoiceId()
+                    showTrainerVoiceSelector = true
+                }
+            )
             Text(
                 "DATOS",
                 modifier = Modifier.padding(top = 12.dp),
@@ -152,6 +195,81 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+@Composable
+private fun TrainerVoiceDialog(
+    currentVoiceId: String,
+    voices: List<TrainerVoiceOption>,
+    onPreview: (String) -> Unit,
+    onCancel: (String) -> Unit,
+    onSave: (String) -> Unit
+) {
+    val selection = remember(currentVoiceId) { TrainerVoiceSelection(currentVoiceId) }
+    var temporaryVoiceId by rememberSaveable(currentVoiceId) { mutableStateOf(currentVoiceId) }
+    val cancel = { onCancel(selection.cancel()) }
+    AlertDialog(
+        onDismissRequest = cancel,
+        containerColor = LocalDialogContainerColor.current,
+        title = { Text("Voz del entrenador") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                TrainerVoiceRow(
+                    label = "Predeterminada del dispositivo",
+                    secondary = null,
+                    selected = temporaryVoiceId == DEFAULT_TRAINER_VOICE_ID,
+                    onClick = {
+                        selection.select(DEFAULT_TRAINER_VOICE_ID)
+                        temporaryVoiceId = DEFAULT_TRAINER_VOICE_ID
+                    }
+                )
+                voices.forEach { voice ->
+                    TrainerVoiceRow(
+                        label = voice.label,
+                        secondary = voice.technicalName,
+                        selected = temporaryVoiceId == voice.id,
+                        onClick = {
+                            selection.select(voice.id)
+                            temporaryVoiceId = voice.id
+                        }
+                    )
+                }
+                if (voices.isEmpty()) {
+                    Text(
+                        "No se encontraron otras voces españolas disponibles sin conexión.",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(onClick = { onPreview(selection.preview().first) }) {
+                    Text("PROBAR VOZ")
+                }
+            }
+        },
+        dismissButton = { TextButton(onClick = cancel) { Text("CANCELAR") } },
+        confirmButton = {
+            TextButton(onClick = { onSave(selection.save()) }) { Text("GUARDAR") }
+        }
+    )
+}
+
+@Composable
+private fun TrainerVoiceRow(
+    label: String,
+    secondary: String?,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    ListItem(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        leadingContent = { RadioButton(selected = selected, onClick = onClick) },
+        headlineContent = { Text(label) },
+        supportingContent = secondary?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } }
+    )
 }
 
 @Composable

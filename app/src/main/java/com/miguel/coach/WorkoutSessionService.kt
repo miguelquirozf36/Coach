@@ -24,6 +24,11 @@ object WorkoutSessionController {
     fun ensureEngine(context: Context): TrainingEngine =
         if (engine != null && voiceCoach != null && beepPlayer != null) engine!! else createEngine(context)
 
+    fun trainerVoiceCoach(context: Context): VoiceCoach {
+        ensureEngine(context)
+        return requireNotNull(voiceCoach)
+    }
+
     fun startWorkout(context: Context, routine: Routine) {
         if (routine.exercises.isEmpty()) return
         val activeEngine = ensureEngine(context)
@@ -103,7 +108,7 @@ object WorkoutSessionController {
             )
         )
         val beep = BeepPlayer(preferences::loadBeepVolumeLevel)
-        val voice = VoiceCoach(context.applicationContext)
+        val voice = VoiceCoach(context.applicationContext, preferences)
         beepPlayer = beep
         voiceCoach = voice
         return TrainingEngine(

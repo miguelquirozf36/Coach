@@ -24,6 +24,15 @@ class UserPreferenceRepositoryTest {
         assertEquals(4, UserPreferenceRepository(storage).loadBeepVolumeLevel())
         assertTrue("workout_beep_volume_level" in storage.writtenKeys)
     }
+
+    @Test
+    fun trainerVoiceDefaultsToDeviceDefaultAndPersistsSelection() {
+        val storage = InMemoryUserStorage()
+        assertEquals(DEFAULT_TRAINER_VOICE_ID, UserPreferenceRepository(storage).loadTrainerVoiceId())
+        assertTrue(UserPreferenceRepository(storage).saveTrainerVoiceId("engine-voice-id"))
+        assertEquals("engine-voice-id", UserPreferenceRepository(storage).loadTrainerVoiceId())
+        assertTrue("trainer_voice_id" in storage.writtenKeys)
+    }
     @Test
     fun emptyNameIsTheDefault() {
         assertEquals("", UserPreferenceRepository(InMemoryUserStorage()).loadUserName())
@@ -177,6 +186,7 @@ private class InMemoryUserStorage(var userName: String? = null) : UserPreference
     val writtenKeys = mutableSetOf<String>()
     var tourCompleted: Boolean? = null
     var beepVolumeLevel: Int? = null
+    var trainerVoiceId: String? = null
     override fun readUserName(): String? = userName
     override fun writeUserName(name: String): Boolean {
         userName = name
@@ -193,6 +203,12 @@ private class InMemoryUserStorage(var userName: String? = null) : UserPreference
     override fun writeBeepVolumeLevel(level: Int): Boolean {
         beepVolumeLevel = level
         writtenKeys += "workout_beep_volume_level"
+        return true
+    }
+    override fun readTrainerVoiceId(): String? = trainerVoiceId
+    override fun writeTrainerVoiceId(voiceId: String): Boolean {
+        trainerVoiceId = voiceId
+        writtenKeys += "trainer_voice_id"
         return true
     }
 }

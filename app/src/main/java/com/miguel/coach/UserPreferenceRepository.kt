@@ -12,6 +12,8 @@ interface UserPreferenceStorage {
     fun writeTourCompleted(completed: Boolean): Boolean = false
     fun readBeepVolumeLevel(): Int? = null
     fun writeBeepVolumeLevel(level: Int): Boolean = false
+    fun readTrainerVoiceId(): String? = null
+    fun writeTrainerVoiceId(voiceId: String): Boolean = false
 }
 
 class SharedPreferencesUserStorage(
@@ -33,10 +35,16 @@ class SharedPreferencesUserStorage(
     override fun writeBeepVolumeLevel(level: Int): Boolean =
         preferences.edit().putInt(BEEP_VOLUME_LEVEL, level).commit()
 
+    override fun readTrainerVoiceId(): String? = preferences.getString(TRAINER_VOICE_ID, null)
+
+    override fun writeTrainerVoiceId(voiceId: String): Boolean =
+        preferences.edit().putString(TRAINER_VOICE_ID, voiceId).commit()
+
     private companion object {
         const val USER_NAME = "user_name"
         const val TOUR_COMPLETED = "onboarding_tour_completed_v17"
         const val BEEP_VOLUME_LEVEL = "workout_beep_volume_level"
+        const val TRAINER_VOICE_ID = "trainer_voice_id"
     }
 }
 
@@ -93,6 +101,10 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
 
     fun saveBeepVolumeLevel(level: Int): Boolean =
         storage.writeBeepVolumeLevel(normalizeBeepVolumeLevel(level))
+
+    fun loadTrainerVoiceId(): String = storage.readTrainerVoiceId().orEmpty()
+
+    fun saveTrainerVoiceId(voiceId: String): Boolean = storage.writeTrainerVoiceId(voiceId)
 }
 
 const val DEFAULT_BEEP_VOLUME_LEVEL = 1
