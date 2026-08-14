@@ -5,20 +5,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -32,6 +34,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -219,22 +224,22 @@ private fun TrainerVoiceDialog(
             ) {
                 TrainerVoiceRow(
                     label = "Predeterminada del dispositivo",
-                    secondary = null,
                     selected = temporaryVoiceId == DEFAULT_TRAINER_VOICE_ID,
                     onClick = {
                         selection.select(DEFAULT_TRAINER_VOICE_ID)
                         temporaryVoiceId = DEFAULT_TRAINER_VOICE_ID
-                    }
+                    },
+                    onPreview = { onPreview(selection.preview(DEFAULT_TRAINER_VOICE_ID).first) }
                 )
                 voices.forEach { voice ->
                     TrainerVoiceRow(
                         label = voice.label,
-                        secondary = voice.technicalName,
                         selected = temporaryVoiceId == voice.id,
                         onClick = {
                             selection.select(voice.id)
                             temporaryVoiceId = voice.id
-                        }
+                        },
+                        onPreview = { onPreview(selection.preview(voice.id).first) }
                     )
                 }
                 if (voices.isEmpty()) {
@@ -244,9 +249,6 @@ private fun TrainerVoiceDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-                TextButton(onClick = { onPreview(selection.preview().first) }) {
-                    Text("PROBAR VOZ")
                 }
             }
         },
@@ -260,17 +262,85 @@ private fun TrainerVoiceDialog(
 @Composable
 private fun TrainerVoiceRow(
     label: String,
-    secondary: String?,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onPreview: () -> Unit
 ) {
-    ListItem(
+    val containerColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        leadingContent = { RadioButton(selected = selected, onClick = onClick) },
-        headlineContent = { Text(label) },
-        supportingContent = secondary?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } }
-    )
+        colors = CardDefaults.cardColors(containerColor = containerColor, contentColor = contentColor)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                color = contentColor
+            )
+            IconButton(onClick = onPreview) {
+                Icon(
+                    imageVector = TrainerVoicePreviewIcon,
+                    contentDescription = trainerVoicePreviewDescription(label),
+                    modifier = Modifier.size(TRAINER_VOICE_PREVIEW_ICON_SIZE),
+                    tint = if (selected) contentColor else MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
 }
+
+internal val TRAINER_VOICE_PREVIEW_ICON_SIZE = 24.dp
+
+internal fun trainerVoicePreviewDescription(label: String): String =
+    if (label == "Predeterminada del dispositivo") {
+        "Probar voz predeterminada del dispositivo"
+    } else {
+        "Probar $label"
+    }
+
+private val TrainerVoicePreviewIcon: ImageVector = ImageVector.Builder(
+    name = "TrainerVoicePreview",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f
+).apply {
+    path {
+        moveTo(3f, 9f)
+        verticalLineTo(15f)
+        horizontalLineTo(7f)
+        lineTo(12f, 20f)
+        verticalLineTo(4f)
+        lineTo(7f, 9f)
+        close()
+        moveTo(16.5f, 12f)
+        curveTo(16.5f, 10.23f, 15.48f, 8.71f, 14f, 7.97f)
+        verticalLineTo(16.02f)
+        curveTo(15.48f, 15.29f, 16.5f, 13.77f, 16.5f, 12f)
+        close()
+        moveTo(14f, 3.23f)
+        verticalLineTo(5.29f)
+        curveTo(16.89f, 6.15f, 19f, 8.83f, 19f, 12f)
+        curveTo(19f, 15.17f, 16.89f, 17.85f, 14f, 18.71f)
+        verticalLineTo(20.77f)
+        curveTo(18.01f, 19.86f, 21f, 16.28f, 21f, 12f)
+        curveTo(21f, 7.72f, 18.01f, 4.14f, 14f, 3.23f)
+        close()
+    }
+}.build()
 
 @Composable
 internal fun BeepVolumeControl(level: Int, onLevelChanged: (Int) -> Unit) {

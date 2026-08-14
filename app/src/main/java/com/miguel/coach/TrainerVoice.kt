@@ -66,5 +66,5 @@ class TrainerVoiceSelection(initialVoiceId: String) {
 
     fun save(): String = temporaryVoiceId
 
-    fun preview(): Pair<String, String> = temporaryVoiceId to TRAINER_VOICE_SAMPLE
+    fun preview(voiceId: String): Pair<String, String> = voiceId to TRAINER_VOICE_SAMPLE
 }

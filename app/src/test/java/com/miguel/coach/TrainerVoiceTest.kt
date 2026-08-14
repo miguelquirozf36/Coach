@@ -80,7 +80,27 @@ class TrainerVoiceTest {
     fun previewUsesTemporaryVoiceAndExactPhrase() {
         val selection = TrainerVoiceSelection(DEFAULT_TRAINER_VOICE_ID)
         selection.select("preview-voice")
-        assertEquals("preview-voice" to "Preparado para entrenar.", selection.preview())
+        assertEquals("preview-voice" to "Preparado para entrenar.", selection.preview("preview-voice"))
+    }
+
+    @Test
+    fun previewingAnyRowDoesNotChangeTemporarySelection() {
+        val selection = TrainerVoiceSelection("saved")
+        selection.select("selected-row")
+        assertEquals("other-row" to TRAINER_VOICE_SAMPLE, selection.preview("other-row"))
+        assertEquals("selected-row", selection.temporaryVoiceId)
+        assertEquals(DEFAULT_TRAINER_VOICE_ID to TRAINER_VOICE_SAMPLE, selection.preview(DEFAULT_TRAINER_VOICE_ID))
+        assertEquals("selected-row", selection.temporaryVoiceId)
+    }
+
+    @Test
+    fun previewButtonsHaveAccessibleDescriptions() {
+        assertEquals(
+            "Probar voz predeterminada del dispositivo",
+            trainerVoicePreviewDescription("Predeterminada del dispositivo")
+        )
+        assertEquals("Probar Español (España) — Voz 2", trainerVoicePreviewDescription("Español (España) — Voz 2"))
+        assertEquals(24f, TRAINER_VOICE_PREVIEW_ICON_SIZE.value, 0f)
     }
 
     private fun voice(id: String, languageTag: String, requiresNetwork: Boolean = false) =
