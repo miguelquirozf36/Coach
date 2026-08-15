@@ -130,7 +130,7 @@ class TrainingEngine(
                 announceRepetition(activeSession)
             }
 
-            TrainingPhase.REPETITION_ANNOUNCEMENT -> startEccentricPhase(activeSession)
+            TrainingPhase.REPETITION_ANNOUNCEMENT -> continueAfterCompletedConcentric(activeSession)
             TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
             TrainingPhase.ISOMETRIC -> completeIsometricPhase(activeSession)
             TrainingPhase.REST -> announceNextSeries(activeSession)
@@ -282,12 +282,20 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
         voiceSpeaker.speak(workout.repetitionNumber.toString()) {
-            val exercise = workout.routine.exercises[workout.exerciseIndex]
-            if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
-                startIsometricPhase(activeSession)
-            } else {
-                startEccentricPhase(activeSession)
-            }
+            continueAfterCompletedConcentric(activeSession)
+        }
+    }
+
+    private fun continueAfterCompletedConcentric(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (workout.repetitionNumber >= exercise.repetitions) {
+            completeExecution(activeSession)
+        } else if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
+            startIsometricPhase(activeSession)
+        } else {
+            startEccentricPhase(activeSession)
         }
     }
 
@@ -378,7 +386,7 @@ class TrainingEngine(
         if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
             startEccentricPhase(activeSession)
         } else {
-            completeRepetition(activeSession)
+            prepareNextRepetition(activeSession)
         }
     }
 
@@ -391,18 +399,18 @@ class TrainingEngine(
             startIsometricPhase(activeSession)
             return
         }
-        completeRepetition(activeSession)
+        prepareNextRepetition(activeSession)
     }
 
-    private fun completeRepetition(activeSession: Long) {
+    private fun prepareNextRepetition(activeSession: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
+        startConcentricPhase(activeSession)
+    }
+
+    private fun completeExecution(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.repetitionNumber < exercise.repetitions) {
-            state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
-            startConcentricPhase(activeSession)
-            return
-        }
-
         val hasAnotherExecution = workout.currentSide == ExerciseSide.RIGHT ||
             workout.seriesNumber < exercise.sets
         if (hasAnotherExecution) {

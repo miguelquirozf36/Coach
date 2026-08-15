@@ -134,7 +134,7 @@ class TrainingEngineTest {
     @Test
     fun phaseDurationMatchesTheConcentricAndEccentricExerciseDurations() {
         val fixture = Fixture(
-            Exercise("timed", "Temporizado", 1, 1, 2, 3, 4)
+            Exercise("timed", "Temporizado", 1, 2, 2, 3, 4)
         )
 
         fixture.engine.start(fixture.routine)
@@ -437,14 +437,11 @@ class TrainingEngineTest {
         fixture.engine.skip()
         fixture.assertWorkout(TrainingPhase.REPETITION_ANNOUNCEMENT, 0, 0, 2, 1, false)
         assertEquals("1", fixture.voice.phrases.last())
-        val phraseCount = fixture.voice.phrases.size
+        val repetitionAnnouncementCount = fixture.voice.phrases.count { it == "1" }
 
         fixture.engine.skip()
-        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 2, 1, false)
-        assertEquals(phraseCount, fixture.voice.phrases.size)
-        fixture.engine.skip()
-
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertEquals(repetitionAnnouncementCount, fixture.voice.phrases.count { it == "1" })
         assertEquals(2, fixture.beep.playCalls)
     }
 
@@ -492,7 +489,7 @@ class TrainingEngineTest {
 
     @Test
     fun resumeDuringRepetitionAnnouncementReplaysOnlyTheCurrentAnnouncement() {
-        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4, repetitions = 2))
         fixture.startFirstConcentricPhase()
         fixture.scheduler.advance()
         val phrasesBeforePause = fixture.voice.phrases.size
@@ -608,9 +605,6 @@ class TrainingEngineTest {
         fixture.assertWorkout(TrainingPhase.REPETITION_ANNOUNCEMENT, 0, 0, 1, 1, false)
         assertEquals(1, fixture.voice.phrases.count { it == "1" })
         fixture.voice.completeLatest()
-        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, 1, false)
-
-        fixture.scheduler.advance()
 
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
         assertEquals(1, fixture.beep.playCalls)
@@ -635,18 +629,47 @@ class TrainingEngineTest {
             fixture.assertWorkout(TrainingPhase.REPETITION_ANNOUNCEMENT, 0, 0, 1, repetition, false)
             assertEquals(1, fixture.voice.phrases.count { it == repetition.toString() })
             fixture.voice.completeLatest()
-            fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, repetition, false)
-            eccentricRepetitions += fixture.currentWorkout().repetitionNumber
-            fixture.scheduler.advance()
+            if (repetition < 4) {
+                fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, repetition, false)
+                eccentricRepetitions += fixture.currentWorkout().repetitionNumber
+                fixture.scheduler.advance()
+            }
         }
 
         assertEquals(listOf(1, 2, 3, 4), concentricRepetitions)
-        assertEquals(listOf(1, 2, 3, 4), eccentricRepetitions)
+        assertEquals(listOf(1, 2, 3), eccentricRepetitions)
         assertEquals(4, fixture.beep.playCalls)
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
         assertEquals(1, fixture.voice.phrases.count { it == "Entrenamiento finalizado." })
         assertEquals(0, fixture.voice.pendingCompletionCount)
         assertEquals(false, fixture.scheduler.hasPendingActions)
+    }
+
+    @Test
+    fun fiveRepetitionsAreCountedAtConcentricCompletionWithoutAFinalEccentric() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 5, restSeconds = 1))
+        val completedAtConcentric = mutableListOf<Int>()
+        val eccentricRepetitions = mutableListOf<Int>()
+        fixture.startFirstConcentricPhase()
+
+        (1..5).forEach { repetition ->
+            fixture.scheduler.advance()
+            fixture.assertWorkout(TrainingPhase.REPETITION_ANNOUNCEMENT, 0, 0, 1, repetition, false)
+            completedAtConcentric += fixture.currentWorkout().repetitionNumber
+            assertEquals(repetition.toString(), fixture.voice.phrases.last())
+            fixture.voice.completeLatest()
+            if (repetition < 5) {
+                fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, repetition, false)
+                eccentricRepetitions += fixture.currentWorkout().repetitionNumber
+                fixture.scheduler.advance()
+            }
+        }
+
+        assertEquals(listOf(1, 2, 3, 4, 5), completedAtConcentric)
+        assertEquals(listOf(1, 2, 3, 4), eccentricRepetitions)
+        assertEquals(listOf("1", "2", "3", "4", "5"), fixture.voice.phrases.filter { it.toIntOrNull() != null })
+        assertEquals(5, fixture.beep.playCalls)
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
     }
 
     @Test
@@ -852,9 +875,11 @@ class TrainingEngineTest {
             fixture.scheduler.advance()
             assertEquals("voice:${index + 1}", fixture.events.last())
             fixture.voice.completeLatest()
-            fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, index + 1, false)
-            fixture.scheduler.advance()
-            if (index < 2) assertEquals("beep", fixture.events.last())
+            if (index < 2) {
+                fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, index + 1, false)
+                fixture.scheduler.advance()
+                assertEquals("beep", fixture.events.last())
+            }
         }
 
         fixture.assertWorkout(TrainingPhase.REST, 30, 0, 1, 3, false)
@@ -1204,7 +1229,7 @@ class TrainingEngineTest {
 
     @Test
     fun shortenedPauseRunsAfterTheNumberAndBeepsBeforeEccentric() {
-        val fixture = Fixture(seriesExercise(1, 1).copy(
+        val fixture = Fixture(seriesExercise(1, 1, repetitions = 2).copy(
             isometricPauseMode = IsometricPauseMode.SHORTENED,
             isometricDurationSeconds = 2
         ))
@@ -1220,13 +1245,16 @@ class TrainingEngineTest {
         fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, 1, false)
         assertEquals("beep", fixture.events.last())
         fixture.scheduler.advance()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 2, false)
+        fixture.scheduler.advance()
+        fixture.voice.completeLatest()
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
-        assertEquals(2, fixture.beep.playCalls)
+        assertEquals(3, fixture.beep.playCalls)
     }
 
     @Test
     fun stretchedPauseBeepsAfterEccentricAndHasNoExtraFinalBeep() {
-        val fixture = Fixture(seriesExercise(1, 1).copy(
+        val fixture = Fixture(seriesExercise(1, 1, repetitions = 2).copy(
             isometricPauseMode = IsometricPauseMode.STRETCHED,
             isometricDurationSeconds = 2
         ))
@@ -1238,13 +1266,16 @@ class TrainingEngineTest {
         fixture.scheduler.advance()
         fixture.scheduler.advance()
 
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 2, false)
+        fixture.scheduler.advance()
+        fixture.voice.completeLatest()
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
-        assertEquals(2, fixture.beep.playCalls)
+        assertEquals(3, fixture.beep.playCalls)
     }
 
     @Test
     fun isometricPauseUsesMonotonicDeadlineAndResumesWithFractionalTimeRemaining() {
-        val fixture = Fixture(seriesExercise(1, 1).copy(
+        val fixture = Fixture(seriesExercise(1, 1, repetitions = 2).copy(
             isometricPauseMode = IsometricPauseMode.STRETCHED,
             isometricDurationSeconds = 2
         ))
@@ -1262,13 +1293,13 @@ class TrainingEngineTest {
         fixture.engine.resume()
         fixture.scheduler.fireAfter(1_400)
 
-        assertEquals(TrainingUiState.Completed, fixture.engine.state)
-        assertEquals(2, fixture.beep.playCalls)
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 2, false)
+        assertEquals(3, fixture.beep.playCalls)
     }
 
     @Test
     fun oneSideAtATimeAppliesIsometricPauseOnRightAndLeft() {
-        val fixture = Fixture(seriesExercise(1, 0).copy(
+        val fixture = Fixture(seriesExercise(1, 0, repetitions = 2).copy(
             executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
             isometricPauseMode = IsometricPauseMode.SHORTENED,
             isometricDurationSeconds = 1
@@ -1280,6 +1311,9 @@ class TrainingEngineTest {
             assertEquals(TrainingPhase.ISOMETRIC, fixture.currentWorkout().phase)
             fixture.scheduler.advance()
             fixture.scheduler.advance()
+            fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 2, false)
+            fixture.scheduler.advance()
+            fixture.voice.completeLatest()
             if (execution == 0) {
                 fixture.scheduler.advance()
                 fixture.voice.completeLatest()
@@ -1432,7 +1466,9 @@ class TrainingEngineTest {
             scheduler.advance()
             assertWorkout(TrainingPhase.REPETITION_ANNOUNCEMENT, 0, currentExerciseIndex(), currentSeries(), currentRepetition(), false)
             voice.completeLatest()
-            repeat(1) { scheduler.advance() }
+            if ((engine.state as? TrainingUiState.Workout)?.phase == TrainingPhase.ECCENTRIC) {
+                scheduler.advance()
+            }
         }
 
         fun assertWorkout(
