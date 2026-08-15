@@ -2,10 +2,20 @@ package com.miguel.coach
 
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.IntSize
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WorkoutLayoutTest {
+    @Test
+    fun loadEditingKeepsThePreImeWorkoutGeometryOnlyWhileFocused() {
+        val preImeSize = IntSize(1080, 2400)
+
+        assertEquals(preImeSize, workoutSizeDuringLoadEditing(true, preImeSize))
+        assertEquals(null, workoutSizeDuringLoadEditing(false, preImeSize))
+        assertEquals(null, workoutSizeDuringLoadEditing(true, IntSize.Zero))
+    }
+
     @Test
     fun workoutMetricsKeepTheExistingDynamicValues() {
         assertEquals(

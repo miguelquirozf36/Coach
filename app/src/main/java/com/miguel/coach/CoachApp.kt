@@ -22,9 +22,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -87,6 +87,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.draw.drawBehind
@@ -97,6 +98,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.SpanStyle
@@ -107,6 +109,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.min
@@ -1724,13 +1727,17 @@ fun WorkoutScreen(
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
     var showFinishConfirmation by rememberSaveable { mutableStateOf(false) }
+    var loadInputFocused by remember { mutableStateOf(false) }
+    var workoutSizeWithoutIme by remember { mutableStateOf(IntSize.Zero) }
     val activityWindow = LocalContext.current.findActivity()?.window
+    val density = LocalDensity.current
 
-    DisposableEffect(activityWindow) {
-        val previousSoftInputMode = activityWindow?.attributes?.softInputMode
-        activityWindow?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+    DisposableEffect(activityWindow, loadInputFocused) {
+        if (!loadInputFocused || activityWindow == null) return@DisposableEffect onDispose {}
+        val previousSoftInputMode = activityWindow.attributes.softInputMode
+        activityWindow.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         onDispose {
-            previousSoftInputMode?.let(activityWindow::setSoftInputMode)
+            activityWindow.setSoftInputMode(previousSoftInputMode)
         }
     }
 
@@ -1767,6 +1774,19 @@ fun WorkoutScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .then(
+                workoutSizeDuringLoadEditing(loadInputFocused, workoutSizeWithoutIme)?.let { stableSize ->
+                    with(density) {
+                        Modifier.requiredSize(
+                            stableSize.width.toDp(),
+                            stableSize.height.toDp()
+                        )
+                    }
+                } ?: Modifier
+            )
+            .onSizeChanged { size ->
+                if (!loadInputFocused) workoutSizeWithoutIme = size
+            }
             .padding(WindowInsets.safeDrawing.asPaddingValues())
     ) {
         val metrics = workoutMetricTexts(
@@ -1783,6 +1803,7 @@ fun WorkoutScreen(
                 metrics = metrics,
                 ringDiameter = workoutRingDiameter(maxWidth, maxHeight),
                 onLoadChange = onLoadChange,
+                onLoadFocusChanged = { loadInputFocused = it },
                 onPause = onPause,
                 onResume = onResume,
                 onSkip = onSkip,
@@ -1794,6 +1815,7 @@ fun WorkoutScreen(
                 metrics = metrics,
                 ringDiameter = landscapeWorkoutRingDiameter(maxWidth * 0.4f, maxHeight),
                 onLoadChange = onLoadChange,
+                onLoadFocusChanged = { loadInputFocused = it },
                 onPause = onPause,
                 onResume = onResume,
                 onSkip = onSkip,
@@ -1808,6 +1830,11 @@ internal enum class WorkoutLayout { PORTRAIT, LANDSCAPE }
 internal fun workoutLayoutFor(width: Dp, height: Dp): WorkoutLayout =
     if (width > height) WorkoutLayout.LANDSCAPE else WorkoutLayout.PORTRAIT
 
+internal fun workoutSizeDuringLoadEditing(
+    loadInputFocused: Boolean,
+    sizeWithoutIme: IntSize
+): IntSize? = sizeWithoutIme.takeIf { loadInputFocused && it != IntSize.Zero }
+
 @Composable
 private fun WorkoutPortraitLayout(
     state: TrainingUiState.Workout,
@@ -1815,6 +1842,7 @@ private fun WorkoutPortraitLayout(
     metrics: WorkoutMetricTexts,
     ringDiameter: Dp,
     onLoadChange: (String) -> Unit,
+    onLoadFocusChanged: (Boolean) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onSkip: () -> Unit,
@@ -1831,10 +1859,10 @@ private fun WorkoutPortraitLayout(
             WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE)
             if (state.phase == TrainingPhase.WARMUP) {
                 WorkoutLoadPreparationLabel(exercise.name)
-                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange, onLoadFocusChanged)
             } else {
                 WorkoutMetricsCard(metrics)
-                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange, onLoadFocusChanged)
             }
         }
         Box(modifier = Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
@@ -1869,6 +1897,7 @@ private fun WorkoutLandscapeLayout(
     metrics: WorkoutMetricTexts,
     ringDiameter: Dp,
     onLoadChange: (String) -> Unit,
+    onLoadFocusChanged: (Boolean) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onSkip: () -> Unit,
@@ -1890,7 +1919,7 @@ private fun WorkoutLandscapeLayout(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 LandscapeWorkoutMetrics(metrics = metrics)
-                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange, onLoadFocusChanged)
             }
         } else {
             Column(
@@ -1898,7 +1927,7 @@ private fun WorkoutLandscapeLayout(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 WorkoutLoadPreparationLabel(exercise.name)
-                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange, onLoadFocusChanged)
             }
         }
         Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1978,7 +2007,8 @@ private fun WorkoutExerciseNotes(state: TrainingUiState.Workout, maxLines: Int) 
 private fun WorkoutLoadCard(
     currentLoad: String,
     previousLoad: String?,
-    onLoadChange: (String) -> Unit
+    onLoadChange: (String) -> Unit,
+    onFocusChanged: (Boolean) -> Unit
 ) {
     val loadInteractionSource = remember { MutableInteractionSource() }
     val loadFieldColors = OutlinedTextFieldDefaults.colors()
@@ -1990,7 +2020,7 @@ private fun WorkoutLoadCard(
         )
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -2003,7 +2033,10 @@ private fun WorkoutLoadCard(
                 BasicTextField(
                     value = currentLoad,
                     onValueChange = onLoadChange,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .onFocusChanged { onFocusChanged(it.isFocused) },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurface
@@ -2012,21 +2045,25 @@ private fun WorkoutLoadCard(
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     interactionSource = loadInteractionSource,
                     decorationBox = { innerTextField ->
-                        OutlinedTextFieldDefaults.DecorationBox(
-                            value = currentLoad,
-                            innerTextField = innerTextField,
-                            enabled = true,
-                            singleLine = true,
-                            visualTransformation = VisualTransformation.None,
-                            interactionSource = loadInteractionSource,
-                            colors = loadFieldColors,
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                        )
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Box(modifier = Modifier.fillMaxWidth().height(38.dp)) {
+                                OutlinedTextFieldDefaults.DecorationBox(
+                                    value = currentLoad,
+                                    innerTextField = innerTextField,
+                                    enabled = true,
+                                    singleLine = true,
+                                    visualTransformation = VisualTransformation.None,
+                                    interactionSource = loadInteractionSource,
+                                    colors = loadFieldColors,
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                )
+                            }
+                        }
                     }
                 )
             }
             VerticalDivider(
-                modifier = Modifier.height(48.dp),
+                modifier = Modifier.height(40.dp),
                 color = workoutMetricDividerColor(MaterialTheme.colorScheme)
             )
             Column(modifier = Modifier.weight(0.85f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
