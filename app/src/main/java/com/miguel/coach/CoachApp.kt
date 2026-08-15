@@ -2029,11 +2029,11 @@ private fun WorkoutLoadCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 10.dp, top = 3.dp, end = 10.dp, bottom = 1.dp),
+                .padding(horizontal = 10.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.weight(1.35f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     "CARGA ACTUAL",
                     style = MaterialTheme.typography.labelMedium,
@@ -2075,13 +2075,20 @@ private fun WorkoutLoadCard(
                 modifier = Modifier.height(38.dp),
                 color = workoutMetricDividerColor(MaterialTheme.colorScheme)
             )
-            Column(modifier = Modifier.weight(0.85f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
                 Text(
                     "ANTERIOR",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Box(modifier = Modifier.height(48.dp), contentAlignment = Alignment.CenterStart) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
                     Text(
                         previousLoad ?: "—",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
