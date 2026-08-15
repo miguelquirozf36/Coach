@@ -27,6 +27,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.waterfall
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1785,7 +1789,12 @@ fun WorkoutScreen(
             .onSizeChanged { size ->
                 if (!loadInputFocused) workoutSizeWithoutIme = size
             }
-            .padding(WindowInsets.safeDrawing.asPaddingValues())
+            .padding(
+                WindowInsets.systemBars
+                    .union(WindowInsets.displayCutout)
+                    .union(WindowInsets.waterfall)
+                    .asPaddingValues()
+            )
     ) {
         val metrics = workoutMetricTexts(
             seriesNumber = state.seriesNumber,
@@ -2020,7 +2029,7 @@ private fun WorkoutLoadCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 10.dp, top = 4.dp, end = 10.dp, bottom = 0.dp),
+                .padding(horizontal = 10.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
