@@ -2029,7 +2029,7 @@ private fun WorkoutLoadCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 2.dp),
+                .padding(start = 10.dp, top = 3.dp, end = 10.dp, bottom = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -2104,7 +2104,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 private fun WorkoutLoadPreparationLabel(exerciseName: String) {
     Text(
         text = "Siguiente: $exerciseName",
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
