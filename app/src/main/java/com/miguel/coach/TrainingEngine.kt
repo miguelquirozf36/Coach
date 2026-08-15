@@ -530,11 +530,7 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        val nextSide = when (workout.currentSide) {
-            ExerciseSide.RIGHT -> ExerciseSide.LEFT
-            ExerciseSide.LEFT -> ExerciseSide.RIGHT
-            null -> null
-        }
+        val nextSide = workout.currentSide.nextSide()
         val nextSeries = if (workout.currentSide == ExerciseSide.RIGHT) {
             workout.seriesNumber
         } else {
@@ -663,5 +659,11 @@ private fun Exercise.initialSide(): ExerciseSide? =
 internal fun ExerciseSide?.displayLabel(): String? = when (this) {
     ExerciseSide.RIGHT -> "Lado derecho"
     ExerciseSide.LEFT -> "Lado izquierdo"
+    null -> null
+}
+
+internal fun ExerciseSide?.nextSide(): ExerciseSide? = when (this) {
+    ExerciseSide.RIGHT -> ExerciseSide.LEFT
+    ExerciseSide.LEFT -> ExerciseSide.RIGHT
     null -> null
 }

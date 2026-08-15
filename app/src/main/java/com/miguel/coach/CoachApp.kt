@@ -2204,8 +2204,14 @@ internal fun usefulAreaCenter(
 @Composable
 private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhaseLabel: Boolean) {
     val timerText = state.secondsRemaining.toClockFormat()
-    val sideLabel = state.currentSide.displayLabel()
-    val supportingText = workoutTimerSupportingText(sideLabel, state.phase.label, showPhaseLabel)
+    val visibleSide = workoutTimerSide(state.phase, state.secondsRemaining, state.currentSide)
+    val sideLabel = visibleSide.displayLabel()
+    val supportingText = workoutTimerSupportingText(
+        sideLabel = sideLabel,
+        phaseLabel = state.phase.label,
+        showPhaseLabel = showPhaseLabel,
+        hasUnilateralContext = state.currentSide != null
+    )
     var frameTimeMillis by remember(state.phaseStartedAtMillis, state.phasePausedAtMillis) {
         mutableStateOf(state.phasePausedAtMillis ?: state.phaseStartedAtMillis)
     }
@@ -2286,8 +2292,21 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
 internal fun workoutTimerSupportingText(
     sideLabel: String?,
     phaseLabel: String?,
-    showPhaseLabel: Boolean
-): String? = sideLabel ?: if (showPhaseLabel) phaseLabel.orEmpty().uppercase() else null
+    showPhaseLabel: Boolean,
+    hasUnilateralContext: Boolean
+): String? = sideLabel ?: if (showPhaseLabel && !hasUnilateralContext) phaseLabel.orEmpty().uppercase() else null
+
+internal fun workoutTimerSide(
+    phase: TrainingPhase,
+    secondsRemaining: Int,
+    currentSide: ExerciseSide?
+): ExerciseSide? = when (phase) {
+    TrainingPhase.WARMUP,
+    TrainingPhase.COUNTDOWN,
+    TrainingPhase.REST_BETWEEN_EXERCISES -> currentSide.takeIf { secondsRemaining <= 10 }
+    TrainingPhase.REST -> currentSide.nextSide().takeIf { secondsRemaining <= 10 }
+    else -> currentSide
+}
 
 internal fun workoutRemainingFraction(state: TrainingUiState.Workout, nowMillis: Long): Float {
     val durationMillis = state.phaseDurationSeconds.coerceAtLeast(0) * 1_000L

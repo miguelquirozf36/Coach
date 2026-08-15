@@ -159,14 +159,53 @@ class WorkoutLayoutTest {
 
     @Test
     fun unilateralSideReplacesOrAddsTheTimerSupportingText() {
-        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", false))
-        assertEquals("Lado izquierdo", workoutTimerSupportingText("Lado izquierdo", "Excéntrica", false))
-        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", true))
+        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", false, true))
+        assertEquals("Lado izquierdo", workoutTimerSupportingText("Lado izquierdo", "Excéntrica", false, true))
+        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", true, true))
     }
 
     @Test
     fun bilateralTimerKeepsItsExistingOrientationBehavior() {
-        assertEquals(null, workoutTimerSupportingText(null, "Concéntrica", false))
-        assertEquals("CONCÉNTRICA", workoutTimerSupportingText(null, "Concéntrica", true))
+        assertEquals(null, workoutTimerSupportingText(null, "Concéntrica", false, false))
+        assertEquals("CONCÉNTRICA", workoutTimerSupportingText(null, "Concéntrica", true, false))
+    }
+
+    @Test
+    fun activeExecutionShowsTheCurrentSide() {
+        assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.LEFT, workoutTimerSide(TrainingPhase.ECCENTRIC, 3, ExerciseSide.LEFT))
+        assertEquals(ExerciseSide.LEFT, workoutTimerSide(TrainingPhase.ISOMETRIC, 3, ExerciseSide.LEFT))
+    }
+
+    @Test
+    fun restHidesTheSideUntilTheFinalTenSecondsThenShowsTheNextSide() {
+        assertEquals(null, workoutTimerSide(TrainingPhase.REST, 30, ExerciseSide.RIGHT))
+        assertEquals(null, workoutTimerSide(TrainingPhase.REST, 11, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.LEFT, workoutTimerSide(TrainingPhase.REST, 10, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.REST, 10, ExerciseSide.LEFT))
+        assertEquals(ExerciseSide.LEFT, workoutTimerSide(TrainingPhase.REST, 8, ExerciseSide.RIGHT))
+    }
+
+    @Test
+    fun warmupAndCountdownPrepareTheExistingFirstSideAtTheThreshold() {
+        assertEquals(null, workoutTimerSide(TrainingPhase.WARMUP, 11, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.WARMUP, 10, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.WARMUP, 3, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.COUNTDOWN, 10, ExerciseSide.RIGHT))
+        assertEquals(null, workoutTimerSide(TrainingPhase.WARMUP, 3, null))
+        assertEquals(null, workoutTimerSide(TrainingPhase.COUNTDOWN, 10, null))
+    }
+
+    @Test
+    fun betweenExerciseRestPreparesOnlyAnUpcomingUnilateralExercise() {
+        assertEquals(null, workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 11, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 10, ExerciseSide.RIGHT))
+        assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 3, ExerciseSide.RIGHT))
+        assertEquals(null, workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 3, null))
+    }
+
+    @Test
+    fun unilateralLandscapeDoesNotFallBackToPhaseWhileSideIsHidden() {
+        assertEquals(null, workoutTimerSupportingText(null, "Descanso", true, true))
     }
 }
