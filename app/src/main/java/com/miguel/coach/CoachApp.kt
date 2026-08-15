@@ -1806,7 +1806,7 @@ private fun WorkoutPortraitLayout(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE, notesMaxLines = 3)
+            WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE)
             if (state.phase != TrainingPhase.WARMUP) WorkoutMetricsCard(metrics)
         }
         Box(modifier = Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
@@ -1848,7 +1848,7 @@ private fun WorkoutLandscapeLayout(
                 .fillMaxWidth(0.6f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = 1, notesMaxLines = 1)
+            WorkoutHeader(state, exercise, nameMaxLines = 1)
         }
         if (state.phase != TrainingPhase.WARMUP) {
             LandscapeWorkoutMetrics(
@@ -1877,8 +1877,7 @@ private fun WorkoutLandscapeLayout(
 private fun WorkoutHeader(
     state: TrainingUiState.Workout,
     exercise: Exercise,
-    nameMaxLines: Int,
-    notesMaxLines: Int
+    nameMaxLines: Int
 ) {
     Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
     if (state.phase == TrainingPhase.WARMUP) {
@@ -1909,15 +1908,6 @@ private fun WorkoutHeader(
                 Text(side, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
             }
         }
-    }
-    if (state.phase != TrainingPhase.WARMUP && state.currentExerciseNotes.isNotBlank()) {
-        Text(
-            state.currentExerciseNotes,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = notesMaxLines,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 
@@ -1975,6 +1965,11 @@ private fun WorkoutControls(
 ) {
     val buttonHeight = if (compact) 44.dp else 56.dp
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 8.dp)) {
+        if (state.phase != TrainingPhase.WARMUP) {
+            workoutNoteText(state.currentExerciseNotes)?.let { note ->
+                WorkoutNote(note)
+            }
+        }
         Button(
             modifier = Modifier.fillMaxWidth().height(buttonHeight),
             shape = RoundedCornerShape(16.dp),
@@ -2000,6 +1995,39 @@ private fun WorkoutControls(
             onClick = onRequestFinish
         ) { WorkoutButtonContent(StopIcon, stringResource(R.string.finish_workout)) }
     }
+}
+
+@Composable
+private fun WorkoutNote(note: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = "NOTA:",
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = note,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+internal fun workoutNoteText(notes: String): String? {
+    val firstVisibleCharacterIndex = notes.indexOfFirst { !it.isWhitespace() }
+    if (firstVisibleCharacterIndex == -1) return null
+    return notes.replaceRange(
+        firstVisibleCharacterIndex,
+        firstVisibleCharacterIndex + 1,
+        notes[firstVisibleCharacterIndex].titlecase()
+    )
 }
 
 internal fun workoutPauseAction(isPaused: Boolean, onPause: () -> Unit, onResume: () -> Unit): () -> Unit =

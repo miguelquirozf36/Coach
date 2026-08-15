@@ -140,4 +140,20 @@ class WorkoutLayoutTest {
         assertEquals(1, paused)
         assertEquals(1, resumed)
     }
+
+    @Test
+    fun workoutNoteCapitalizesOnlyItsFirstVisibleCharacter() {
+        assertEquals(
+            "  Recuerda no abrir los Codos",
+            workoutNoteText("  recuerda no abrir los Codos")
+        )
+        assertEquals("Ángulo estable", workoutNoteText("ángulo estable"))
+        assertEquals("YA estaba así", workoutNoteText("YA estaba así"))
+    }
+
+    @Test
+    fun blankWorkoutNoteDoesNotProduceVisibleContent() {
+        assertEquals(null, workoutNoteText(""))
+        assertEquals(null, workoutNoteText(" \t\n"))
+    }
 }
