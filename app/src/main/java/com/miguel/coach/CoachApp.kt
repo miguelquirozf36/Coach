@@ -2238,6 +2238,7 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
     Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val stroke = Stroke(width = 14.dp.toPx())
+            val progressStroke = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
             drawArc(
                 color = trackColor,
                 startAngle = -90f,
@@ -2250,7 +2251,7 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
                 startAngle = -90f,
                 sweepAngle = 360f * progress,
                 useCenter = false,
-                style = stroke
+                style = progressStroke
             )
         }
         if (showPhaseLabel) {
