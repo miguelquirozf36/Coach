@@ -9,9 +9,21 @@ import org.junit.Test
 class WorkoutLayoutTest {
     @Test
     fun loadEditingKeepsThePreImeWorkoutGeometryOnlyWhileFocused() {
-        val preImeSize = IntSize(1080, 2400)
+        val preImeSize = IntSize(400, 800)
+        val imeReducedSize = IntSize(400, 300)
+        val focusedSize = workoutSizeDuringLoadEditing(true, preImeSize)!!
 
-        assertEquals(preImeSize, workoutSizeDuringLoadEditing(true, preImeSize))
+        assertEquals(preImeSize, focusedSize)
+        assertEquals(
+            workoutLayoutFor(preImeSize.width.dp, preImeSize.height.dp),
+            workoutLayoutFor(focusedSize.width.dp, focusedSize.height.dp)
+        )
+        assertEquals(
+            workoutRingDiameter(preImeSize.width.dp, preImeSize.height.dp),
+            workoutRingDiameter(focusedSize.width.dp, focusedSize.height.dp)
+        )
+        assertEquals(WorkoutLayout.LANDSCAPE, workoutLayoutFor(imeReducedSize.width.dp, imeReducedSize.height.dp))
+        assertEquals(160.dp, workoutRingDiameter(imeReducedSize.width.dp, imeReducedSize.height.dp))
         assertEquals(null, workoutSizeDuringLoadEditing(false, preImeSize))
         assertEquals(null, workoutSizeDuringLoadEditing(true, IntSize.Zero))
     }

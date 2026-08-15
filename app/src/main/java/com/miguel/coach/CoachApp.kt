@@ -1771,19 +1771,17 @@ fun WorkoutScreen(
         )
     }
 
+    val workoutSizeModifier = workoutSizeDuringLoadEditing(
+        loadInputFocused,
+        workoutSizeWithoutIme
+    )?.let { stableSize ->
+        with(density) {
+            Modifier.requiredSize(stableSize.width.toDp(), stableSize.height.toDp())
+        }
+    } ?: Modifier.fillMaxSize()
+
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(
-                workoutSizeDuringLoadEditing(loadInputFocused, workoutSizeWithoutIme)?.let { stableSize ->
-                    with(density) {
-                        Modifier.requiredSize(
-                            stableSize.width.toDp(),
-                            stableSize.height.toDp()
-                        )
-                    }
-                } ?: Modifier
-            )
+        modifier = workoutSizeModifier
             .onSizeChanged { size ->
                 if (!loadInputFocused) workoutSizeWithoutIme = size
             }
@@ -2020,7 +2018,9 @@ private fun WorkoutLoadCard(
         )
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 10.dp, top = 4.dp, end = 10.dp, bottom = 0.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -2063,21 +2063,23 @@ private fun WorkoutLoadCard(
                 )
             }
             VerticalDivider(
-                modifier = Modifier.height(40.dp),
+                modifier = Modifier.height(38.dp),
                 color = workoutMetricDividerColor(MaterialTheme.colorScheme)
             )
-            Column(modifier = Modifier.weight(0.85f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(modifier = Modifier.weight(0.85f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     "ANTERIOR",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    previousLoad ?: "—",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Box(modifier = Modifier.height(48.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(
+                        previousLoad ?: "—",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
