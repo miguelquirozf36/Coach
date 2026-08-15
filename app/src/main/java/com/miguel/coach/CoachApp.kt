@@ -1753,7 +1753,11 @@ fun WorkoutScreen(
         val metrics = workoutMetricTexts(
             seriesNumber = state.seriesNumber,
             seriesTotal = exercise.sets,
-            repetitionNumber = state.repetitionNumber,
+            repetitionNumber = workoutCompletedRepetitions(
+                repetitionNumber = state.repetitionNumber,
+                phase = state.phase,
+                isStartingExecution = state.isStartingExecution
+            ),
             repetitionTotal = exercise.repetitions,
             phase = workoutMetricPhaseLabel(state.phase)
         )
@@ -2044,6 +2048,19 @@ internal fun workoutMetricTexts(
     repetition = "$repetitionNumber de $repetitionTotal",
     phase = phase
 )
+
+internal fun workoutCompletedRepetitions(
+    repetitionNumber: Int,
+    phase: TrainingPhase,
+    isStartingExecution: Boolean = false
+): Int = when {
+    phase == TrainingPhase.WARMUP ||
+        phase == TrainingPhase.COUNTDOWN ||
+        phase == TrainingPhase.REST_BETWEEN_EXERCISES ||
+        isStartingExecution -> 0
+    phase == TrainingPhase.CONCENTRIC -> (repetitionNumber - 1).coerceAtLeast(0)
+    else -> repetitionNumber
+}
 
 @Composable
 private fun WorkoutMetricsCard(metrics: WorkoutMetricTexts) {

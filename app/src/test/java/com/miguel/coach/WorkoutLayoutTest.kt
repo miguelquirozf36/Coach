@@ -7,6 +7,81 @@ import org.junit.Test
 
 class WorkoutLayoutTest {
     @Test
+    fun repetitionCounterChangesAtTheSameBoundaryAsTheVoice() {
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.CONCENTRIC))
+        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.REPETITION_ANNOUNCEMENT))
+        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.ECCENTRIC))
+        assertEquals(1, workoutCompletedRepetitions(2, TrainingPhase.CONCENTRIC))
+        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT))
+        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.ECCENTRIC))
+        assertEquals(2, workoutCompletedRepetitions(3, TrainingPhase.CONCENTRIC))
+        assertEquals(3, workoutCompletedRepetitions(3, TrainingPhase.REPETITION_ANNOUNCEMENT))
+    }
+
+    @Test
+    fun beepAndReturnPhasesKeepTheLastSpokenRepetition() {
+        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.ECCENTRIC))
+        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.ISOMETRIC))
+        assertEquals(1, workoutCompletedRepetitions(2, TrainingPhase.CONCENTRIC))
+    }
+
+    @Test
+    fun shortenedAndStretchedIsometricsDoNotDoubleCount() {
+        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.ISOMETRIC))
+        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.ECCENTRIC))
+        assertEquals(2, workoutCompletedRepetitions(3, TrainingPhase.CONCENTRIC))
+    }
+
+    @Test
+    fun lastConcentricShowsTheTotalBeforeRest() {
+        assertEquals(9, workoutCompletedRepetitions(10, TrainingPhase.CONCENTRIC))
+        assertEquals(10, workoutCompletedRepetitions(10, TrainingPhase.REPETITION_ANNOUNCEMENT))
+        assertEquals(10, workoutCompletedRepetitions(10, TrainingPhase.REST))
+    }
+
+    @Test
+    fun bilateralAndBothUnilateralSidesShareTheCompletedCountSemantics() {
+        val bilateral = workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT)
+        val rightSide = workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT)
+        val leftSide = workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT)
+
+        assertEquals(2, bilateral)
+        assertEquals(bilateral, rightSide)
+        assertEquals(bilateral, leftSide)
+    }
+
+    @Test
+    fun sideSeriesAndExerciseTransitionsResetBeforeTheirFirstConcentricCompletes() {
+        assertEquals(3, workoutCompletedRepetitions(3, TrainingPhase.REST))
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST, isStartingExecution = true))
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.CONCENTRIC))
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST_BETWEEN_EXERCISES))
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST_BETWEEN_EXERCISES, isStartingExecution = true))
+    }
+
+    @Test
+    fun warmupCountdownPauseAndResumeDoNotInventCompletedRepetitions() {
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.WARMUP))
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.COUNTDOWN))
+        TrainingPhase.entries.forEach { phase ->
+            val beforePause = workoutCompletedRepetitions(2, phase)
+            val afterResume = workoutCompletedRepetitions(2, phase)
+            assertEquals(beforePause, afterResume)
+        }
+    }
+
+    @Test
+    fun portraitAndLandscapeRenderTheSameCompletedRepetitionText() {
+        val completed = workoutCompletedRepetitions(3, TrainingPhase.REPETITION_ANNOUNCEMENT)
+        val sharedMetrics = workoutMetricTexts(1, 1, completed, 10, "Concéntrica")
+        val portraitText = sharedMetrics.repetition
+        val landscapeText = sharedMetrics.repetition
+
+        assertEquals("3 de 10", portraitText)
+        assertEquals(portraitText, landscapeText)
+    }
+
+    @Test
     fun workoutMetricsKeepTheExistingDynamicValues() {
         assertEquals(
             WorkoutMetricTexts("2 de 4", "7 de 12", "Concéntrica"),
