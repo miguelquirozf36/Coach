@@ -12,7 +12,6 @@ class TrainingEngine(
     private val beepPlayer: BeepSoundPlayer,
     private val scheduler: TrainingScheduler = AndroidTrainingScheduler(),
     private val monotonicClock: MonotonicClock = SystemMonotonicClock,
-    private val loadHistory: WorkoutLoadHistory = NoWorkoutLoadHistory,
     private val onStateChanged: (TrainingUiState) -> Unit = {}
 ) {
     private var mutableState by mutableStateOf<TrainingUiState>(TrainingUiState.Home)
@@ -49,7 +48,6 @@ class TrainingEngine(
         val sessionRoutine = routine.copy(exercises = routine.exercises.toList())
         val hasWarmup = useRoutineWarmup && sessionRoutine.warmupSeconds > 0
         val initialExercise = sessionRoutine.exercises[exerciseIndex]
-        val previousLoad = loadHistory.previousLoad(initialExercise.id)
         state = TrainingUiState.Workout(
             routine = sessionRoutine,
             exerciseIndex = exerciseIndex,
@@ -62,9 +60,7 @@ class TrainingEngine(
             phasePausedAtMillis = null,
             isPaused = false,
             currentExerciseNotes = initialExercise.notes,
-            currentSide = initialExercise.initialSide(),
-            currentLoad = previousLoad.orEmpty(),
-            previousLoad = previousLoad
+            currentSide = initialExercise.initialSide()
         )
         resetTimedAnnouncements(if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS)
         if (hasWarmup) {
@@ -147,11 +143,6 @@ class TrainingEngine(
         invalidatePendingWork()
         clearStartDelay()
         state = TrainingUiState.Home
-    }
-
-    fun updateCurrentLoad(load: String) {
-        val workout = state as? TrainingUiState.Workout ?: return
-        state = workout.copy(currentLoad = load)
     }
 
     private fun beginNewSession() {
@@ -402,17 +393,12 @@ class TrainingEngine(
     }
 
     private fun completeRepetition(activeSession: Long) {
-        var workout = activeWorkout(activeSession) ?: return
+        val workout = activeWorkout(activeSession) ?: return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (workout.repetitionNumber < exercise.repetitions) {
             state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
             startConcentricPhase(activeSession)
             return
-        }
-
-        if (workout.currentSide != ExerciseSide.RIGHT) {
-            workout = workout.withConsolidatedCurrentSeries(exercise.id)
-            state = workout
         }
 
         val hasAnotherExecution = workout.currentSide == ExerciseSide.RIGHT ||
@@ -433,9 +419,7 @@ class TrainingEngine(
 
         if (workout.exerciseIndex < workout.routine.exercises.lastIndex) {
             val nextExerciseIndex = workout.exerciseIndex + 1
-            val nextExercise = workout.routine.exercises[nextExerciseIndex]
-            val nextExerciseName = nextExercise.name
-            val previousLoad = loadHistory.previousLoad(nextExercise.id)
+            val nextExerciseName = workout.routine.exercises[nextExerciseIndex].name
             state = workout.copy(
                 exerciseIndex = nextExerciseIndex,
                 seriesNumber = 1,
@@ -445,9 +429,7 @@ class TrainingEngine(
                 secondsRemaining = workout.routine.restBetweenExercisesSeconds,
                 phaseDurationSeconds = workout.routine.restBetweenExercisesSeconds,
                 phaseStartedAtMillis = monotonicClock.nowMillis(),
-                phasePausedAtMillis = null,
-                currentLoad = previousLoad.orEmpty(),
-                previousLoad = previousLoad
+                phasePausedAtMillis = null
             )
             voiceSpeaker.speak("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
             resetTimedAnnouncements(workout.routine.restBetweenExercisesSeconds)
@@ -579,9 +561,7 @@ class TrainingEngine(
     }
 
     private fun completeTraining() {
-        val workout = state as? TrainingUiState.Workout ?: return
         invalidatePendingWork()
-        loadHistory.saveCompletedSession(workout.seriesLoads)
         state = TrainingUiState.Completed
         voiceSpeaker.speak(TRAINING_COMPLETE_ANNOUNCEMENT)
     }
@@ -673,18 +653,8 @@ sealed interface TrainingUiState {
         val phasePausedAtMillis: Long?,
         val isPaused: Boolean,
         val currentExerciseNotes: String,
-        val currentSide: ExerciseSide? = null,
-        val currentLoad: String = "",
-        val previousLoad: String? = null,
-        val seriesLoads: List<SeriesLoadRecord> = emptyList()
+        val currentSide: ExerciseSide? = null
     ) : TrainingUiState
-}
-
-private fun TrainingUiState.Workout.withConsolidatedCurrentSeries(exerciseId: String): TrainingUiState.Workout {
-    val record = SeriesLoadRecord(exerciseId, seriesNumber, currentLoad)
-    return copy(seriesLoads = seriesLoads.filterNot {
-        it.exerciseId == exerciseId && it.seriesNumber == seriesNumber
-    } + record)
 }
 
 private fun Exercise.initialSide(): ExerciseSide? =
