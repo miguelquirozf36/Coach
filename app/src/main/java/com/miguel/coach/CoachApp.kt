@@ -548,6 +548,7 @@ fun CoachApp(
 
                 is TrainingUiState.Workout -> WorkoutScreen(
                     state = state,
+                    onLoadChange = trainingEngine::updateCurrentLoad,
                     onPause = trainingEngine::pause,
                     onResume = trainingEngine::resume,
                     onSkip = trainingEngine::skip,
@@ -1707,6 +1708,7 @@ private fun rememberImeAwareFieldModifier(): Modifier {
 @OptIn(ExperimentalMaterial3Api::class)
 fun WorkoutScreen(
     state: TrainingUiState.Workout,
+    onLoadChange: (String) -> Unit = {},
     onPause: () -> Unit,
     onResume: () -> Unit,
     onSkip: () -> Unit,
@@ -1748,6 +1750,7 @@ fun WorkoutScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
             .padding(WindowInsets.safeDrawing.asPaddingValues())
     ) {
         val metrics = workoutMetricTexts(
@@ -1763,6 +1766,7 @@ fun WorkoutScreen(
                 exercise = exercise,
                 metrics = metrics,
                 ringDiameter = workoutRingDiameter(maxWidth, maxHeight),
+                onLoadChange = onLoadChange,
                 onPause = onPause,
                 onResume = onResume,
                 onSkip = onSkip,
@@ -1773,6 +1777,7 @@ fun WorkoutScreen(
                 exercise = exercise,
                 metrics = metrics,
                 ringDiameter = landscapeWorkoutRingDiameter(maxWidth * 0.4f, maxHeight),
+                onLoadChange = onLoadChange,
                 onPause = onPause,
                 onResume = onResume,
                 onSkip = onSkip,
@@ -1793,6 +1798,7 @@ private fun WorkoutPortraitLayout(
     exercise: Exercise,
     metrics: WorkoutMetricTexts,
     ringDiameter: Dp,
+    onLoadChange: (String) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onSkip: () -> Unit,
@@ -1806,8 +1812,14 @@ private fun WorkoutPortraitLayout(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE, notesMaxLines = 3)
-            if (state.phase != TrainingPhase.WARMUP) WorkoutMetricsCard(metrics)
+            WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE)
+            if (state.phase == TrainingPhase.WARMUP) {
+                WorkoutLoadPreparationLabel(exercise.name)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+            } else {
+                WorkoutMetricsCard(metrics)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+            }
         }
         Box(modifier = Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             Text(
@@ -1817,15 +1829,20 @@ private fun WorkoutPortraitLayout(
             )
             TrainingTimer(state, ringDiameter, showPhaseLabel = false)
         }
-        WorkoutControls(
-            state = state,
-            compact = false,
-            onPause = onPause,
-            onResume = onResume,
-            onSkip = onSkip,
-            onRequestFinish = onRequestFinish,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp)
-        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            WorkoutExerciseNotes(state, maxLines = 3)
+            WorkoutControls(
+                state = state,
+                compact = false,
+                onPause = onPause,
+                onResume = onResume,
+                onSkip = onSkip,
+                onRequestFinish = onRequestFinish
+            )
+        }
     }
 }
 
@@ -1835,6 +1852,7 @@ private fun WorkoutLandscapeLayout(
     exercise: Exercise,
     metrics: WorkoutMetricTexts,
     ringDiameter: Dp,
+    onLoadChange: (String) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onSkip: () -> Unit,
@@ -1848,28 +1866,44 @@ private fun WorkoutLandscapeLayout(
                 .fillMaxWidth(0.6f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = 1, notesMaxLines = 1)
+            WorkoutHeader(state, exercise, nameMaxLines = 1)
         }
         if (state.phase != TrainingPhase.WARMUP) {
-            LandscapeWorkoutMetrics(
-                metrics = metrics,
-                modifier = Modifier.align(Alignment.CenterStart).width(sideWidth)
-            )
+            Column(
+                modifier = Modifier.align(Alignment.CenterStart).width(sideWidth),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                LandscapeWorkoutMetrics(metrics = metrics)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+            }
+        } else {
+            Column(
+                modifier = Modifier.align(Alignment.CenterStart).width(sideWidth),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                WorkoutLoadPreparationLabel(exercise.name)
+                WorkoutLoadCard(state.currentLoad, state.previousLoad, onLoadChange)
+            }
         }
         Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Tiempo restante", style = MaterialTheme.typography.labelLarge)
             Spacer(modifier = Modifier.height(8.dp))
             TrainingTimer(state, ringDiameter, showPhaseLabel = true)
         }
-        WorkoutControls(
-            state = state,
-            compact = true,
-            onPause = onPause,
-            onResume = onResume,
-            onSkip = onSkip,
-            onRequestFinish = onRequestFinish,
-            modifier = Modifier.align(Alignment.CenterEnd).width(sideWidth)
-        )
+        Column(
+            modifier = Modifier.align(Alignment.CenterEnd).width(sideWidth),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            WorkoutExerciseNotes(state, maxLines = 1)
+            WorkoutControls(
+                state = state,
+                compact = true,
+                onPause = onPause,
+                onResume = onResume,
+                onSkip = onSkip,
+                onRequestFinish = onRequestFinish
+            )
+        }
     }
 }
 
@@ -1877,8 +1911,7 @@ private fun WorkoutLandscapeLayout(
 private fun WorkoutHeader(
     state: TrainingUiState.Workout,
     exercise: Exercise,
-    nameMaxLines: Int,
-    notesMaxLines: Int
+    nameMaxLines: Int
 ) {
     Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
     if (state.phase == TrainingPhase.WARMUP) {
@@ -1910,15 +1943,84 @@ private fun WorkoutHeader(
             }
         }
     }
+}
+
+@Composable
+private fun WorkoutExerciseNotes(state: TrainingUiState.Workout, maxLines: Int) {
     if (state.phase != TrainingPhase.WARMUP && state.currentExerciseNotes.isNotBlank()) {
         Text(
             state.currentExerciseNotes,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = notesMaxLines,
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+@Composable
+private fun WorkoutLoadCard(
+    currentLoad: String,
+    previousLoad: String?,
+    onLoadChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = workoutSupportingContainerColor(MaterialTheme.colorScheme)
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "CARGA ACTUAL",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = currentLoad,
+                    onValueChange = onLoadChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                )
+            }
+            VerticalDivider(
+                modifier = Modifier.height(54.dp),
+                color = workoutMetricDividerColor(MaterialTheme.colorScheme)
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "ANTERIOR",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    previousLoad ?: "—",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutLoadPreparationLabel(exerciseName: String) {
+    Text(
+        text = "Siguiente: $exerciseName",
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable

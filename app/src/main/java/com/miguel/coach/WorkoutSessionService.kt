@@ -109,11 +109,17 @@ object WorkoutSessionController {
         )
         val beep = BeepPlayer(preferences::loadBeepVolumeLevel)
         val voice = VoiceCoach(context.applicationContext, preferences)
+        val loadHistory = WorkoutLoadRepository(
+            SharedPreferencesWorkoutLoadStorage(
+                context.applicationContext.getSharedPreferences("coach_workout_history", Context.MODE_PRIVATE)
+            )
+        )
         beepPlayer = beep
         voiceCoach = voice
         return TrainingEngine(
             voiceSpeaker = voice,
             beepPlayer = beep,
+            loadHistory = loadHistory,
             onStateChanged = { state -> observer?.invoke(state) }
         ).also { engine = it }
     }
