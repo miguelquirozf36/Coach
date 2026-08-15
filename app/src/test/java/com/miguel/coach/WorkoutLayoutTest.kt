@@ -208,4 +208,50 @@ class WorkoutLayoutTest {
     fun unilateralLandscapeDoesNotFallBackToPhaseWhileSideIsHidden() {
         assertEquals(null, workoutTimerSupportingText(null, "Descanso", true, true))
     }
+
+    @Test
+    fun restToRightExecutionKeepsThePreparedSideThroughStartDelay() {
+        val observedSides = listOf(
+            workoutTimerSide(TrainingPhase.REST, 1, ExerciseSide.LEFT),
+            workoutTimerSide(TrainingPhase.REST, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
+        )
+
+        assertEquals(listOf(ExerciseSide.RIGHT, ExerciseSide.RIGHT, ExerciseSide.RIGHT), observedSides)
+    }
+
+    @Test
+    fun restToLeftExecutionKeepsThePreparedSideThroughStartDelay() {
+        val observedSides = listOf(
+            workoutTimerSide(TrainingPhase.REST, 1, ExerciseSide.RIGHT),
+            workoutTimerSide(TrainingPhase.REST, 0, ExerciseSide.LEFT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.LEFT)
+        )
+
+        assertEquals(listOf(ExerciseSide.LEFT, ExerciseSide.LEFT, ExerciseSide.LEFT), observedSides)
+    }
+
+    @Test
+    fun initialPreparationTransitionsKeepRightContinuously() {
+        val warmup = listOf(
+            workoutTimerSide(TrainingPhase.WARMUP, 1, ExerciseSide.RIGHT),
+            workoutTimerSide(TrainingPhase.WARMUP, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
+        )
+        val countdown = listOf(
+            workoutTimerSide(TrainingPhase.COUNTDOWN, 1, ExerciseSide.RIGHT),
+            workoutTimerSide(TrainingPhase.COUNTDOWN, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
+        )
+        val betweenExercises = listOf(
+            workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 1, ExerciseSide.RIGHT),
+            workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
+        )
+
+        val expected = listOf(ExerciseSide.RIGHT, ExerciseSide.RIGHT, ExerciseSide.RIGHT)
+        assertEquals(expected, warmup)
+        assertEquals(expected, countdown)
+        assertEquals(expected, betweenExercises)
+    }
 }

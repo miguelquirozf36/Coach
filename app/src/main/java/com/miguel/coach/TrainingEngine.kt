@@ -236,7 +236,8 @@ class TrainingEngine(
     }
 
     private fun startStartDelay(activeSession: Long) {
-        activeWorkout(activeSession) ?: return
+        val workout = activeWorkout(activeSession) ?: return
+        if (!workout.isStartingExecution) state = workout.copy(isStartingExecution = true)
         startDelayRemainingMillis = ONE_SECOND_MILLIS
         scheduleStartDelay(activeSession)
     }
@@ -271,7 +272,8 @@ class TrainingEngine(
             phaseDurationSeconds = exercise.concentricSeconds,
             phaseStartedAtMillis = monotonicClock.nowMillis(),
             phasePausedAtMillis = null,
-            currentExerciseNotes = exercise.notes
+            currentExerciseNotes = exercise.notes,
+            isStartingExecution = false
         )
         schedulePhaseTick(activeSession)
     }
@@ -540,7 +542,8 @@ class TrainingEngine(
         state = workout.copy(
             seriesNumber = nextSeries,
             currentSide = nextSide,
-            repetitionNumber = 1
+            repetitionNumber = 1,
+            isStartingExecution = true
         )
         startStartDelay(activeSession)
     }
@@ -649,7 +652,8 @@ sealed interface TrainingUiState {
         val phasePausedAtMillis: Long?,
         val isPaused: Boolean,
         val currentExerciseNotes: String,
-        val currentSide: ExerciseSide? = null
+        val currentSide: ExerciseSide? = null,
+        val isStartingExecution: Boolean = false
     ) : TrainingUiState
 }
 

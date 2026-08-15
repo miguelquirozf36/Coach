@@ -2204,7 +2204,12 @@ internal fun usefulAreaCenter(
 @Composable
 private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhaseLabel: Boolean) {
     val timerText = state.secondsRemaining.toClockFormat()
-    val visibleSide = workoutTimerSide(state.phase, state.secondsRemaining, state.currentSide)
+    val visibleSide = workoutTimerSide(
+        phase = state.phase,
+        secondsRemaining = state.secondsRemaining,
+        currentSide = state.currentSide,
+        isStartingExecution = state.isStartingExecution
+    )
     val sideLabel = visibleSide.displayLabel()
     val supportingText = workoutTimerSupportingText(
         sideLabel = sideLabel,
@@ -2299,12 +2304,16 @@ internal fun workoutTimerSupportingText(
 internal fun workoutTimerSide(
     phase: TrainingPhase,
     secondsRemaining: Int,
-    currentSide: ExerciseSide?
+    currentSide: ExerciseSide?,
+    isStartingExecution: Boolean = false
 ): ExerciseSide? = when (phase) {
     TrainingPhase.WARMUP,
     TrainingPhase.COUNTDOWN,
     TrainingPhase.REST_BETWEEN_EXERCISES -> currentSide.takeIf { secondsRemaining <= 10 }
-    TrainingPhase.REST -> currentSide.nextSide().takeIf { secondsRemaining <= 10 }
+    TrainingPhase.REST -> {
+        val upcomingSide = if (isStartingExecution) currentSide else currentSide.nextSide()
+        upcomingSide.takeIf { secondsRemaining <= 10 }
+    }
     else -> currentSide
 }
 
