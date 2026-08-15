@@ -156,4 +156,17 @@ class WorkoutLayoutTest {
         assertEquals(null, workoutNoteText(""))
         assertEquals(null, workoutNoteText(" \t\n"))
     }
+
+    @Test
+    fun unilateralSideReplacesOrAddsTheTimerSupportingText() {
+        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", false))
+        assertEquals("Lado izquierdo", workoutTimerSupportingText("Lado izquierdo", "Excéntrica", false))
+        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", true))
+    }
+
+    @Test
+    fun bilateralTimerKeepsItsExistingOrientationBehavior() {
+        assertEquals(null, workoutTimerSupportingText(null, "Concéntrica", false))
+        assertEquals("CONCÉNTRICA", workoutTimerSupportingText(null, "Concéntrica", true))
+    }
 }

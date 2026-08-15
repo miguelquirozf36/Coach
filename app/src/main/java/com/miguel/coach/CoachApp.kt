@@ -1896,18 +1896,12 @@ private fun WorkoutHeader(
             overflow = TextOverflow.Ellipsis
         )
     } else {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                exercise.name,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.headlineMedium,
-                maxLines = nameMaxLines,
-                overflow = TextOverflow.Ellipsis
-            )
-            state.currentSide.displayLabel()?.let { side ->
-                Text(side, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
-            }
-        }
+        Text(
+            exercise.name,
+            style = MaterialTheme.typography.headlineMedium,
+            maxLines = nameMaxLines,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -2210,6 +2204,8 @@ internal fun usefulAreaCenter(
 @Composable
 private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhaseLabel: Boolean) {
     val timerText = state.secondsRemaining.toClockFormat()
+    val sideLabel = state.currentSide.displayLabel()
+    val supportingText = workoutTimerSupportingText(sideLabel, state.phase.label, showPhaseLabel)
     var frameTimeMillis by remember(state.phaseStartedAtMillis, state.phasePausedAtMillis) {
         mutableStateOf(state.phasePausedAtMillis ?: state.phaseStartedAtMillis)
     }
@@ -2246,11 +2242,32 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
                 style = stroke
             )
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (showPhaseLabel) {
+        if (showPhaseLabel) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                supportingText?.let { text ->
+                    Text(
+                        text = text,
+                        style = if (sideLabel != null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelLarge,
+                        color = if (sideLabel != null) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
                 Text(
-                    text = state.phase.label.orEmpty().uppercase(),
-                    style = MaterialTheme.typography.labelLarge,
+                    text = timerText,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontSize = (diameter.value / 3f).coerceIn(52f, 80f).sp
+                    )
+                )
+            }
+        } else {
+            sideLabel?.let { side ->
+                Text(
+                    text = side,
+                    modifier = Modifier.align(Alignment.Center).offset(y = -(diameter.value / 5f).dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
@@ -2265,6 +2282,12 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
         }
     }
 }
+
+internal fun workoutTimerSupportingText(
+    sideLabel: String?,
+    phaseLabel: String?,
+    showPhaseLabel: Boolean
+): String? = sideLabel ?: if (showPhaseLabel) phaseLabel.orEmpty().uppercase() else null
 
 internal fun workoutRemainingFraction(state: TrainingUiState.Workout, nowMillis: Long): Float {
     val durationMillis = state.phaseDurationSeconds.coerceAtLeast(0) * 1_000L
