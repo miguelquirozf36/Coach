@@ -1,6 +1,9 @@
 package com.miguel.coach
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -19,6 +22,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
@@ -33,6 +37,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -48,6 +54,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -96,6 +103,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -1716,6 +1724,15 @@ fun WorkoutScreen(
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
     var showFinishConfirmation by rememberSaveable { mutableStateOf(false) }
+    val activityWindow = LocalContext.current.findActivity()?.window
+
+    DisposableEffect(activityWindow) {
+        val previousSoftInputMode = activityWindow?.attributes?.softInputMode
+        activityWindow?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        onDispose {
+            previousSoftInputMode?.let(activityWindow::setSoftInputMode)
+        }
+    }
 
     RegisterSystemBackAction {
         when (workoutSystemBackOutcome(showFinishConfirmation)) {
@@ -1750,7 +1767,6 @@ fun WorkoutScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding()
             .padding(WindowInsets.safeDrawing.asPaddingValues())
     ) {
         val metrics = workoutMetricTexts(
@@ -1964,6 +1980,8 @@ private fun WorkoutLoadCard(
     previousLoad: String?,
     onLoadChange: (String) -> Unit
 ) {
+    val loadInteractionSource = remember { MutableInteractionSource() }
+    val loadFieldColors = OutlinedTextFieldDefaults.colors()
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -1972,30 +1990,46 @@ private fun WorkoutLoadCard(
         )
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1.35f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     "CARGA ACTUAL",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                BasicTextField(
                     value = currentLoad,
                     onValueChange = onLoadChange,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    interactionSource = loadInteractionSource,
+                    decorationBox = { innerTextField ->
+                        OutlinedTextFieldDefaults.DecorationBox(
+                            value = currentLoad,
+                            innerTextField = innerTextField,
+                            enabled = true,
+                            singleLine = true,
+                            visualTransformation = VisualTransformation.None,
+                            interactionSource = loadInteractionSource,
+                            colors = loadFieldColors,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
                 )
             }
             VerticalDivider(
-                modifier = Modifier.height(54.dp),
+                modifier = Modifier.height(48.dp),
                 color = workoutMetricDividerColor(MaterialTheme.colorScheme)
             )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.weight(0.85f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     "ANTERIOR",
                     style = MaterialTheme.typography.labelMedium,
@@ -2010,6 +2044,12 @@ private fun WorkoutLoadCard(
             }
         }
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable

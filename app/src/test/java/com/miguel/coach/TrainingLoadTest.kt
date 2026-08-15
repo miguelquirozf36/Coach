@@ -7,6 +7,27 @@ import org.junit.Test
 
 class TrainingLoadTest {
     @Test
+    fun timerTickDoesNotResetLoadOrChangeItsEditingContext() {
+        val fixture = LoadFixture(
+            listOf(exercise("press", sets = 2)),
+            FakeLoadHistory(mapOf("press" to "20 kg")),
+            warmupSeconds = 3
+        )
+        fixture.engine.start(fixture.routine)
+        fixture.engine.updateCurrentLoad("22.5 kg c/u")
+        val exerciseIndex = fixture.workout().exerciseIndex
+        val seriesNumber = fixture.workout().seriesNumber
+
+        fixture.advanceTimerTick()
+
+        assertEquals(2, fixture.workout().secondsRemaining)
+        assertEquals(exerciseIndex, fixture.workout().exerciseIndex)
+        assertEquals(seriesNumber, fixture.workout().seriesNumber)
+        assertEquals("22.5 kg c/u", fixture.workout().currentLoad)
+        assertEquals("20 kg", fixture.workout().previousLoad)
+    }
+
+    @Test
     fun warmupWithoutHistoryPreparesSeriesOneWithoutCreatingAnotherSeries() {
         val fixture = LoadFixture(listOf(exercise("press", sets = 2)), FakeLoadHistory(), warmupSeconds = 2)
 
@@ -233,6 +254,8 @@ private class LoadFixture(
         voice.complete()
         scheduler.advance()
     }
+
+    fun advanceTimerTick() = scheduler.advance()
 }
 
 private class LoadVoice : VoiceSpeaker {
