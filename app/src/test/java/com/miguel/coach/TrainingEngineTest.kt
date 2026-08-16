@@ -178,7 +178,7 @@ class TrainingEngineTest {
         assertEquals(1, fixture.currentWorkout().phaseDurationSeconds)
         fixture.scheduler.advance()
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
-        assertEquals("1", fixture.voice.phrases.last())
+        assertEquals("Entrenamiento finalizado.", fixture.voice.phrases.last())
     }
 
     @Test
@@ -341,13 +341,72 @@ class TrainingEngineTest {
     fun lastRepetitionOfASeriesBeepsAnnouncesRestAndStartsTheRestTimer() {
         val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
+        val restStartedAt = fixture.currentWorkout().phaseStartedAtMillis + 1_000L
 
         fixture.completeCurrentRepetition()
 
         fixture.assertWorkout(TrainingPhase.REST, 4, 0, 1, 1, false)
-        assertTrue("Descansa." in fixture.voice.phrases)
-        assertEquals("1", fixture.voice.phrases.last())
+        assertEquals(restStartedAt, fixture.currentWorkout().phaseStartedAtMillis)
+        assertEquals(listOf("voice:1", "voice-add:Descansa."), fixture.events.takeLast(2))
+        assertEquals(listOf("Descansa."), fixture.voice.queuedPhrases)
         assertEquals(1, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun slowOrNeverCompletedFinalRepVoiceCannotDelayRest() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.REST, 4, 0, 1, 1, false)
+        assertEquals(listOf("voice:1", "voice-add:Descansa."), fixture.events.takeLast(2))
+        assertEquals(0, fixture.voice.pendingCompletionCount)
+
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.REST, 3, 0, 1, 1, false)
+        assertEquals(listOf("Descansa."), fixture.voice.queuedPhrases)
+    }
+
+    @Test
+    fun intermediateRepetitionDoesNotQueueRest() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 4))
+        fixture.startFirstConcentricPhase()
+
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, 1, false)
+        assertEquals("1", fixture.voice.phrases.last())
+        assertTrue(fixture.voice.queuedPhrases.isEmpty())
+    }
+
+    @Test
+    fun finalRightSideRepetitionQueuesRestAfterItsNumber() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 4).copy(
+            executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+        ))
+        fixture.startFirstConcentricPhase()
+
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.REST, 4, 0, 1, 1, false)
+        assertEquals(ExerciseSide.RIGHT, fixture.currentWorkout().currentSide)
+        assertEquals(listOf("voice:1", "voice-add:Descansa."), fixture.events.takeLast(2))
+    }
+
+    @Test
+    fun finalWorkoutQueuesCompletionAfterNumberWithoutAddingRest() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 4))
+        fixture.startFirstConcentricPhase()
+
+        fixture.scheduler.advance()
+
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertEquals(
+            listOf("voice:1", "voice-add:Entrenamiento finalizado."),
+            fixture.events.takeLast(2)
+        )
+        assertFalse("Descansa." in fixture.voice.phrases)
     }
 
     @Test
@@ -400,7 +459,7 @@ class TrainingEngineTest {
 
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
         assertTrue("Entrenamiento finalizado." in fixture.voice.phrases)
-        assertEquals("1", fixture.voice.phrases.last())
+        assertEquals("Entrenamiento finalizado.", fixture.voice.phrases.last())
         assertEquals(2, fixture.beep.playCalls)
     }
 
@@ -436,7 +495,7 @@ class TrainingEngineTest {
 
         fixture.engine.skip()
         assertEquals(TrainingUiState.Completed, fixture.engine.state)
-        assertEquals("1", fixture.voice.phrases.last())
+        assertEquals("Entrenamiento finalizado.", fixture.voice.phrases.last())
         val repetitionAnnouncementCount = fixture.voice.phrases.count { it == "1" }
 
         fixture.engine.skip()
@@ -654,7 +713,7 @@ class TrainingEngineTest {
         (1..5).forEach { repetition ->
             fixture.scheduler.advance()
             completedAtConcentric += repetition
-            assertEquals(repetition.toString(), fixture.voice.phrases.last())
+            assertEquals(1, fixture.voice.phrases.count { it == repetition.toString() })
             fixture.voice.completeLatest()
             if (repetition < 5) {
                 fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, repetition, false)
@@ -871,7 +930,7 @@ class TrainingEngineTest {
 
         repeat(3) { index ->
             fixture.scheduler.advance()
-            assertEquals("voice:${index + 1}", fixture.events.last())
+            assertTrue("voice:${index + 1}" in fixture.events)
             fixture.voice.completeLatest()
             if (index < 2) {
                 fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, index + 1, false)
@@ -881,8 +940,7 @@ class TrainingEngineTest {
         }
 
         fixture.assertWorkout(TrainingPhase.REST, 30, 0, 1, 3, false)
-        assertTrue("voice:Descansa." in fixture.events)
-        assertEquals("voice:3", fixture.events.last())
+        assertEquals(listOf("voice:3", "voice-add:Descansa."), fixture.events.takeLast(2))
         assertEquals(3, fixture.beep.playCalls)
     }
 
@@ -1541,6 +1599,7 @@ class TrainingEngineTest {
     private class FakeVoiceSpeaker(private val events: MutableList<String>) : VoiceSpeaker {
         override var isReady = true
         val phrases = mutableListOf<String>()
+        val queuedPhrases = mutableListOf<String>()
         var stopCalls = 0
         private val completions = mutableListOf<() -> Unit>()
         val pendingCompletionCount: Int
@@ -1550,6 +1609,12 @@ class TrainingEngineTest {
             phrases += phrase
             events += "voice:$phrase"
             onCompleted?.let(completions::add)
+        }
+
+        override fun enqueue(phrase: String) {
+            phrases += phrase
+            queuedPhrases += phrase
+            events += "voice-add:$phrase"
         }
 
         override fun stop() {

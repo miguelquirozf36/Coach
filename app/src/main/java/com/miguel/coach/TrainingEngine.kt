@@ -285,6 +285,18 @@ class TrainingEngine(
         val repetitionNumber = workout.repetitionNumber
         continueAfterCompletedConcentric(activeSession)
         voiceSpeaker.speak(repetitionNumber.toString())
+        when (val currentState = state) {
+            is TrainingUiState.Workout -> when (currentState.phase) {
+                TrainingPhase.REST -> voiceSpeaker.enqueue(REST_ANNOUNCEMENT)
+                TrainingPhase.REST_BETWEEN_EXERCISES -> {
+                    val nextExerciseName = currentState.routine.exercises[currentState.exerciseIndex].name
+                    voiceSpeaker.enqueue("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
+                }
+                else -> Unit
+            }
+            TrainingUiState.Completed -> voiceSpeaker.enqueue(TRAINING_COMPLETE_ANNOUNCEMENT)
+            TrainingUiState.Home -> Unit
+        }
     }
 
     private fun continueAfterCompletedConcentric(activeSession: Long) {
@@ -422,7 +434,6 @@ class TrainingEngine(
                 phaseStartedAtMillis = monotonicClock.nowMillis(),
                 phasePausedAtMillis = null
             )
-            voiceSpeaker.speak(REST_ANNOUNCEMENT)
             resetTimedAnnouncements(exercise.restSeconds)
             scheduleRestTick(activeSession)
             return
@@ -430,7 +441,6 @@ class TrainingEngine(
 
         if (workout.exerciseIndex < workout.routine.exercises.lastIndex) {
             val nextExerciseIndex = workout.exerciseIndex + 1
-            val nextExerciseName = workout.routine.exercises[nextExerciseIndex].name
             state = workout.copy(
                 exerciseIndex = nextExerciseIndex,
                 seriesNumber = 1,
@@ -442,7 +452,6 @@ class TrainingEngine(
                 phaseStartedAtMillis = monotonicClock.nowMillis(),
                 phasePausedAtMillis = null
             )
-            voiceSpeaker.speak("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
             resetTimedAnnouncements(workout.routine.restBetweenExercisesSeconds)
             scheduleRestTick(activeSession)
             return
@@ -573,7 +582,6 @@ class TrainingEngine(
     private fun completeTraining() {
         invalidatePendingWork()
         state = TrainingUiState.Completed
-        voiceSpeaker.speak(TRAINING_COMPLETE_ANNOUNCEMENT)
     }
 
     private fun activeWorkout(activeSession: Long): TrainingUiState.Workout? {

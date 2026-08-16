@@ -70,6 +70,7 @@ class WorkoutSessionLifecycleTest {
         override fun speak(phrase: String, onCompleted: (() -> Unit)?) {
             onCompleted?.invoke()
         }
+        override fun enqueue(phrase: String) = Unit
         override fun stop() {
             stopCount += 1
         }

@@ -14,6 +14,7 @@ import java.util.Locale
 interface VoiceSpeaker {
     val isReady: Boolean
     fun speak(phrase: String, onCompleted: (() -> Unit)? = null)
+    fun enqueue(phrase: String)
     fun stop()
 }
 
@@ -63,6 +64,14 @@ class VoiceCoach(
     }
 
     override fun speak(phrase: String, onCompleted: (() -> Unit)?) {
+        speak(phrase, TextToSpeech.QUEUE_FLUSH, onCompleted)
+    }
+
+    override fun enqueue(phrase: String) {
+        speak(phrase, TextToSpeech.QUEUE_ADD, null)
+    }
+
+    private fun speak(phrase: String, queueMode: Int, onCompleted: (() -> Unit)?) {
         if (!isReady || isReleased) return
 
         val utteranceId: String
@@ -71,7 +80,7 @@ class VoiceCoach(
             utteranceId = "voice-coach-$utteranceSequence"
             onCompleted?.let { pendingCallbacks[utteranceId] = PendingCallback(voiceGeneration, it) }
         }
-        val result = textToSpeech?.speak(phrase, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        val result = textToSpeech?.speak(phrase, queueMode, null, utteranceId)
         if (result != TextToSpeech.SUCCESS) removeUtterance(utteranceId)
     }
 
