@@ -232,7 +232,8 @@ class TrainingEngine(
     }
 
     private fun announceStart(activeSession: Long) {
-        voiceSpeaker.speak("\u00A1Vamos!") { startStartDelay(activeSession) }
+        startStartDelay(activeSession)
+        voiceSpeaker.speak("\u00A1Vamos!")
     }
 
     private fun startStartDelay(activeSession: Long) {
@@ -281,9 +282,9 @@ class TrainingEngine(
     private fun announceRepetition(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
-        voiceSpeaker.speak(workout.repetitionNumber.toString()) {
-            continueAfterCompletedConcentric(activeSession)
-        }
+        val repetitionNumber = workout.repetitionNumber
+        continueAfterCompletedConcentric(activeSession)
+        voiceSpeaker.speak(repetitionNumber.toString())
     }
 
     private fun continueAfterCompletedConcentric(activeSession: Long) {
@@ -527,13 +528,15 @@ class TrainingEngine(
     private fun announceNextSeries(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST) return
-        voiceSpeaker.speak("\u00A1Vamos!") { startNextSeries(activeSession) }
+        startNextSeries(activeSession)
+        voiceSpeaker.speak("\u00A1Vamos!")
     }
 
     private fun announceNextExercise(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES) return
-        voiceSpeaker.speak("\u00A1Vamos!") { startNextExercise(activeSession) }
+        startNextExercise(activeSession)
+        voiceSpeaker.speak("\u00A1Vamos!")
     }
 
     private fun startNextSeries(activeSession: Long) {
