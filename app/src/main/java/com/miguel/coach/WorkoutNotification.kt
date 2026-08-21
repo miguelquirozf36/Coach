@@ -86,11 +86,25 @@ fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificat
     }
     val series = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) exercise.sets else state.seriesNumber
     val repetition = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) exercise.repetitions else state.repetitionNumber
+    val progress = "Serie $series de ${exercise.sets} · Repetición $repetition de ${exercise.repetitions}"
+    val restText = if (state.phase.isNotificationRest && !state.isStartingExecution && state.secondsRemaining > 0) {
+        " · Descanso ${formatNotificationDuration(state.secondsRemaining)}"
+    } else {
+        ""
+    }
     return WorkoutNotificationContent(
         exercise.name,
-        "Serie $series de ${exercise.sets} · Repetición $repetition de ${exercise.repetitions}",
+        progress + restText,
         state.isPaused
     )
+}
+
+private val TrainingPhase.isNotificationRest: Boolean
+    get() = this == TrainingPhase.REST || this == TrainingPhase.REST_BETWEEN_EXERCISES
+
+internal fun formatNotificationDuration(totalSeconds: Int): String {
+    val normalizedSeconds = totalSeconds.coerceAtLeast(0)
+    return "%02d:%02d".format(normalizedSeconds / 60, normalizedSeconds % 60)
 }
 
 enum class NotificationPermissionAction { REQUEST_WITH_EXPLANATION, START_WITHOUT_REQUEST, START_ALLOWED }
