@@ -239,7 +239,7 @@ class TrainingEngine(
     private fun startStartDelay(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (!workout.isStartingExecution) state = workout.copy(isStartingExecution = true)
-        startDelayRemainingMillis = ONE_SECOND_MILLIS
+        startDelayRemainingMillis = START_DELAY_SECONDS * ONE_SECOND_MILLIS
         scheduleStartDelay(activeSession)
     }
 
@@ -592,7 +592,6 @@ class TrainingEngine(
 
     private companion object {
         const val ONE_SECOND_MILLIS = 1_000L
-        const val INITIAL_COUNTDOWN_SECONDS = 10
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
         const val START_FROM_EXERCISE_ANNOUNCEMENT = "Comenzamos en 10 segundos."
         const val WARMUP_ANNOUNCEMENT = "Comienza el calentamiento."

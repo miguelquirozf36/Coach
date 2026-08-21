@@ -32,17 +32,7 @@ enum class ExerciseSide { RIGHT, LEFT }
 enum class IsometricPauseMode { NONE, SHORTENED, STRETCHED }
 
 fun Routine.estimatedDurationMinutes(): Int {
-    val exerciseSeconds = exercises.sumOf { exercise ->
-        val repetitionSeconds = exercise.concentricSeconds + exercise.eccentricSeconds +
-            exercise.isometricDurationSeconds.takeIf { exercise.isometricPauseMode != IsometricPauseMode.NONE }.orZero()
-        val executions = exercise.sets * if (exercise.executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) 2 else 1
-        val repetitionsSeconds = executions * exercise.repetitions * repetitionSeconds
-        val seriesRestSeconds = (executions - 1).coerceAtLeast(0) * exercise.restSeconds
-        repetitionsSeconds + seriesRestSeconds
-    }
-    val exerciseRestSeconds = (exercises.size - 1).coerceAtLeast(0) * restBetweenExercisesSeconds
-    val startSeconds = if (warmupSeconds > 0) warmupSeconds else INITIAL_COUNTDOWN_SECONDS
-    return ((startSeconds + exerciseSeconds + exerciseRestSeconds) / 60.0).roundToInt()
+    return (plannedDurationSeconds() / 60.0).roundToInt()
 }
 
 fun Routine.totalExecutionSets(): Int = exercises.sumOf { exercise ->
@@ -55,8 +45,6 @@ fun Routine.totalRepetitions(): Int = exercises.sumOf { exercise ->
 
 private fun Exercise.executionSideFactor(): Int =
     if (executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) 2 else 1
-
-private const val INITIAL_COUNTDOWN_SECONDS = 10
 
 data class RoutineDraft(
     val id: String,
@@ -221,8 +209,6 @@ const val DEFAULT_ROUTINE_REST_SECONDS = 180
 const val DEFAULT_ECCENTRIC_SECONDS = 2
 const val DEFAULT_SERIES_REST_SECONDS = 120
 const val ISOMETRIC_DURATION_ERROR = "Ingresa una duración mayor a 0 segundos."
-
-private fun Int?.orZero(): Int = this ?: 0
 
 fun emptyCustomRoutine(id: String): Routine = Routine(
     id = id,

@@ -210,7 +210,7 @@ class TrainingEngineTest {
         )
 
         assertEquals(1, routine.estimatedDurationMinutes())
-        assertEquals(2, routine.copy(exercises = listOf(
+        assertEquals(1, routine.copy(exercises = listOf(
             routine.exercises.single().copy(repetitions = 3)
         )).estimatedDurationMinutes())
     }
@@ -1525,6 +1525,66 @@ class TrainingEngineTest {
         assertEquals(ExerciseSide.LEFT, fixture.currentWorkout().currentSide)
     }
 
+    @Test
+    fun plannedTimelineMatchesEnginePhysicalTimeForBilateralWarmupAndRests() {
+        val fixture = Fixture(
+            exercises = listOf(
+                seriesExercise(sets = 2, restSeconds = 5, repetitions = 3).copy(
+                    concentricSeconds = 2,
+                    eccentricSeconds = 3
+                ),
+                seriesExercise(sets = 1, restSeconds = 4, repetitions = 2)
+            ),
+            restBetweenExercisesSeconds = 7,
+            warmupSeconds = 11
+        )
+
+        assertEquals(fixture.routine.plannedDurationSeconds() * 1_000L, fixture.runToCompletion())
+    }
+
+    @Test
+    fun plannedTimelineMatchesEnginePhysicalTimeForBothIsometricModes() {
+        IsometricPauseMode.entries.filterNot { it == IsometricPauseMode.NONE }.forEach { mode ->
+            val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 1, repetitions = 3).copy(
+                concentricSeconds = 2,
+                eccentricSeconds = 3,
+                isometricPauseMode = mode,
+                isometricDurationSeconds = 4
+            ))
+
+            assertEquals(fixture.routine.plannedDurationSeconds() * 1_000L, fixture.runToCompletion())
+        }
+    }
+
+    @Test
+    fun plannedTimelineMatchesEnginePhysicalTimeForUnilateralExecutions() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 5, repetitions = 2).copy(
+            concentricSeconds = 2,
+            eccentricSeconds = 3,
+            executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+        ))
+
+        assertEquals(fixture.routine.plannedDurationSeconds() * 1_000L, fixture.runToCompletion())
+    }
+
+    @Test
+    fun plannedTimelineFromExerciseMatchesEnginePhysicalTimeFromMiddle() {
+        val fixture = Fixture(
+            exercises = listOf(
+                seriesExercise(sets = 1, restSeconds = 1, repetitions = 1),
+                seriesExercise(sets = 2, restSeconds = 3, repetitions = 2),
+                seriesExercise(sets = 1, restSeconds = 1, repetitions = 2)
+            ),
+            restBetweenExercisesSeconds = 4,
+            warmupSeconds = 30
+        )
+
+        assertEquals(
+            fixture.routine.plannedDurationSecondsFromExercise(1) * 1_000L,
+            fixture.runToCompletion(startExerciseIndex = 1)
+        )
+    }
+
     private class Fixture(
         exercises: List<Exercise>,
         private val restBetweenExercisesSeconds: Int = 12,
@@ -1569,6 +1629,18 @@ class TrainingEngineTest {
             if ((engine.state as? TrainingUiState.Workout)?.phase == TrainingPhase.ECCENTRIC) {
                 scheduler.advance()
             }
+        }
+
+        fun runToCompletion(startExerciseIndex: Int? = null): Long {
+            if (startExerciseIndex == null) engine.start(routine) else engine.startFromExercise(routine, startExerciseIndex)
+            var scheduledActions = 0
+            while (engine.state != TrainingUiState.Completed) {
+                check(scheduler.hasPendingActions) { "Engine stopped before completing the planned timeline." }
+                scheduler.advance()
+                scheduledActions += 1
+                check(scheduledActions < 10_000) { "Engine did not complete its planned timeline." }
+            }
+            return clock.now
         }
 
         fun assertWorkout(

@@ -180,7 +180,7 @@ class RoutineRepositoryTest {
     }
 
     @Test
-    fun estimatedDurationCountsOneIsometricPausePerRepetitionAndPerSide() {
+    fun plannedDurationCountsIsometricPausesOnlyBetweenRepetitionsAndOnBothSides() {
         val exercise = Exercise(
             id = "estimated-isometric",
             name = "Estimado",
@@ -194,12 +194,13 @@ class RoutineRepositoryTest {
         )
         val routine = Routine("estimated", "Estimado", true, listOf(exercise), 0, warmupSeconds = 0)
 
+        assertEquals(230L, routine.plannedDurationSeconds())
         assertEquals(4, routine.estimatedDurationMinutes())
         assertEquals(
-            8,
+            450L,
             routine.copy(exercises = listOf(exercise.copy(
                 executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
-            ))).estimatedDurationMinutes()
+            ))).plannedDurationSeconds()
         )
     }
 
