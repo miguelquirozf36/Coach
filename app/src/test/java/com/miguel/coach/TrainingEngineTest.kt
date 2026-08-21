@@ -730,6 +730,152 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun nextRepetitionIsPublishedAtomicallyWithoutAnEccentricNextRepState() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 3, restSeconds = 1))
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        fixture.voice.completeLatest()
+        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, 1, false)
+        fixture.publishedStates.clear()
+        val beepCallsBefore = fixture.beep.playCalls
+
+        fixture.scheduler.advance()
+
+        val publications = fixture.publishedWorkouts()
+        assertFalse(publications.any { it.phase == TrainingPhase.ECCENTRIC && it.repetitionNumber == 2 })
+        assertEquals(TrainingPhase.CONCENTRIC, publications.last().phase)
+        assertEquals(2, publications.last().repetitionNumber)
+        assertEquals(1, completedProjection(publications.last()))
+        assertEquals(1, fixture.beep.playCalls - beepCallsBefore)
+    }
+
+    @Test
+    fun notificationNeverSeesTheNextRepBeforeItsConcentricCompletes() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 3, restSeconds = 1))
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        fixture.voice.completeLatest()
+        val tracker = WorkoutNotificationTracker()
+        tracker.next(fixture.currentWorkout())
+        fixture.publishedStates.clear()
+
+        fixture.scheduler.advance()
+        val beforeCompletion = fixture.publishedWorkouts().mapNotNull { state ->
+            (tracker.next(state) as? WorkoutNotificationChange.Show)?.content?.text
+        }
+        assertTrue(beforeCompletion.none { "Repetición 2 de 3" in it })
+
+        fixture.publishedStates.clear()
+        fixture.scheduler.advance()
+        val atCompletion = fixture.publishedWorkouts().mapNotNull { state ->
+            (tracker.next(state) as? WorkoutNotificationChange.Show)?.content?.text
+        }
+        assertTrue(atCompletion.any { "Repetición 2 de 3" in it })
+        assertEquals(2, completedProjection(fixture.publishedWorkouts().first {
+            it.phase == TrainingPhase.REPETITION_ANNOUNCEMENT
+        }))
+    }
+
+    @Test
+    fun shortenedAndStretchedTransitionsNeverPublishTheNextRepInThePreviousPhase() {
+        listOf(IsometricPauseMode.SHORTENED, IsometricPauseMode.STRETCHED).forEach { mode ->
+            val fixture = Fixture(
+                seriesExercise(sets = 1, repetitions = 3, restSeconds = 1).copy(
+                    isometricPauseMode = mode,
+                    isometricDurationSeconds = 1
+                )
+            )
+            fixture.startFirstConcentricPhase()
+            fixture.scheduler.advance()
+            fixture.voice.completeLatest()
+            fixture.scheduler.advance()
+            fixture.publishedStates.clear()
+            val beepCallsBefore = fixture.beep.playCalls
+
+            fixture.scheduler.advance()
+
+            val publications = fixture.publishedWorkouts()
+            assertFalse(publications.any { it.phase != TrainingPhase.CONCENTRIC && it.repetitionNumber == 2 })
+            assertEquals(TrainingPhase.CONCENTRIC, publications.last().phase)
+            assertEquals(2, publications.last().repetitionNumber)
+            assertEquals(1, completedProjection(publications.last()))
+            assertEquals(1, fixture.beep.playCalls - beepCallsBefore)
+        }
+    }
+
+    @Test
+    fun unilateralRightAndLeftTransitionsPublishOnlyAtomicNextRepetitions() {
+        val fixture = Fixture(
+            seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+                executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+            )
+        )
+        fixture.startFirstConcentricPhase()
+
+        listOf(ExerciseSide.RIGHT, ExerciseSide.LEFT).forEach { side ->
+            assertEquals(side, fixture.currentWorkout().currentSide)
+            fixture.scheduler.advance()
+            fixture.voice.completeLatest()
+            fixture.publishedStates.clear()
+            fixture.scheduler.advance()
+            assertFalse(fixture.publishedWorkouts().any {
+                it.phase == TrainingPhase.ECCENTRIC && it.repetitionNumber == 2
+            })
+            assertEquals(side, fixture.currentWorkout().currentSide)
+            fixture.scheduler.advance()
+            fixture.voice.completeLatest()
+            if (side == ExerciseSide.RIGHT) {
+                fixture.scheduler.advance()
+                fixture.voice.completeLatest()
+                fixture.scheduler.advance()
+            }
+        }
+    }
+
+    @Test
+    fun skipFromEccentricAndStretchedIsometricPublishesAtomicNextRepetition() {
+        listOf(IsometricPauseMode.NONE, IsometricPauseMode.STRETCHED).forEach { mode ->
+            val fixture = Fixture(
+                seriesExercise(sets = 1, repetitions = 3, restSeconds = 1).copy(
+                    isometricPauseMode = mode,
+                    isometricDurationSeconds = 1
+                )
+            )
+            fixture.startFirstConcentricPhase()
+            fixture.scheduler.advance()
+            fixture.voice.completeLatest()
+            if (mode == IsometricPauseMode.STRETCHED) fixture.scheduler.advance()
+            fixture.publishedStates.clear()
+
+            fixture.engine.skip()
+
+            assertFalse(fixture.publishedWorkouts().any {
+                it.phase != TrainingPhase.CONCENTRIC && it.repetitionNumber == 2
+            })
+            assertEquals(TrainingPhase.CONCENTRIC, fixture.currentWorkout().phase)
+            assertEquals(2, fixture.currentWorkout().repetitionNumber)
+        }
+    }
+
+    @Test
+    fun lastRepetitionNeverPublishesANextRepetition() {
+        val fixture = Fixture(seriesExercise(sets = 2, repetitions = 2, restSeconds = 1))
+        fixture.startFirstConcentricPhase()
+        fixture.completeCurrentRepetition()
+        fixture.publishedStates.clear()
+
+        fixture.scheduler.advance()
+
+        val publications = fixture.publishedWorkouts()
+        assertTrue(publications.any {
+            it.phase == TrainingPhase.REPETITION_ANNOUNCEMENT && completedProjection(it) == 2
+        })
+        assertTrue(publications.none { it.repetitionNumber > 2 })
+        assertEquals(TrainingPhase.REST, publications.last().phase)
+        assertEquals(2, publications.last().repetitionNumber)
+    }
+
+    @Test
     fun multipleSeriesResetRepetitionsAndRestOnlyBetweenSeries() {
         val fixture = Fixture(seriesExercise(sets = 3, repetitions = 2, restSeconds = 2))
         val visitedCounters = mutableListOf<Pair<Int, Int>>()
@@ -1757,7 +1903,8 @@ class TrainingEngineTest {
         val beep = FakeBeepPlayer(events)
         val clock = FakeMonotonicClock()
         val scheduler = FakeTrainingScheduler(clock)
-        val engine = TrainingEngine(voice, beep, scheduler, clock)
+        val publishedStates = mutableListOf<TrainingUiState>()
+        val engine = TrainingEngine(voice, beep, scheduler, clock, publishedStates::add)
         val routine = Routine(
             id = "test",
             name = "Test",
@@ -1826,6 +1973,8 @@ class TrainingEngineTest {
         private fun currentSeries(): Int = (engine.state as TrainingUiState.Workout).seriesNumber
         private fun currentRepetition(): Int = (engine.state as TrainingUiState.Workout).repetitionNumber
         fun currentWorkout(): TrainingUiState.Workout = engine.state as TrainingUiState.Workout
+        fun publishedWorkouts(): List<TrainingUiState.Workout> =
+            publishedStates.filterIsInstance<TrainingUiState.Workout>()
     }
 
     private class FakeVoiceSpeaker(private val events: MutableList<String>) : VoiceSpeaker {
@@ -1939,3 +2088,6 @@ class TrainingEngineTest {
         )
     }
 }
+
+private fun completedProjection(state: TrainingUiState.Workout): Int =
+    workoutCompletedRepetitions(state.repetitionNumber, state.phase, state.isStartingExecution)

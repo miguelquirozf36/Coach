@@ -269,7 +269,7 @@ class TrainingEngine(
         }
     }
 
-    private fun startConcentricPhase(activeSession: Long) {
+    private fun startConcentricPhase(activeSession: Long, repetitionNumber: Int? = null) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.COUNTDOWN &&
             workout.phase != TrainingPhase.WARMUP &&
@@ -282,6 +282,7 @@ class TrainingEngine(
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         beepPlayer.play()
         state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
+            repetitionNumber = repetitionNumber ?: workout.repetitionNumber,
             phase = TrainingPhase.CONCENTRIC,
             secondsRemaining = exercise.concentricSeconds,
             phaseDurationSeconds = exercise.concentricSeconds,
@@ -431,8 +432,7 @@ class TrainingEngine(
 
     private fun prepareNextRepetition(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        state = workout.copy(repetitionNumber = workout.repetitionNumber + 1)
-        startConcentricPhase(activeSession)
+        startConcentricPhase(activeSession, repetitionNumber = workout.repetitionNumber + 1)
     }
 
     private fun completeExecution(activeSession: Long) {
