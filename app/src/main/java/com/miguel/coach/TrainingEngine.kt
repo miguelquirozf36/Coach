@@ -718,6 +718,16 @@ sealed interface TrainingUiState {
             get() = isStartingExecution &&
                 plannedTimeline.segments.getOrNull(plannedSegmentIndex)?.type ==
                 PlannedWorkoutSegmentType.START_DELAY
+
+        val completedRepetitions: Int
+            get() = when {
+                phase == TrainingPhase.WARMUP ||
+                    phase == TrainingPhase.COUNTDOWN ||
+                    phase == TrainingPhase.REST_BETWEEN_EXERCISES ||
+                    isInStartDelay -> 0
+                phase == TrainingPhase.CONCENTRIC -> (repetitionNumber - 1).coerceAtLeast(0)
+                else -> repetitionNumber
+            }
     }
 }
 

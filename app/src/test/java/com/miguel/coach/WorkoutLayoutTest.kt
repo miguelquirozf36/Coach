@@ -71,42 +71,42 @@ class WorkoutLayoutTest {
 
     @Test
     fun repetitionCounterChangesAtTheSameBoundaryAsTheVoice() {
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.CONCENTRIC))
-        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.REPETITION_ANNOUNCEMENT))
-        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.ECCENTRIC))
-        assertEquals(1, workoutCompletedRepetitions(2, TrainingPhase.CONCENTRIC))
-        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT))
-        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.ECCENTRIC))
-        assertEquals(2, workoutCompletedRepetitions(3, TrainingPhase.CONCENTRIC))
-        assertEquals(3, workoutCompletedRepetitions(3, TrainingPhase.REPETITION_ANNOUNCEMENT))
+        assertEquals(0, workoutState(TrainingPhase.CONCENTRIC, repetitionNumber = 1).completedRepetitions)
+        assertEquals(1, workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 1).completedRepetitions)
+        assertEquals(1, workoutState(TrainingPhase.ECCENTRIC, repetitionNumber = 1).completedRepetitions)
+        assertEquals(1, workoutState(TrainingPhase.CONCENTRIC, repetitionNumber = 2).completedRepetitions)
+        assertEquals(2, workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 2).completedRepetitions)
+        assertEquals(2, workoutState(TrainingPhase.ECCENTRIC, repetitionNumber = 2).completedRepetitions)
+        assertEquals(2, workoutState(TrainingPhase.CONCENTRIC, repetitionNumber = 3).completedRepetitions)
+        assertEquals(3, workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 3).completedRepetitions)
     }
 
     @Test
     fun beepAndReturnPhasesKeepTheLastSpokenRepetition() {
-        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.ECCENTRIC))
-        assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.ISOMETRIC))
-        assertEquals(1, workoutCompletedRepetitions(2, TrainingPhase.CONCENTRIC))
+        assertEquals(1, workoutState(TrainingPhase.ECCENTRIC, repetitionNumber = 1).completedRepetitions)
+        assertEquals(1, workoutState(TrainingPhase.ISOMETRIC, repetitionNumber = 1).completedRepetitions)
+        assertEquals(1, workoutState(TrainingPhase.CONCENTRIC, repetitionNumber = 2).completedRepetitions)
     }
 
     @Test
     fun shortenedAndStretchedIsometricsDoNotDoubleCount() {
-        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.ISOMETRIC))
-        assertEquals(2, workoutCompletedRepetitions(2, TrainingPhase.ECCENTRIC))
-        assertEquals(2, workoutCompletedRepetitions(3, TrainingPhase.CONCENTRIC))
+        assertEquals(2, workoutState(TrainingPhase.ISOMETRIC, repetitionNumber = 2).completedRepetitions)
+        assertEquals(2, workoutState(TrainingPhase.ECCENTRIC, repetitionNumber = 2).completedRepetitions)
+        assertEquals(2, workoutState(TrainingPhase.CONCENTRIC, repetitionNumber = 3).completedRepetitions)
     }
 
     @Test
     fun lastConcentricShowsTheTotalBeforeRest() {
-        assertEquals(9, workoutCompletedRepetitions(10, TrainingPhase.CONCENTRIC))
-        assertEquals(10, workoutCompletedRepetitions(10, TrainingPhase.REPETITION_ANNOUNCEMENT))
-        assertEquals(10, workoutCompletedRepetitions(10, TrainingPhase.REST))
+        assertEquals(9, workoutState(TrainingPhase.CONCENTRIC, repetitionNumber = 10).completedRepetitions)
+        assertEquals(10, workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 10).completedRepetitions)
+        assertEquals(10, workoutState(TrainingPhase.REST, repetitionNumber = 10).completedRepetitions)
     }
 
     @Test
     fun bilateralAndBothUnilateralSidesShareTheCompletedCountSemantics() {
-        val bilateral = workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT)
-        val rightSide = workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT)
-        val leftSide = workoutCompletedRepetitions(2, TrainingPhase.REPETITION_ANNOUNCEMENT)
+        val bilateral = workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 2).completedRepetitions
+        val rightSide = workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 2).completedRepetitions
+        val leftSide = workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 2).completedRepetitions
 
         assertEquals(2, bilateral)
         assertEquals(bilateral, rightSide)
@@ -115,27 +115,34 @@ class WorkoutLayoutTest {
 
     @Test
     fun sideSeriesAndExerciseTransitionsResetBeforeTheirFirstConcentricCompletes() {
-        assertEquals(3, workoutCompletedRepetitions(3, TrainingPhase.REST))
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST, isInStartDelay = true))
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.CONCENTRIC))
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST_BETWEEN_EXERCISES))
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST_BETWEEN_EXERCISES, isInStartDelay = true))
+        assertEquals(3, workoutState(TrainingPhase.REST, repetitionNumber = 3).completedRepetitions)
+        assertEquals(0, workoutState(TrainingPhase.REST, inStartDelay = true).completedRepetitions)
+        assertEquals(0, workoutState(TrainingPhase.CONCENTRIC).completedRepetitions)
+        assertEquals(0, workoutState(TrainingPhase.REST_BETWEEN_EXERCISES).completedRepetitions)
+        assertEquals(0, workoutState(TrainingPhase.REST_BETWEEN_EXERCISES, inStartDelay = true).completedRepetitions)
     }
 
     @Test
     fun warmupCountdownPauseAndResumeDoNotInventCompletedRepetitions() {
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.WARMUP))
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.COUNTDOWN))
+        assertEquals(0, workoutState(TrainingPhase.WARMUP).completedRepetitions)
+        assertEquals(0, workoutState(TrainingPhase.COUNTDOWN).completedRepetitions)
         TrainingPhase.entries.forEach { phase ->
-            val beforePause = workoutCompletedRepetitions(2, phase)
-            val afterResume = workoutCompletedRepetitions(2, phase)
-            assertEquals(beforePause, afterResume)
+            val beforePause = workoutState(phase, repetitionNumber = 2).completedRepetitions
+            val duringPause = workoutState(phase, repetitionNumber = 2, paused = true).completedRepetitions
+            val afterResume = workoutState(phase, repetitionNumber = 2).completedRepetitions
+            assertEquals(beforePause, duringPause)
+            assertEquals(duringPause, afterResume)
         }
+        val startDelay = workoutState(TrainingPhase.REST, inStartDelay = true)
+        assertEquals(startDelay.completedRepetitions, startDelay.copy(isPaused = true).completedRepetitions)
     }
 
     @Test
     fun portraitAndLandscapeRenderTheSameCompletedRepetitionText() {
-        val completed = workoutCompletedRepetitions(3, TrainingPhase.REPETITION_ANNOUNCEMENT)
+        val completed = workoutState(
+            TrainingPhase.REPETITION_ANNOUNCEMENT,
+            repetitionNumber = 3
+        ).completedRepetitions
         val sharedMetrics = workoutMetricTexts(1, 1, completed, 10, "Concéntrica")
         val portraitText = sharedMetrics.repetition
         val landscapeText = sharedMetrics.repetition
@@ -281,17 +288,17 @@ class WorkoutLayoutTest {
 
     @Test
     fun skipEnablementDistinguishesRealCountdownFromEveryStartDelayOrigin() {
-        assertEquals(false, workoutSkipEnabled(skipPolicyState(TrainingPhase.COUNTDOWN)))
-        assertEquals(true, workoutSkipEnabled(skipPolicyState(TrainingPhase.COUNTDOWN, inStartDelay = true)))
-        assertEquals(true, workoutSkipEnabled(skipPolicyState(TrainingPhase.WARMUP, inStartDelay = true)))
-        assertEquals(true, workoutSkipEnabled(skipPolicyState(TrainingPhase.REST, inStartDelay = true)))
+        assertEquals(false, workoutSkipEnabled(workoutState(TrainingPhase.COUNTDOWN)))
+        assertEquals(true, workoutSkipEnabled(workoutState(TrainingPhase.COUNTDOWN, inStartDelay = true)))
+        assertEquals(true, workoutSkipEnabled(workoutState(TrainingPhase.WARMUP, inStartDelay = true)))
+        assertEquals(true, workoutSkipEnabled(workoutState(TrainingPhase.REST, inStartDelay = true)))
         assertEquals(
             true,
-            workoutSkipEnabled(skipPolicyState(TrainingPhase.REST_BETWEEN_EXERCISES, inStartDelay = true))
+            workoutSkipEnabled(workoutState(TrainingPhase.REST_BETWEEN_EXERCISES, inStartDelay = true))
         )
         assertEquals(
             false,
-            workoutSkipEnabled(skipPolicyState(TrainingPhase.COUNTDOWN, inStartDelay = true, paused = true))
+            workoutSkipEnabled(workoutState(TrainingPhase.COUNTDOWN, inStartDelay = true, paused = true))
         )
     }
 
@@ -410,8 +417,9 @@ class WorkoutLayoutTest {
     }
 }
 
-private fun skipPolicyState(
+private fun workoutState(
     phase: TrainingPhase,
+    repetitionNumber: Int = 1,
     inStartDelay: Boolean = false,
     paused: Boolean = false
 ): TrainingUiState.Workout {
@@ -430,7 +438,7 @@ private fun skipPolicyState(
         routine = Routine("skip", "Skip", false, listOf(exercise), 1),
         exerciseIndex = 0,
         seriesNumber = 1,
-        repetitionNumber = 1,
+        repetitionNumber = repetitionNumber,
         phase = phase,
         secondsRemaining = 0,
         phaseDurationSeconds = 1,

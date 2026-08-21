@@ -127,8 +127,9 @@ class WorkoutNotificationTest {
         )
 
         phases.forEach { (phase, repetition, expectedCompleted) ->
-            val screenCompleted = workoutCompletedRepetitions(repetition, phase)
-            val notification = workoutNotificationContent(workout(phase, repetition = repetition))
+            val state = workout(phase, repetition = repetition)
+            val screenCompleted = state.completedRepetitions
+            val notification = workoutNotificationContent(state)
 
             assertEquals(expectedCompleted, screenCompleted)
             assertEquals("Serie 1 de 3 · Repetición $screenCompleted de 8", notification.text)
@@ -368,9 +369,12 @@ class WorkoutNotificationTest {
 
     @Test
     fun restBetweenExercisesKeepsTheCompletedExercise() {
-        val content = workoutNotificationContent(
-            workout(TrainingPhase.REST_BETWEEN_EXERCISES, exerciseIndex = 1)
-        )
+        val state = workout(TrainingPhase.REST_BETWEEN_EXERCISES, exerciseIndex = 1)
+        val content = workoutNotificationContent(state)
+
+        assertEquals(0, state.completedRepetitions)
+        assertEquals(0, state.completedExerciseIndex)
+        assertEquals(1, state.upcomingExerciseIndex)
         assertEquals("Ejercicio uno", content.title)
         assertEquals("Serie 3 de 3 · Repetición 8 de 8 · Descanso 00:05", content.text)
     }

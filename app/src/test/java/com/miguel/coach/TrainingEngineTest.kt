@@ -2479,7 +2479,7 @@ class TrainingEngineTest {
 }
 
 private fun completedProjection(state: TrainingUiState.Workout): Int =
-    workoutCompletedRepetitions(state.repetitionNumber, state.phase, state.isInStartDelay)
+    state.completedRepetitions
 
 private fun assertImplicitStartDelay(state: TrainingUiState.Workout) {
     val segment = state.plannedTimeline.segments.getOrNull(state.plannedSegmentIndex)
