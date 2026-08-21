@@ -14,6 +14,7 @@ object ExerciseLibrary {
     const val CHEST = "PECHO"
     const val BACK = "ESPALDA"
     const val LEGS = "PIERNAS"
+    const val GLUTES = "GLÚTEOS"
     const val SHOULDERS = "HOMBROS"
     const val BICEPS = "BÍCEPS"
     const val TRICEPS = "TRÍCEPS"
@@ -22,7 +23,7 @@ object ExerciseLibrary {
     const val ABS = "ABDOMINALES"
 
     private val categoryOrder = Collections.unmodifiableList(
-        listOf(CHEST, BACK, LEGS, SHOULDERS, BICEPS, TRICEPS, FOREARMS, CALVES, ABS)
+        listOf(CHEST, BACK, LEGS, GLUTES, SHOULDERS, BICEPS, TRICEPS, FOREARMS, CALVES, ABS)
     )
 
     private val officialDefinitions = Collections.unmodifiableList(
@@ -50,17 +51,33 @@ object ExerciseLibrary {
             definition("remo-t", "Remo T", BACK),
 
             definition("aductores-maquina", "Aductores en máquina", LEGS),
-            definition("bulgaras", "Búlgaras", LEGS),
             definition("curl-femoral", "Curl femoral", LEGS),
-            definition("extension-cadera", "Extensión de cadera", LEGS),
             definition("extension-pierna", "Extensión de pierna", LEGS),
-            definition("hip-thrust", "Hip thrust", LEGS),
-            definition("peso-muerto-rumano", "Peso muerto rumano", LEGS),
             definition("prensa", "Prensa", LEGS),
             definition("sentadilla-barra", "Sentadilla con barra", LEGS),
             definition("sentadilla-goblet", "Sentadilla goblet", LEGS),
             definition("sentadilla-hack", "Sentadilla hack", LEGS),
             definition("zancadas", "Zancadas", LEGS),
+
+            definition("abduccion-cadera-acostado", "Abducción de cadera acostado", GLUTES),
+            definition("abduccion-cadera-maquina", "Abducción de cadera en máquina", GLUTES),
+            definition("abduccion-cadera-polea", "Abducción de cadera en polea", GLUTES),
+            definition("bulgaras", "Búlgaras", GLUTES),
+            definition("caminata-lateral-banda", "Caminata lateral con banda", GLUTES),
+            definition("extension-cadera", "Extensión de cadera", GLUTES),
+            definition("extension-cadera-maquina", "Extensión de cadera en máquina", GLUTES),
+            definition("extension-cadera-polea", "Extensión de cadera en polea", GLUTES),
+            definition("hip-thrust", "Hip thrust", GLUTES),
+            definition("hip-thrust-unilateral", "Hip thrust unilateral", GLUTES),
+            definition("patada-gluteo-maquina", "Patada de glúteo en máquina", GLUTES),
+            definition("patada-gluteo-polea", "Patada de glúteo en polea", GLUTES),
+            definition("peso-muerto-rumano", "Peso muerto rumano", GLUTES),
+            definition("peso-muerto-rumano-unilateral", "Peso muerto rumano unilateral", GLUTES),
+            definition("puente-gluteos", "Puente de glúteos", GLUTES),
+            definition("puente-gluteos-unilateral", "Puente de glúteos unilateral", GLUTES),
+            definition("sentadilla-sumo", "Sentadilla sumo", GLUTES),
+            definition("step-up", "Step-up", GLUTES),
+            definition("zancada-atras", "Zancada hacia atrás", GLUTES),
 
             definition("elevaciones-frontales", "Elevaciones frontales", SHOULDERS),
             definition("elevaciones-laterales", "Elevaciones laterales", SHOULDERS),

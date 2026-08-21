@@ -32,9 +32,13 @@ class ExercisePickerTest {
 
     @Test
     fun pickerUsesLibraryCategories() {
-        assertEquals(9, ExerciseLibrary.categories().size)
+        assertEquals(10, ExerciseLibrary.categories().size)
         assertEquals("PECHO", ExerciseLibrary.categories().first())
         assertEquals("ABDOMINALES", ExerciseLibrary.categories().last())
+        assertEquals(
+            listOf("PIERNAS", "GLÚTEOS", "HOMBROS"),
+            ExerciseLibrary.categories().subList(2, 5)
+        )
     }
 
     @Test
