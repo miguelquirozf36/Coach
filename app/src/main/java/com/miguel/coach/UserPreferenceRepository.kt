@@ -126,7 +126,7 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
     fun saveTrainerVoiceId(voiceId: String): Boolean = storage.writeTrainerVoiceId(voiceId)
 }
 
-const val DEFAULT_BEEP_VOLUME_LEVEL = 1
+const val DEFAULT_BEEP_VOLUME_LEVEL = 5
 const val MIN_BEEP_VOLUME_LEVEL = 1
 const val MAX_BEEP_VOLUME_LEVEL = 5
 const val DEFAULT_TRAINER_VOICE_VOLUME_LEVEL = 5

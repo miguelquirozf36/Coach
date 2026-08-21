@@ -7,10 +7,11 @@ import org.junit.Test
 
 class UserPreferenceRepositoryTest {
     @Test
-    fun beepVolumeDefaultsToLevelOneAndNormalizesStoredValues() {
+    fun beepVolumeDefaultsToLevelFiveAndNormalizesStoredValues() {
         val storage = InMemoryUserStorage()
         val repository = UserPreferenceRepository(storage)
-        assertEquals(1, repository.loadBeepVolumeLevel())
+        assertEquals(5, repository.loadBeepVolumeLevel())
+        assertEquals(100, beepToneVolume(repository.loadBeepVolumeLevel()))
         storage.beepVolumeLevel = 99
         assertEquals(5, repository.loadBeepVolumeLevel())
         storage.beepVolumeLevel = -4
@@ -28,7 +29,9 @@ class UserPreferenceRepositoryTest {
     @Test
     fun trainerVoiceVolumeDefaultsToLevelFiveAndPersistsSelection() {
         val storage = InMemoryUserStorage()
-        assertEquals(5, UserPreferenceRepository(storage).loadTrainerVoiceVolumeLevel())
+        val defaultLevel = UserPreferenceRepository(storage).loadTrainerVoiceVolumeLevel()
+        assertEquals(5, defaultLevel)
+        assertEquals(1.0f, relativeAudioVolume(defaultLevel))
         assertTrue(UserPreferenceRepository(storage).saveTrainerVoiceVolumeLevel(3))
         assertEquals(3, UserPreferenceRepository(storage).loadTrainerVoiceVolumeLevel())
         assertTrue("trainer_voice_volume_level" in storage.writtenKeys)
