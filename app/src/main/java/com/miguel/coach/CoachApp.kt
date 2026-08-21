@@ -94,6 +94,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -1934,22 +1935,25 @@ private fun WorkoutHeader(
 ) {
     OverallWorkoutProgressBar(overallProgress)
     Text(
-        stringResource(R.string.workout_title),
+        workoutHeaderTitle(state.phase, stringResource(R.string.workout_title)),
         modifier = Modifier.padding(top = 6.dp),
-        style = MaterialTheme.typography.titleLarge
+        style = if (state.phase == TrainingPhase.WARMUP) {
+            MaterialTheme.typography.titleLarge.withOneSpLargerFont()
+        } else {
+            MaterialTheme.typography.titleLarge
+        }
     )
     if (state.phase == TrainingPhase.WARMUP) {
         Text(
             state.routine.name,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium.withOneSpLargerFont(),
             maxLines = nameMaxLines,
             overflow = TextOverflow.Ellipsis
         )
-        Text("Calentamiento", style = MaterialTheme.typography.titleLarge)
         warmupNextExerciseText(state.phase, exercise.name)?.let { nextExerciseText ->
             Text(
                 text = nextExerciseText,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.withOneSpLargerFont(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -1969,6 +1973,12 @@ private fun WorkoutHeader(
         )
     }
 }
+
+internal fun workoutHeaderTitle(phase: TrainingPhase, workoutTitle: String): String =
+    if (phase == TrainingPhase.WARMUP) "Calentamiento" else workoutTitle
+
+internal fun TextStyle.withOneSpLargerFont(): TextStyle =
+    copy(fontSize = (fontSize.value + 1f).sp)
 
 internal fun warmupNextExerciseText(phase: TrainingPhase, exerciseName: String?): String? =
     exerciseName

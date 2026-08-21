@@ -1,11 +1,53 @@
 package com.miguel.coach
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.TextStyle
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WorkoutLayoutTest {
+    @Test
+    fun warmupReplacesTheNormalHeaderTitleWithoutAddingASecondWarmupLabel() {
+        val visibleHeaderLines = listOfNotNull(
+            workoutHeaderTitle(TrainingPhase.WARMUP, "Entrenamiento"),
+            "DÍA 1 — PECHO Y TRÍCEPS",
+            warmupNextExerciseText(TrainingPhase.WARMUP, "Press inclinado mancuernas")
+        )
+
+        assertEquals(
+            listOf(
+                "Calentamiento",
+                "DÍA 1 — PECHO Y TRÍCEPS",
+                "A continuación: Press inclinado mancuernas"
+            ),
+            visibleHeaderLines
+        )
+        assertEquals(1, visibleHeaderLines.count { it == "Calentamiento" })
+    }
+
+    @Test
+    fun normalPhasesKeepTheWorkoutTitleAndNormalNextExerciseVisibility() {
+        TrainingPhase.entries.filterNot { it == TrainingPhase.WARMUP }.forEach { phase ->
+            assertEquals("Entrenamiento", workoutHeaderTitle(phase, "Entrenamiento"))
+            assertEquals(null, warmupNextExerciseText(phase, "Press inclinado mancuernas"))
+        }
+    }
+
+    @Test
+    fun warmupTypographyAddsExactlyOneSpAndPreservesOtherStyleAttributes() {
+        listOf(22.sp, 28.sp, 16.sp).forEach { baseSize ->
+            val base = TextStyle(fontSize = baseSize, lineHeight = 30.sp)
+            val enlarged = base.withOneSpLargerFont()
+
+            assertEquals((baseSize.value + 1f).sp, enlarged.fontSize)
+            assertEquals(base.lineHeight, enlarged.lineHeight)
+            assertEquals(base.fontWeight, enlarged.fontWeight)
+            assertEquals(base.fontFamily, enlarged.fontFamily)
+        }
+    }
+
     @Test
     fun warmupShowsTheRealNextExerciseNameIncludingLongNames() {
         assertEquals(
