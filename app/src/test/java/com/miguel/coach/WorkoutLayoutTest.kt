@@ -7,6 +7,34 @@ import org.junit.Test
 
 class WorkoutLayoutTest {
     @Test
+    fun warmupShowsTheRealNextExerciseNameIncludingLongNames() {
+        assertEquals(
+            "A continuación: Elevaciones laterales alternadas",
+            warmupNextExerciseText(TrainingPhase.WARMUP, "Elevaciones laterales alternadas")
+        )
+    }
+
+    @Test
+    fun nextExercisePresentationExistsOnlyDuringWarmup() {
+        TrainingPhase.entries.filterNot { it == TrainingPhase.WARMUP }.forEach { phase ->
+            assertEquals(null, warmupNextExerciseText(phase, "Jalón al pecho"))
+        }
+    }
+
+    @Test
+    fun warmupDoesNotRenderAnEmptyNextExerciseLine() {
+        assertEquals(null, warmupNextExerciseText(TrainingPhase.WARMUP, null))
+        assertEquals(null, warmupNextExerciseText(TrainingPhase.WARMUP, "  "))
+    }
+
+    @Test
+    fun portraitAndLandscapeShareTheSameWarmupPresentationSource() {
+        val presentation = warmupNextExerciseText(TrainingPhase.WARMUP, "Press de banca")
+
+        assertEquals(presentation, warmupNextExerciseText(TrainingPhase.WARMUP, "Press de banca"))
+    }
+
+    @Test
     fun repetitionCounterChangesAtTheSameBoundaryAsTheVoice() {
         assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.CONCENTRIC))
         assertEquals(1, workoutCompletedRepetitions(1, TrainingPhase.REPETITION_ANNOUNCEMENT))

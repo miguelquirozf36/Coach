@@ -1946,6 +1946,13 @@ private fun WorkoutHeader(
             overflow = TextOverflow.Ellipsis
         )
         Text("Calentamiento", style = MaterialTheme.typography.titleLarge)
+        warmupNextExerciseText(state.phase, exercise.name)?.let { nextExerciseText ->
+            Text(
+                text = nextExerciseText,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     } else if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
         Text("Descanso entre ejercicios", style = MaterialTheme.typography.headlineMedium)
         Text(
@@ -1962,6 +1969,12 @@ private fun WorkoutHeader(
         )
     }
 }
+
+internal fun warmupNextExerciseText(phase: TrainingPhase, exerciseName: String?): String? =
+    exerciseName
+        ?.trim()
+        ?.takeIf { phase == TrainingPhase.WARMUP && it.isNotEmpty() }
+        ?.let { "A continuación: $it" }
 
 @Composable
 private fun OverallWorkoutProgressBar(progress: Float) {
