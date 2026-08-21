@@ -47,7 +47,13 @@ class TrainingEngine(
         clearStartDelay()
         val sessionRoutine = routine.copy(exercises = routine.exercises.toList())
         val hasWarmup = useRoutineWarmup && sessionRoutine.warmupSeconds > 0
+        val plannedTimeline = if (useRoutineWarmup) {
+            sessionRoutine.plannedTimeline()
+        } else {
+            sessionRoutine.plannedTimelineFromExercise(exerciseIndex)
+        }
         val initialExercise = sessionRoutine.exercises[exerciseIndex]
+        val sessionStartedAtMillis = monotonicClock.nowMillis()
         state = TrainingUiState.Workout(
             routine = sessionRoutine,
             exerciseIndex = exerciseIndex,
@@ -56,11 +62,13 @@ class TrainingEngine(
             phase = if (hasWarmup) TrainingPhase.WARMUP else TrainingPhase.COUNTDOWN,
             secondsRemaining = if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS,
             phaseDurationSeconds = if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS,
-            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phaseStartedAtMillis = sessionStartedAtMillis,
             phasePausedAtMillis = null,
             isPaused = false,
             currentExerciseNotes = initialExercise.notes,
-            currentSide = initialExercise.initialSide()
+            currentSide = initialExercise.initialSide(),
+            plannedTimeline = plannedTimeline,
+            plannedSegmentStartedAtMillis = sessionStartedAtMillis
         )
         resetTimedAnnouncements(if (hasWarmup) sessionRoutine.warmupSeconds else INITIAL_COUNTDOWN_SECONDS)
         if (hasWarmup) {
@@ -85,7 +93,11 @@ class TrainingEngine(
             workout = workout.copy(secondsRemaining = remainingSeconds(workout, pausedAtMillis))
         }
         invalidatePendingWork()
-        state = workout.copy(isPaused = true, phasePausedAtMillis = pausedAtMillis)
+        state = workout.copy(
+            isPaused = true,
+            phasePausedAtMillis = pausedAtMillis,
+            plannedSegmentPausedAtMillis = pausedAtMillis
+        )
     }
 
     fun resume() {
@@ -100,7 +112,9 @@ class TrainingEngine(
         state = workout.copy(
             isPaused = false,
             phaseStartedAtMillis = workout.phaseStartedAtMillis + pauseDurationMillis,
-            phasePausedAtMillis = null
+            phasePausedAtMillis = null,
+            plannedSegmentStartedAtMillis = workout.plannedSegmentStartedAtMillis + pauseDurationMillis,
+            plannedSegmentPausedAtMillis = null
         )
         resumePhase(activeSession)
     }
@@ -238,7 +252,7 @@ class TrainingEngine(
 
     private fun startStartDelay(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        if (!workout.isStartingExecution) state = workout.copy(isStartingExecution = true)
+        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(isStartingExecution = true)
         startDelayRemainingMillis = START_DELAY_SECONDS * ONE_SECOND_MILLIS
         scheduleStartDelay(activeSession)
     }
@@ -267,7 +281,7 @@ class TrainingEngine(
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         beepPlayer.play()
-        state = workout.copy(
+        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
             phase = TrainingPhase.CONCENTRIC,
             secondsRemaining = exercise.concentricSeconds,
             phaseDurationSeconds = exercise.concentricSeconds,
@@ -320,7 +334,7 @@ class TrainingEngine(
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (workout.phase == TrainingPhase.ISOMETRIC) beepPlayer.play()
-        state = workout.copy(
+        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
             phase = TrainingPhase.ECCENTRIC,
             secondsRemaining = exercise.eccentricSeconds,
             phaseDurationSeconds = exercise.eccentricSeconds,
@@ -335,7 +349,7 @@ class TrainingEngine(
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (exercise.isometricPauseMode == IsometricPauseMode.NONE) return
         if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) beepPlayer.play()
-        state = workout.copy(
+        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
             phase = TrainingPhase.ISOMETRIC,
             secondsRemaining = exercise.isometricDurationSeconds,
             phaseDurationSeconds = exercise.isometricDurationSeconds,
@@ -427,7 +441,7 @@ class TrainingEngine(
         val hasAnotherExecution = workout.currentSide == ExerciseSide.RIGHT ||
             workout.seriesNumber < exercise.sets
         if (hasAnotherExecution) {
-            state = workout.copy(
+            state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
                 phase = TrainingPhase.REST,
                 secondsRemaining = exercise.restSeconds,
                 phaseDurationSeconds = exercise.restSeconds,
@@ -441,7 +455,7 @@ class TrainingEngine(
 
         if (workout.exerciseIndex < workout.routine.exercises.lastIndex) {
             val nextExerciseIndex = workout.exerciseIndex + 1
-            state = workout.copy(
+            state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
                 exerciseIndex = nextExerciseIndex,
                 seriesNumber = 1,
                 repetitionNumber = 1,
@@ -671,9 +685,19 @@ sealed interface TrainingUiState {
         val isPaused: Boolean,
         val currentExerciseNotes: String,
         val currentSide: ExerciseSide? = null,
-        val isStartingExecution: Boolean = false
+        val isStartingExecution: Boolean = false,
+        val plannedTimeline: PlannedWorkoutTimeline = PlannedWorkoutTimeline(emptyList()),
+        val plannedSegmentIndex: Int = 0,
+        val plannedSegmentStartedAtMillis: Long = phaseStartedAtMillis,
+        val plannedSegmentPausedAtMillis: Long? = null
     ) : TrainingUiState
 }
+
+private fun TrainingUiState.Workout.advancePlannedSegment(nowMillis: Long): TrainingUiState.Workout = copy(
+    plannedSegmentIndex = (plannedSegmentIndex + 1).coerceAtMost(plannedTimeline.segments.size),
+    plannedSegmentStartedAtMillis = nowMillis,
+    plannedSegmentPausedAtMillis = null
+)
 
 private fun Exercise.initialSide(): ExerciseSide? =
     if (executionMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME) ExerciseSide.RIGHT else null

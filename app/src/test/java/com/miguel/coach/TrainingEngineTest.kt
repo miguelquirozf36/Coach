@@ -1585,6 +1585,94 @@ class TrainingEngineTest {
         )
     }
 
+    @Test
+    fun overallProgressFreezesDuringPauseAndContinuesAfterResume() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, restSeconds = 0)),
+            warmupSeconds = 4
+        )
+        fixture.engine.start(fixture.routine)
+        fixture.clock.advanceBy(1_500L)
+        val beforePause = workoutOverallProgress(fixture.currentWorkout(), fixture.clock.now)
+
+        fixture.engine.pause()
+        fixture.clock.advanceBy(30_000L)
+        assertEquals(beforePause, workoutOverallProgress(fixture.currentWorkout(), fixture.clock.now), 0f)
+
+        fixture.engine.resume()
+        assertEquals(beforePause, workoutOverallProgress(fixture.currentWorkout(), fixture.clock.now), 0f)
+        fixture.clock.advanceBy(500L)
+        assertTrue(workoutOverallProgress(fixture.currentWorkout(), fixture.clock.now) > beforePause)
+    }
+
+    @Test
+    fun skipJumpsToTheNextRealPlannedSegment() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, restSeconds = 0)),
+            warmupSeconds = 4
+        )
+        fixture.engine.start(fixture.routine)
+        fixture.clock.advanceBy(1_000L)
+        val beforeSkip = workoutOverallProgress(fixture.currentWorkout(), fixture.clock.now)
+
+        fixture.engine.skip()
+        val afterSkip = fixture.currentWorkout()
+
+        assertEquals(1, afterSkip.plannedSegmentIndex)
+        assertTrue(workoutOverallProgress(afterSkip, fixture.clock.now) > beforeSkip)
+    }
+
+    @Test
+    fun startFromExerciseUsesItsOwnPartialTimelineAndStartsAtZero() {
+        val fixture = Fixture(
+            exercises = listOf(
+                seriesExercise(1, 0),
+                seriesExercise(2, 2),
+                seriesExercise(1, 0)
+            ),
+            warmupSeconds = 30
+        )
+
+        fixture.engine.startFromExercise(fixture.routine, 1)
+        val state = fixture.currentWorkout()
+
+        assertEquals(fixture.routine.plannedTimelineFromExercise(1), state.plannedTimeline)
+        assertEquals(0f, workoutOverallProgress(state, fixture.clock.now), 0f)
+    }
+
+    @Test
+    fun plannedProgressIsMonotonicAcrossUnilateralIsometricAndMultipleExerciseBoundaries() {
+        val fixture = Fixture(
+            exercises = listOf(
+                seriesExercise(sets = 2, restSeconds = 2, repetitions = 2).copy(
+                    executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
+                    isometricPauseMode = IsometricPauseMode.SHORTENED,
+                    isometricDurationSeconds = 2
+                ),
+                seriesExercise(sets = 1, restSeconds = 0, repetitions = 2).copy(
+                    isometricPauseMode = IsometricPauseMode.STRETCHED,
+                    isometricDurationSeconds = 2
+                )
+            ),
+            restBetweenExercisesSeconds = 3,
+            warmupSeconds = 2
+        )
+        fixture.engine.start(fixture.routine)
+        var previous = 0f
+        var boundaries = 0
+
+        while (fixture.engine.state != TrainingUiState.Completed) {
+            val current = workoutOverallProgress(fixture.currentWorkout(), fixture.clock.now)
+            assertTrue("Progress decreased at boundary $boundaries", current >= previous)
+            previous = current
+            fixture.scheduler.advance()
+            boundaries += 1
+            check(boundaries < 10_000)
+        }
+
+        assertEquals(1f, workoutOverallProgress(fixture.engine.state, fixture.clock.now), 0f)
+    }
+
     private class Fixture(
         exercises: List<Exercise>,
         private val restBetweenExercisesSeconds: Int = 12,

@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.SolidColor
@@ -1723,6 +1724,36 @@ fun WorkoutScreen(
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
     var showFinishConfirmation by rememberSaveable { mutableStateOf(false) }
+    var frameTimeMillis by remember(
+        state.phaseStartedAtMillis,
+        state.phasePausedAtMillis,
+        state.plannedSegmentStartedAtMillis,
+        state.plannedSegmentPausedAtMillis
+    ) {
+        mutableStateOf(
+            state.plannedSegmentPausedAtMillis
+                ?: state.phasePausedAtMillis
+                ?: android.os.SystemClock.elapsedRealtime()
+        )
+    }
+    LaunchedEffect(
+        state.phaseStartedAtMillis,
+        state.phasePausedAtMillis,
+        state.plannedSegmentStartedAtMillis,
+        state.plannedSegmentPausedAtMillis,
+        state.isPaused
+    ) {
+        if (state.isPaused) {
+            frameTimeMillis = state.plannedSegmentPausedAtMillis ?: frameTimeMillis
+        } else {
+            while (true) {
+                withFrameNanos { }
+                frameTimeMillis = android.os.SystemClock.elapsedRealtime()
+            }
+        }
+    }
+    val effectiveTimeMillis = state.plannedSegmentPausedAtMillis ?: frameTimeMillis
+    val overallProgress = workoutOverallProgress(state, effectiveTimeMillis)
 
     RegisterSystemBackAction {
         when (workoutSystemBackOutcome(showFinishConfirmation)) {
@@ -1775,6 +1806,8 @@ fun WorkoutScreen(
                 state = state,
                 exercise = exercise,
                 metrics = metrics,
+                overallProgress = overallProgress,
+                frameTimeMillis = frameTimeMillis,
                 ringDiameter = workoutRingDiameter(maxWidth, maxHeight),
                 onPause = onPause,
                 onResume = onResume,
@@ -1785,6 +1818,8 @@ fun WorkoutScreen(
                 state = state,
                 exercise = exercise,
                 metrics = metrics,
+                overallProgress = overallProgress,
+                frameTimeMillis = frameTimeMillis,
                 ringDiameter = landscapeWorkoutRingDiameter(maxWidth * 0.4f, maxHeight),
                 onPause = onPause,
                 onResume = onResume,
@@ -1805,6 +1840,8 @@ private fun WorkoutPortraitLayout(
     state: TrainingUiState.Workout,
     exercise: Exercise,
     metrics: WorkoutMetricTexts,
+    overallProgress: Float,
+    frameTimeMillis: Long,
     ringDiameter: Dp,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -1819,7 +1856,7 @@ private fun WorkoutPortraitLayout(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE)
+            WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE, overallProgress = overallProgress)
             if (state.phase != TrainingPhase.WARMUP) WorkoutMetricsCard(metrics)
         }
         Box(modifier = Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
@@ -1828,7 +1865,7 @@ private fun WorkoutPortraitLayout(
                 modifier = Modifier.align(Alignment.TopCenter).offset(y = (-32).dp),
                 style = MaterialTheme.typography.labelLarge
             )
-            TrainingTimer(state, ringDiameter, showPhaseLabel = false)
+            TrainingTimer(state, ringDiameter, showPhaseLabel = false, frameTimeMillis = frameTimeMillis)
         }
         WorkoutControls(
             state = state,
@@ -1847,6 +1884,8 @@ private fun WorkoutLandscapeLayout(
     state: TrainingUiState.Workout,
     exercise: Exercise,
     metrics: WorkoutMetricTexts,
+    overallProgress: Float,
+    frameTimeMillis: Long,
     ringDiameter: Dp,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -1861,7 +1900,7 @@ private fun WorkoutLandscapeLayout(
                 .fillMaxWidth(0.6f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = 1)
+            WorkoutHeader(state, exercise, nameMaxLines = 1, overallProgress = overallProgress)
         }
         if (state.phase != TrainingPhase.WARMUP) {
             LandscapeWorkoutMetrics(
@@ -1872,7 +1911,7 @@ private fun WorkoutLandscapeLayout(
         Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Tiempo restante", style = MaterialTheme.typography.labelLarge)
             Spacer(modifier = Modifier.height(8.dp))
-            TrainingTimer(state, ringDiameter, showPhaseLabel = true)
+            TrainingTimer(state, ringDiameter, showPhaseLabel = true, frameTimeMillis = frameTimeMillis)
         }
         WorkoutControls(
             state = state,
@@ -1890,8 +1929,10 @@ private fun WorkoutLandscapeLayout(
 private fun WorkoutHeader(
     state: TrainingUiState.Workout,
     exercise: Exercise,
-    nameMaxLines: Int
+    nameMaxLines: Int,
+    overallProgress: Float
 ) {
+    OverallWorkoutProgressBar(overallProgress)
     Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
     if (state.phase == TrainingPhase.WARMUP) {
         Text(
@@ -1915,6 +1956,29 @@ private fun WorkoutHeader(
             maxLines = nameMaxLines,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+private fun OverallWorkoutProgressBar(progress: Float) {
+    val safeProgress = progress.coerceIn(0f, 1f)
+    val trackColor = MaterialTheme.colorScheme.outlineVariant
+    val progressColor = MaterialTheme.colorScheme.primary
+    Canvas(modifier = Modifier.fillMaxWidth().height(3.dp)) {
+        val radius = size.height / 2f
+        drawRoundRect(
+            color = trackColor,
+            cornerRadius = CornerRadius(radius, radius)
+        )
+        if (safeProgress > 0f) {
+            val progressWidth = size.width * safeProgress
+            val progressRadius = min(radius, progressWidth / 2f)
+            drawRoundRect(
+                color = progressColor,
+                size = size.copy(width = progressWidth),
+                cornerRadius = CornerRadius(progressRadius, progressRadius)
+            )
+        }
     }
 }
 
@@ -2228,7 +2292,12 @@ internal fun usefulAreaCenter(
 )
 
 @Composable
-private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhaseLabel: Boolean) {
+private fun TrainingTimer(
+    state: TrainingUiState.Workout,
+    diameter: Dp,
+    showPhaseLabel: Boolean,
+    frameTimeMillis: Long
+) {
     val timerText = state.secondsRemaining.toClockFormat()
     val visibleSide = workoutTimerSide(
         phase = state.phase,
@@ -2243,19 +2312,6 @@ private fun TrainingTimer(state: TrainingUiState.Workout, diameter: Dp, showPhas
         showPhaseLabel = showPhaseLabel,
         hasUnilateralContext = state.currentSide != null
     )
-    var frameTimeMillis by remember(state.phaseStartedAtMillis, state.phasePausedAtMillis) {
-        mutableStateOf(state.phasePausedAtMillis ?: state.phaseStartedAtMillis)
-    }
-    LaunchedEffect(state.phaseStartedAtMillis, state.phasePausedAtMillis, state.isPaused) {
-        if (state.isPaused) {
-            frameTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
-        } else {
-            while (true) {
-                withFrameNanos { }
-                frameTimeMillis = android.os.SystemClock.elapsedRealtime()
-            }
-        }
-    }
     val effectiveTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
     val progress = workoutRemainingFraction(state, effectiveTimeMillis)
     val progressColor = timerProgressColor(MaterialTheme.colorScheme)
