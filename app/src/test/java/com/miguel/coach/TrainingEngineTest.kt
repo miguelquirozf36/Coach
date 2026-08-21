@@ -1585,6 +1585,42 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun startDelayDeadlineIsScheduledBeforeSynchronousStateConsumerWork() {
+        val clock = FakeMonotonicClock()
+        val scheduler = FakeTrainingScheduler(clock)
+        val voice = FakeVoiceSpeaker(mutableListOf())
+        val engine = TrainingEngine(
+            voice,
+            FakeBeepPlayer(mutableListOf()),
+            scheduler,
+            clock
+        ) { state ->
+            if ((state as? TrainingUiState.Workout)?.isInStartDelay == true) clock.advanceBy(200L)
+        }
+        val routine = Routine(
+            id = "scheduled-before-state",
+            name = "Scheduled before state",
+            isCustom = false,
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 0)),
+            restBetweenExercisesSeconds = 0,
+            warmupSeconds = 0
+        )
+
+        engine.start(routine)
+        repeat(10) { scheduler.advance() }
+        val startDelay = engine.state as TrainingUiState.Workout
+
+        assertTrue(startDelay.isInStartDelay)
+        assertEquals(10_200L, clock.now)
+        scheduler.advance()
+
+        val concentric = engine.state as TrainingUiState.Workout
+        assertEquals(TrainingPhase.CONCENTRIC, concentric.phase)
+        assertEquals(11_000L, concentric.phaseStartedAtMillis)
+        assertEquals(11_000L, clock.now)
+    }
+
+    @Test
     fun longBilateralAndUnilateralTimelinesKeepOnlyTheLastObservableLateness() {
         listOf(ExerciseExecutionMode.SIMULTANEOUS, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME).forEach { mode ->
             val fixture = Fixture(
@@ -2568,7 +2604,7 @@ class TrainingEngineTest {
             if (pendingAction != null) {
                 overlappingScheduleRequests += 1
             }
-            pendingAction = ScheduledAction(delayMillis, action)
+            pendingAction = ScheduledAction(delayMillis, clock.now, action)
         }
 
         override fun cancelAll() {
@@ -2579,7 +2615,7 @@ class TrainingEngineTest {
         fun advance() {
             val scheduled = pendingAction ?: return
             pendingAction = null
-            clock.advanceBy(scheduled.delayMillis)
+            clock.advanceBy((scheduled.scheduledAtMillis + scheduled.delayMillis - clock.now).coerceAtLeast(0L))
             scheduled.action()
         }
 
@@ -2596,7 +2632,11 @@ class TrainingEngineTest {
             action()
         }
 
-        private data class ScheduledAction(val delayMillis: Long, val action: () -> Unit)
+        private data class ScheduledAction(
+            val delayMillis: Long,
+            val scheduledAtMillis: Long,
+            val action: () -> Unit
+        )
     }
 
     private companion object {
