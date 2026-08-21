@@ -1796,7 +1796,7 @@ fun WorkoutScreen(
             repetitionNumber = workoutCompletedRepetitions(
                 repetitionNumber = state.repetitionNumber,
                 phase = state.phase,
-                isStartingExecution = state.isStartingExecution
+                isInStartDelay = state.isInStartDelay
             ),
             repetitionTotal = exercise.repetitions,
             phase = workoutMetricPhaseLabel(state.phase)
@@ -2151,12 +2151,12 @@ internal fun workoutMetricTexts(
 internal fun workoutCompletedRepetitions(
     repetitionNumber: Int,
     phase: TrainingPhase,
-    isStartingExecution: Boolean = false
+    isInStartDelay: Boolean = false
 ): Int = when {
     phase == TrainingPhase.WARMUP ||
         phase == TrainingPhase.COUNTDOWN ||
         phase == TrainingPhase.REST_BETWEEN_EXERCISES ||
-        isStartingExecution -> 0
+        isInStartDelay -> 0
     phase == TrainingPhase.CONCENTRIC -> (repetitionNumber - 1).coerceAtLeast(0)
     else -> repetitionNumber
 }
@@ -2329,7 +2329,7 @@ private fun TrainingTimer(
         phase = state.phase,
         secondsRemaining = state.secondsRemaining,
         currentSide = state.currentSide,
-        isStartingExecution = state.isStartingExecution
+        isInStartDelay = state.isInStartDelay
     )
     val sideLabel = visibleSide.displayLabel()
     val supportingText = workoutTimerSupportingText(
@@ -2414,13 +2414,13 @@ internal fun workoutTimerSide(
     phase: TrainingPhase,
     secondsRemaining: Int,
     currentSide: ExerciseSide?,
-    isStartingExecution: Boolean = false
+    isInStartDelay: Boolean = false
 ): ExerciseSide? = when (phase) {
     TrainingPhase.WARMUP,
     TrainingPhase.COUNTDOWN,
     TrainingPhase.REST_BETWEEN_EXERCISES -> currentSide.takeIf { secondsRemaining <= 10 }
     TrainingPhase.REST -> {
-        val upcomingSide = if (isStartingExecution) currentSide else currentSide.nextSide()
+        val upcomingSide = if (isInStartDelay) currentSide else currentSide.nextSide()
         upcomingSide.takeIf { secondsRemaining <= 10 }
     }
     else -> currentSide

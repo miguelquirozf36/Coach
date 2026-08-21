@@ -257,7 +257,10 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         state = prepareExecution(workout)
             .advancePlannedSegment(monotonicClock.nowMillis())
-            .copy(isStartingExecution = true)
+            .copy(
+                secondsRemaining = 0,
+                isStartingExecution = true
+            )
         startDelayRemainingMillis = START_DELAY_SECONDS * ONE_SECOND_MILLIS
         scheduleStartDelay(activeSession)
     }
@@ -705,6 +708,15 @@ sealed interface TrainingUiState {
     ) : TrainingUiState {
         val exerciseNotesIndex: Int
             get() = completedExerciseIndex ?: exerciseIndex
+
+        /**
+         * True only while the prepared execution is in its planned one-second start delay.
+         * Consumers should use this semantic contract instead of either backing field alone.
+         */
+        val isInStartDelay: Boolean
+            get() = isStartingExecution &&
+                plannedTimeline.segments.getOrNull(plannedSegmentIndex)?.type ==
+                PlannedWorkoutSegmentType.START_DELAY
     }
 }
 

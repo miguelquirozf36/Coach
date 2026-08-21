@@ -887,8 +887,7 @@ class TrainingEngineTest {
         val nextSeriesStates = fixture.publishedWorkouts().filter { it.seriesNumber == 2 }
         assertEquals(1, nextSeriesStates.size)
         assertEquals(1, nextSeriesStates.single().repetitionNumber)
-        assertTrue(nextSeriesStates.single().isStartingExecution)
-        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(nextSeriesStates.single()))
+        assertImplicitStartDelay(nextSeriesStates.single())
         assertEquals(fixture.clock.now, nextSeriesStates.single().plannedSegmentStartedAtMillis)
     }
 
@@ -909,8 +908,7 @@ class TrainingEngineTest {
         assertEquals(1, leftStates.size)
         assertEquals(1, leftStates.single().seriesNumber)
         assertEquals(1, leftStates.single().repetitionNumber)
-        assertTrue(leftStates.single().isStartingExecution)
-        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(leftStates.single()))
+        assertImplicitStartDelay(leftStates.single())
     }
 
     @Test
@@ -934,8 +932,7 @@ class TrainingEngineTest {
         }
         assertEquals(1, nextRightStates.size)
         assertEquals(1, nextRightStates.single().repetitionNumber)
-        assertTrue(nextRightStates.single().isStartingExecution)
-        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(nextRightStates.single()))
+        assertImplicitStartDelay(nextRightStates.single())
     }
 
     @Test
@@ -951,8 +948,68 @@ class TrainingEngineTest {
         assertEquals(1, publications.size)
         assertEquals(2, publications.single().seriesNumber)
         assertEquals(1, publications.single().repetitionNumber)
-        assertTrue(publications.single().isStartingExecution)
-        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(publications.single()))
+        assertImplicitStartDelay(publications.single())
+    }
+
+    @Test
+    fun implicitStartDelayContractCoversWarmupCountdownAndStartFromExercise() {
+        val warmup = Fixture(
+            listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 1
+        )
+        warmup.engine.start(warmup.routine)
+        warmup.scheduler.advance()
+        assertImplicitStartDelay(warmup.currentWorkout())
+        assertEquals(TrainingPhase.WARMUP, warmup.currentWorkout().phase)
+
+        val countdown = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1))
+        countdown.engine.start(countdown.routine)
+        repeat(10) { countdown.scheduler.advance() }
+        assertImplicitStartDelay(countdown.currentWorkout())
+        assertEquals(TrainingPhase.COUNTDOWN, countdown.currentWorkout().phase)
+
+        val fromExercise = Fixture(
+            listOf(seriesExercise(1, 1), seriesExercise(1, 1).copy(id = "selected"))
+        )
+        fromExercise.engine.startFromExercise(fromExercise.routine, 1)
+        repeat(10) { fromExercise.scheduler.advance() }
+        val selectedDelay = fromExercise.currentWorkout()
+        assertImplicitStartDelay(selectedDelay)
+        assertEquals(1, selectedDelay.exerciseIndex)
+        assertEquals(1, selectedDelay.seriesNumber)
+        assertEquals(1, selectedDelay.repetitionNumber)
+    }
+
+    @Test
+    fun everyPublishedStateKeepsBothHalvesOfTheImplicitStartDelayContractAtomic() {
+        val fixture = Fixture(
+            listOf(
+                seriesExercise(sets = 2, repetitions = 1, restSeconds = 1).copy(
+                    executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+                ),
+                seriesExercise(sets = 2, repetitions = 1, restSeconds = 1).copy(id = "next")
+            ),
+            restBetweenExercisesSeconds = 1,
+            warmupSeconds = 1
+        )
+
+        fixture.runToCompletion()
+
+        val publications = fixture.publishedWorkouts()
+        assertTrue(publications.any { it.phase == TrainingPhase.WARMUP && it.isInStartDelay })
+        assertTrue(publications.any { it.phase == TrainingPhase.REST && it.isInStartDelay })
+        assertTrue(publications.any { it.phase == TrainingPhase.REST_BETWEEN_EXERCISES && it.isInStartDelay })
+        publications.forEach { state ->
+            val hasStartDelaySegment = plannedSegmentType(state) == PlannedWorkoutSegmentType.START_DELAY
+            assertEquals(hasStartDelaySegment, state.isStartingExecution)
+            assertEquals(state.isStartingExecution && hasStartDelaySegment, state.isInStartDelay)
+            if (state.isInStartDelay) assertImplicitStartDelay(state)
+            if (state.phase == TrainingPhase.CONCENTRIC) {
+                assertFalse(state.isStartingExecution)
+                assertFalse(state.isInStartDelay)
+                assertEquals(PlannedWorkoutSegmentType.CONCENTRIC, plannedSegmentType(state))
+            }
+        }
     }
 
     @Test
@@ -1119,10 +1176,12 @@ class TrainingEngineTest {
         fixture.engine.skip()
         assertEquals(0, fixture.currentWorkout().completedExerciseIndex)
         assertEquals(1, fixture.currentWorkout().upcomingExerciseIndex)
+        assertImplicitStartDelay(fixture.currentWorkout())
         fixture.scheduler.advance()
         assertEquals(TrainingPhase.CONCENTRIC, fixture.currentWorkout().phase)
         assertEquals(null, fixture.currentWorkout().completedExerciseIndex)
         assertEquals(null, fixture.currentWorkout().upcomingExerciseIndex)
+        assertFalse(fixture.currentWorkout().isInStartDelay)
     }
 
     @Test
@@ -1292,12 +1351,44 @@ class TrainingEngineTest {
         fixture.voice.completeLatest()
         assertEquals(eventsAtVamos, fixture.events)
         assertEquals(0, fixture.voice.pendingCompletionCount)
-        assertTrue(fixture.currentWorkout().isStartingExecution)
+        assertImplicitStartDelay(fixture.currentWorkout())
         fixture.scheduler.advance()
 
         assertEquals("beep", fixture.events.last())
         assertEquals(1_000L, fixture.clock.now - delayStartedAt)
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertFalse(fixture.currentWorkout().isInStartDelay)
+    }
+
+    @Test
+    fun pausingStartDelayFreezesAndResumesOnlyItsExactRemainingTime() {
+        val fixture = Fixture(
+            listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 1
+        )
+        fixture.engine.start(fixture.routine)
+        fixture.scheduler.advance()
+        val delayStartedAt = fixture.clock.now
+        fixture.clock.advanceBy(400L)
+
+        fixture.engine.pause()
+        assertImplicitStartDelay(fixture.currentWorkout())
+        assertTrue(fixture.currentWorkout().isPaused)
+        val frozenPlannedInstant = fixture.currentWorkout().plannedSegmentPausedAtMillis
+        fixture.clock.advanceBy(60_000L)
+        fixture.scheduler.advanceCancelled()
+        assertImplicitStartDelay(fixture.currentWorkout())
+        assertEquals(frozenPlannedInstant, fixture.currentWorkout().plannedSegmentPausedAtMillis)
+        assertEquals(0, fixture.beep.playCalls)
+
+        fixture.engine.resume()
+        assertImplicitStartDelay(fixture.currentWorkout())
+        fixture.scheduler.advance()
+
+        assertEquals(delayStartedAt + 61_000L, fixture.clock.now)
+        assertEquals(TrainingPhase.CONCENTRIC, fixture.currentWorkout().phase)
+        assertFalse(fixture.currentWorkout().isInStartDelay)
+        assertEquals(1, fixture.beep.playCalls)
     }
 
     @Test
@@ -1551,6 +1642,24 @@ class TrainingEngineTest {
         assertTrue(fixture.voice.stopCalls > 0)
         assertTrue(fixture.beep.stopCalls > 0)
         assertEquals(0, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun finishingDuringStartDelayPreventsConcentricAndLateBeep() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
+            warmupSeconds = 1
+        )
+        fixture.engine.start(fixture.routine)
+        fixture.scheduler.advance()
+        assertImplicitStartDelay(fixture.currentWorkout())
+
+        fixture.engine.finish()
+        fixture.scheduler.advanceCancelled()
+
+        assertEquals(TrainingUiState.Home, fixture.engine.state)
+        assertEquals(0, fixture.beep.playCalls)
+        assertTrue(fixture.publishedWorkouts().none { it.phase == TrainingPhase.CONCENTRIC })
     }
 
     @Test
@@ -2285,7 +2394,20 @@ class TrainingEngineTest {
 }
 
 private fun completedProjection(state: TrainingUiState.Workout): Int =
-    workoutCompletedRepetitions(state.repetitionNumber, state.phase, state.isStartingExecution)
+    workoutCompletedRepetitions(state.repetitionNumber, state.phase, state.isInStartDelay)
+
+private fun assertImplicitStartDelay(state: TrainingUiState.Workout) {
+    val segment = state.plannedTimeline.segments.getOrNull(state.plannedSegmentIndex)
+    assertTrue(state.isStartingExecution)
+    assertTrue(state.isInStartDelay)
+    assertEquals(PlannedWorkoutSegmentType.START_DELAY, segment?.type)
+    assertEquals(0, state.secondsRemaining)
+    assertEquals(segment?.exerciseIndex, state.exerciseIndex)
+    assertEquals(segment?.seriesNumber, state.seriesNumber)
+    assertEquals(1, state.repetitionNumber)
+    assertEquals(segment?.side, state.currentSide)
+    assertEquals(0, completedProjection(state))
+}
 
 private fun plannedSegmentType(state: TrainingUiState.Workout): PlannedWorkoutSegmentType? =
     state.plannedTimeline.segments.getOrNull(state.plannedSegmentIndex)?.type

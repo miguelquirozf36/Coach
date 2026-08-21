@@ -116,10 +116,10 @@ class WorkoutLayoutTest {
     @Test
     fun sideSeriesAndExerciseTransitionsResetBeforeTheirFirstConcentricCompletes() {
         assertEquals(3, workoutCompletedRepetitions(3, TrainingPhase.REST))
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST, isStartingExecution = true))
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST, isInStartDelay = true))
         assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.CONCENTRIC))
         assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST_BETWEEN_EXERCISES))
-        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST_BETWEEN_EXERCISES, isStartingExecution = true))
+        assertEquals(0, workoutCompletedRepetitions(1, TrainingPhase.REST_BETWEEN_EXERCISES, isInStartDelay = true))
     }
 
     @Test
@@ -351,7 +351,7 @@ class WorkoutLayoutTest {
     fun restToRightExecutionKeepsThePreparedSideThroughStartDelay() {
         val observedSides = listOf(
             workoutTimerSide(TrainingPhase.REST, 1, ExerciseSide.LEFT),
-            workoutTimerSide(TrainingPhase.REST, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.REST, 0, ExerciseSide.RIGHT, isInStartDelay = true),
             workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
         )
 
@@ -362,7 +362,7 @@ class WorkoutLayoutTest {
     fun restToLeftExecutionKeepsThePreparedSideThroughStartDelay() {
         val observedSides = listOf(
             workoutTimerSide(TrainingPhase.REST, 1, ExerciseSide.RIGHT),
-            workoutTimerSide(TrainingPhase.REST, 0, ExerciseSide.LEFT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.REST, 0, ExerciseSide.LEFT, isInStartDelay = true),
             workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.LEFT)
         )
 
@@ -373,17 +373,17 @@ class WorkoutLayoutTest {
     fun initialPreparationTransitionsKeepRightContinuously() {
         val warmup = listOf(
             workoutTimerSide(TrainingPhase.WARMUP, 1, ExerciseSide.RIGHT),
-            workoutTimerSide(TrainingPhase.WARMUP, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.WARMUP, 0, ExerciseSide.RIGHT, isInStartDelay = true),
             workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
         )
         val countdown = listOf(
             workoutTimerSide(TrainingPhase.COUNTDOWN, 1, ExerciseSide.RIGHT),
-            workoutTimerSide(TrainingPhase.COUNTDOWN, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.COUNTDOWN, 0, ExerciseSide.RIGHT, isInStartDelay = true),
             workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
         )
         val betweenExercises = listOf(
             workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 1, ExerciseSide.RIGHT),
-            workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 0, ExerciseSide.RIGHT, isStartingExecution = true),
+            workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 0, ExerciseSide.RIGHT, isInStartDelay = true),
             workoutTimerSide(TrainingPhase.CONCENTRIC, 3, ExerciseSide.RIGHT)
         )
 

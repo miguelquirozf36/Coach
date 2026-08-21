@@ -445,7 +445,22 @@ class WorkoutNotificationTest {
         currentSide = currentSide,
         completedExerciseIndex = if (phase == TrainingPhase.REST_BETWEEN_EXERCISES) 0 else null,
         upcomingExerciseIndex = if (phase == TrainingPhase.REST_BETWEEN_EXERCISES) exerciseIndex else null,
-        isStartingExecution = startingExecution
+        isStartingExecution = startingExecution,
+        plannedTimeline = if (startingExecution) {
+            PlannedWorkoutTimeline(
+                listOf(
+                    PlannedWorkoutSegment(
+                        type = PlannedWorkoutSegmentType.START_DELAY,
+                        durationSeconds = START_DELAY_SECONDS,
+                        exerciseIndex = exerciseIndex,
+                        seriesNumber = series,
+                        side = currentSide
+                    )
+                )
+            )
+        } else {
+            PlannedWorkoutTimeline(emptyList())
+        }
     )
 
     private companion object {

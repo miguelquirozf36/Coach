@@ -74,7 +74,7 @@ class WorkoutNotificationTracker {
 
 fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificationContent {
     if (state.phase == TrainingPhase.WARMUP) {
-        val text = if (!state.isStartingExecution && state.secondsRemaining > 0) {
+        val text = if (!state.isInStartDelay && state.secondsRemaining > 0) {
             "Calentamiento · ${formatNotificationDuration(state.secondsRemaining)}"
         } else {
             "Preparando entrenamiento"
@@ -96,11 +96,11 @@ fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificat
         workoutCompletedRepetitions(
             repetitionNumber = state.repetitionNumber,
             phase = state.phase,
-            isStartingExecution = state.isStartingExecution
+            isInStartDelay = state.isInStartDelay
         )
     }
     val progress = "Serie $series de ${exercise.sets} · Repetición $repetition de ${exercise.repetitions}"
-    val restText = if (state.phase.isNotificationRest && !state.isStartingExecution && state.secondsRemaining > 0) {
+    val restText = if (state.phase.isNotificationRest && !state.isInStartDelay && state.secondsRemaining > 0) {
         " · Descanso ${formatNotificationDuration(state.secondsRemaining)}"
     } else {
         ""
