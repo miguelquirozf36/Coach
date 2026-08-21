@@ -1933,7 +1933,11 @@ private fun WorkoutHeader(
     overallProgress: Float
 ) {
     OverallWorkoutProgressBar(overallProgress)
-    Text(stringResource(R.string.workout_title), style = MaterialTheme.typography.titleLarge)
+    Text(
+        stringResource(R.string.workout_title),
+        modifier = Modifier.padding(top = 6.dp),
+        style = MaterialTheme.typography.titleLarge
+    )
     if (state.phase == TrainingPhase.WARMUP) {
         Text(
             state.routine.name,
