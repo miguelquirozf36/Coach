@@ -94,7 +94,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
@@ -1937,28 +1936,27 @@ private fun WorkoutHeader(
     Text(
         workoutHeaderTitle(state.phase, stringResource(R.string.workout_title)),
         modifier = Modifier.padding(top = 6.dp),
-        style = if (state.phase == TrainingPhase.WARMUP) {
-            MaterialTheme.typography.titleLarge.withOneSpLargerFont()
-        } else {
-            MaterialTheme.typography.titleLarge
-        }
+        style = MaterialTheme.typography.titleLarge.copy(fontSize = WORKOUT_HEADER_TITLE_FONT_SIZE)
     )
     if (state.phase == TrainingPhase.WARMUP) {
         Text(
             state.routine.name,
-            style = MaterialTheme.typography.headlineMedium.withOneSpLargerFont(),
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = WORKOUT_HEADER_PRIMARY_FONT_SIZE),
             maxLines = nameMaxLines,
             overflow = TextOverflow.Ellipsis
         )
         warmupNextExerciseText(state.phase, exercise.name)?.let { nextExerciseText ->
             Text(
                 text = nextExerciseText,
-                style = MaterialTheme.typography.bodyLarge.withOneSpLargerFont(),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = WORKOUT_HEADER_NEXT_FONT_SIZE),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     } else if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
-        Text("Descanso entre ejercicios", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Descanso entre ejercicios",
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = WORKOUT_HEADER_PRIMARY_FONT_SIZE)
+        )
         Text(
             "Siguiente: ${exercise.name}",
             maxLines = nameMaxLines,
@@ -1967,7 +1965,7 @@ private fun WorkoutHeader(
     } else {
         Text(
             exercise.name,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = WORKOUT_HEADER_PRIMARY_FONT_SIZE),
             maxLines = nameMaxLines,
             overflow = TextOverflow.Ellipsis
         )
@@ -1977,8 +1975,9 @@ private fun WorkoutHeader(
 internal fun workoutHeaderTitle(phase: TrainingPhase, workoutTitle: String): String =
     if (phase == TrainingPhase.WARMUP) "Calentamiento" else workoutTitle
 
-internal fun TextStyle.withOneSpLargerFont(): TextStyle =
-    copy(fontSize = (fontSize.value + 1f).sp)
+internal val WORKOUT_HEADER_TITLE_FONT_SIZE = 25.sp
+internal val WORKOUT_HEADER_PRIMARY_FONT_SIZE = 29.sp
+internal val WORKOUT_HEADER_NEXT_FONT_SIZE = 20.sp
 
 internal fun warmupNextExerciseText(phase: TrainingPhase, exerciseName: String?): String? =
     exerciseName

@@ -3,7 +3,6 @@ package com.miguel.coach
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.text.TextStyle
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -36,16 +35,10 @@ class WorkoutLayoutTest {
     }
 
     @Test
-    fun warmupTypographyAddsExactlyOneSpAndPreservesOtherStyleAttributes() {
-        listOf(22.sp, 28.sp, 16.sp).forEach { baseSize ->
-            val base = TextStyle(fontSize = baseSize, lineHeight = 30.sp)
-            val enlarged = base.withOneSpLargerFont()
-
-            assertEquals((baseSize.value + 1f).sp, enlarged.fontSize)
-            assertEquals(base.lineHeight, enlarged.lineHeight)
-            assertEquals(base.fontWeight, enlarged.fontWeight)
-            assertEquals(base.fontFamily, enlarged.fontFamily)
-        }
+    fun workoutHeaderTypographyUsesTheRequestedAbsoluteSizes() {
+        assertEquals(25.sp, WORKOUT_HEADER_TITLE_FONT_SIZE)
+        assertEquals(29.sp, WORKOUT_HEADER_PRIMARY_FONT_SIZE)
+        assertEquals(20.sp, WORKOUT_HEADER_NEXT_FONT_SIZE)
     }
 
     @Test
