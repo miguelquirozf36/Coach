@@ -876,6 +876,86 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun bilateralNextSeriesIsPublishedOnlyWithItsStartDelaySegment() {
+        val fixture = Fixture(seriesExercise(sets = 2, repetitions = 1, restSeconds = 1))
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        fixture.publishedStates.clear()
+
+        fixture.scheduler.advance()
+
+        val nextSeriesStates = fixture.publishedWorkouts().filter { it.seriesNumber == 2 }
+        assertEquals(1, nextSeriesStates.size)
+        assertEquals(1, nextSeriesStates.single().repetitionNumber)
+        assertTrue(nextSeriesStates.single().isStartingExecution)
+        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(nextSeriesStates.single()))
+        assertEquals(fixture.clock.now, nextSeriesStates.single().plannedSegmentStartedAtMillis)
+    }
+
+    @Test
+    fun rightToLeftIsPublishedOnlyWithItsStartDelaySegment() {
+        val fixture = Fixture(
+            seriesExercise(sets = 1, repetitions = 1, restSeconds = 1).copy(
+                executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+            )
+        )
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        fixture.publishedStates.clear()
+
+        fixture.scheduler.advance()
+
+        val leftStates = fixture.publishedWorkouts().filter { it.currentSide == ExerciseSide.LEFT }
+        assertEquals(1, leftStates.size)
+        assertEquals(1, leftStates.single().seriesNumber)
+        assertEquals(1, leftStates.single().repetitionNumber)
+        assertTrue(leftStates.single().isStartingExecution)
+        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(leftStates.single()))
+    }
+
+    @Test
+    fun leftToNextSeriesRightIsPublishedOnlyWithItsStartDelaySegment() {
+        val fixture = Fixture(
+            seriesExercise(sets = 2, repetitions = 1, restSeconds = 1).copy(
+                executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+            )
+        )
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        fixture.scheduler.advance()
+        fixture.scheduler.advance()
+        fixture.scheduler.advance()
+        fixture.publishedStates.clear()
+
+        fixture.scheduler.advance()
+
+        val nextRightStates = fixture.publishedWorkouts().filter {
+            it.seriesNumber == 2 && it.currentSide == ExerciseSide.RIGHT
+        }
+        assertEquals(1, nextRightStates.size)
+        assertEquals(1, nextRightStates.single().repetitionNumber)
+        assertTrue(nextRightStates.single().isStartingExecution)
+        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(nextRightStates.single()))
+    }
+
+    @Test
+    fun skippingRestPublishesTheNextExecutionAtomically() {
+        val fixture = Fixture(seriesExercise(sets = 2, repetitions = 1, restSeconds = 30))
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+        fixture.publishedStates.clear()
+
+        fixture.engine.skip()
+
+        val publications = fixture.publishedWorkouts()
+        assertEquals(1, publications.size)
+        assertEquals(2, publications.single().seriesNumber)
+        assertEquals(1, publications.single().repetitionNumber)
+        assertTrue(publications.single().isStartingExecution)
+        assertEquals(PlannedWorkoutSegmentType.START_DELAY, plannedSegmentType(publications.single()))
+    }
+
+    @Test
     fun multipleSeriesResetRepetitionsAndRestOnlyBetweenSeries() {
         val fixture = Fixture(seriesExercise(sets = 3, repetitions = 2, restSeconds = 2))
         val visitedCounters = mutableListOf<Pair<Int, Int>>()
@@ -2091,3 +2171,6 @@ class TrainingEngineTest {
 
 private fun completedProjection(state: TrainingUiState.Workout): Int =
     workoutCompletedRepetitions(state.repetitionNumber, state.phase, state.isStartingExecution)
+
+private fun plannedSegmentType(state: TrainingUiState.Workout): PlannedWorkoutSegmentType? =
+    state.plannedTimeline.segments.getOrNull(state.plannedSegmentIndex)?.type

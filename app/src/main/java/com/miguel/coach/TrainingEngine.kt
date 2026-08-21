@@ -250,9 +250,14 @@ class TrainingEngine(
         voiceSpeaker.speak("\u00A1Vamos!")
     }
 
-    private fun startStartDelay(activeSession: Long) {
+    private fun startStartDelay(
+        activeSession: Long,
+        prepareExecution: (TrainingUiState.Workout) -> TrainingUiState.Workout = { it }
+    ) {
         val workout = activeWorkout(activeSession) ?: return
-        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(isStartingExecution = true)
+        state = prepareExecution(workout)
+            .advancePlannedSegment(monotonicClock.nowMillis())
+            .copy(isStartingExecution = true)
         startDelayRemainingMillis = START_DELAY_SECONDS * ONE_SECOND_MILLIS
         scheduleStartDelay(activeSession)
     }
@@ -573,13 +578,13 @@ class TrainingEngine(
             workout.seriesNumber + 1
         }
         if (nextSeries > exercise.sets) return
-        state = workout.copy(
-            seriesNumber = nextSeries,
-            currentSide = nextSide,
-            repetitionNumber = 1,
-            isStartingExecution = true
-        )
-        startStartDelay(activeSession)
+        startStartDelay(activeSession) { current ->
+            current.copy(
+                seriesNumber = nextSeries,
+                currentSide = nextSide,
+                repetitionNumber = 1
+            )
+        }
     }
 
     private fun startNextExercise(activeSession: Long) {
