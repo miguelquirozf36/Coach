@@ -121,12 +121,13 @@ class TrainingEngine(
 
     fun skip() {
         val workout = state as? TrainingUiState.Workout ?: return
-        if (workout.isPaused || workout.phase == TrainingPhase.COUNTDOWN) return
+        if (workout.isPaused) return
+        if (workout.phase == TrainingPhase.COUNTDOWN && !workout.isInStartDelay) return
 
         invalidatePendingWork()
         sessionId += 1
         val activeSession = sessionId
-        if (startDelayRemainingMillis != null) {
+        if (workout.isInStartDelay) {
             clearStartDelay()
             startConcentricPhase(activeSession)
             return

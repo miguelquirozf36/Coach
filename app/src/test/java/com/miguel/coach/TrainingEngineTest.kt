@@ -952,6 +952,87 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun skipKeepsRealCountdownBlockedButConsumesItsFollowingStartDelayOnce() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1))
+        fixture.engine.start(fixture.routine)
+        val countdown = fixture.currentWorkout()
+
+        fixture.engine.skip()
+
+        assertEquals(countdown, fixture.currentWorkout())
+        assertFalse(fixture.currentWorkout().isInStartDelay)
+        assertEquals(PlannedWorkoutSegmentType.INITIAL_COUNTDOWN, plannedSegmentType(fixture.currentWorkout()))
+        assertEquals(0, fixture.beep.playCalls)
+
+        repeat(10) { fixture.scheduler.advance() }
+        assertImplicitStartDelay(fixture.currentWorkout())
+        fixture.engine.skip()
+
+        assertEquals(TrainingPhase.CONCENTRIC, fixture.currentWorkout().phase)
+        assertFalse(fixture.currentWorkout().isInStartDelay)
+        assertEquals(PlannedWorkoutSegmentType.CONCENTRIC, plannedSegmentType(fixture.currentWorkout()))
+        assertEquals(1, fixture.beep.playCalls)
+        fixture.scheduler.advanceCancelled()
+        assertEquals(TrainingPhase.CONCENTRIC, fixture.currentWorkout().phase)
+        assertEquals(1, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun startFromExerciseUsesTheSameRealCountdownAndStartDelaySkipPolicy() {
+        val fixture = Fixture(
+            listOf(seriesExercise(1, 1), seriesExercise(1, 1).copy(id = "selected"))
+        )
+        fixture.engine.startFromExercise(fixture.routine, 1)
+        val countdown = fixture.currentWorkout()
+
+        fixture.engine.skip()
+        assertEquals(countdown, fixture.currentWorkout())
+        assertEquals(0, fixture.beep.playCalls)
+
+        repeat(10) { fixture.scheduler.advance() }
+        assertImplicitStartDelay(fixture.currentWorkout())
+        fixture.engine.skip()
+
+        val concentric = fixture.currentWorkout()
+        assertEquals(TrainingPhase.CONCENTRIC, concentric.phase)
+        assertEquals(1, concentric.exerciseIndex)
+        assertEquals(PlannedWorkoutSegmentType.CONCENTRIC, plannedSegmentType(concentric))
+        assertEquals(1, fixture.beep.playCalls)
+    }
+
+    @Test
+    fun skipConsumesRestAndBetweenExerciseStartDelaysWithTheSamePolicy() {
+        val seriesRest = Fixture(seriesExercise(sets = 2, repetitions = 1, restSeconds = 1))
+        seriesRest.startFirstConcentricPhase()
+        seriesRest.scheduler.advance()
+        seriesRest.scheduler.advance()
+        assertImplicitStartDelay(seriesRest.currentWorkout())
+        seriesRest.engine.skip()
+        assertEquals(TrainingPhase.CONCENTRIC, seriesRest.currentWorkout().phase)
+        assertEquals(2, seriesRest.currentWorkout().seriesNumber)
+        assertEquals(2, seriesRest.beep.playCalls)
+
+        val exerciseRest = Fixture(
+            listOf(seriesExercise(1, 1), seriesExercise(1, 1).copy(id = "next")),
+            restBetweenExercisesSeconds = 1
+        )
+        exerciseRest.startFirstConcentricPhase()
+        exerciseRest.scheduler.advance()
+        exerciseRest.scheduler.advance()
+        assertImplicitStartDelay(exerciseRest.currentWorkout())
+        assertEquals(0, exerciseRest.currentWorkout().completedExerciseIndex)
+        assertEquals(1, exerciseRest.currentWorkout().upcomingExerciseIndex)
+        exerciseRest.engine.skip()
+
+        val concentric = exerciseRest.currentWorkout()
+        assertEquals(TrainingPhase.CONCENTRIC, concentric.phase)
+        assertEquals(1, concentric.exerciseIndex)
+        assertEquals(null, concentric.completedExerciseIndex)
+        assertEquals(null, concentric.upcomingExerciseIndex)
+        assertEquals(2, exerciseRest.beep.playCalls)
+    }
+
+    @Test
     fun implicitStartDelayContractCoversWarmupCountdownAndStartFromExercise() {
         val warmup = Fixture(
             listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1)),
@@ -1676,6 +1757,10 @@ class TrainingEngineTest {
         fixture.voice.completeOldest()
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(1, fixture.beep.playCalls)
+        fixture.scheduler.advanceCancelled()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(1, fixture.beep.playCalls)
         fixture.voice.completeLatest()
         assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
     }

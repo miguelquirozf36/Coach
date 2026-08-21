@@ -2082,7 +2082,7 @@ private fun WorkoutControls(
             modifier = Modifier.fillMaxWidth().height(buttonHeight),
             shape = RoundedCornerShape(16.dp),
             colors = workoutNeutralButtonColors(),
-            enabled = !state.isPaused && state.phase != TrainingPhase.COUNTDOWN,
+            enabled = workoutSkipEnabled(state),
             onClick = onSkip
         ) { WorkoutButtonContent(SkipNextIcon, "OMITIR") }
         Button(
@@ -2093,6 +2093,9 @@ private fun WorkoutControls(
         ) { WorkoutButtonContent(StopIcon, stringResource(R.string.finish_workout)) }
     }
 }
+
+internal fun workoutSkipEnabled(state: TrainingUiState.Workout): Boolean =
+    !state.isPaused && (state.phase != TrainingPhase.COUNTDOWN || state.isInStartDelay)
 
 @Composable
 private fun WorkoutNote(note: String) {

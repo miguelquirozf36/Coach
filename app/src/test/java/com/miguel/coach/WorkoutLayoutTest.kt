@@ -280,6 +280,22 @@ class WorkoutLayoutTest {
     }
 
     @Test
+    fun skipEnablementDistinguishesRealCountdownFromEveryStartDelayOrigin() {
+        assertEquals(false, workoutSkipEnabled(skipPolicyState(TrainingPhase.COUNTDOWN)))
+        assertEquals(true, workoutSkipEnabled(skipPolicyState(TrainingPhase.COUNTDOWN, inStartDelay = true)))
+        assertEquals(true, workoutSkipEnabled(skipPolicyState(TrainingPhase.WARMUP, inStartDelay = true)))
+        assertEquals(true, workoutSkipEnabled(skipPolicyState(TrainingPhase.REST, inStartDelay = true)))
+        assertEquals(
+            true,
+            workoutSkipEnabled(skipPolicyState(TrainingPhase.REST_BETWEEN_EXERCISES, inStartDelay = true))
+        )
+        assertEquals(
+            false,
+            workoutSkipEnabled(skipPolicyState(TrainingPhase.COUNTDOWN, inStartDelay = true, paused = true))
+        )
+    }
+
+    @Test
     fun workoutNoteCapitalizesOnlyItsFirstVisibleCharacter() {
         assertEquals(
             "  Recuerda no abrir los Codos",
@@ -392,4 +408,37 @@ class WorkoutLayoutTest {
         assertEquals(expected, countdown)
         assertEquals(expected, betweenExercises)
     }
+}
+
+private fun skipPolicyState(
+    phase: TrainingPhase,
+    inStartDelay: Boolean = false,
+    paused: Boolean = false
+): TrainingUiState.Workout {
+    val exercise = Exercise("skip", "Skip", 1, 1, 1, 1, 1)
+    val segment = PlannedWorkoutSegment(
+        type = if (inStartDelay) {
+            PlannedWorkoutSegmentType.START_DELAY
+        } else {
+            PlannedWorkoutSegmentType.INITIAL_COUNTDOWN
+        },
+        durationSeconds = 1,
+        exerciseIndex = 0,
+        seriesNumber = 1
+    )
+    return TrainingUiState.Workout(
+        routine = Routine("skip", "Skip", false, listOf(exercise), 1),
+        exerciseIndex = 0,
+        seriesNumber = 1,
+        repetitionNumber = 1,
+        phase = phase,
+        secondsRemaining = 0,
+        phaseDurationSeconds = 1,
+        phaseStartedAtMillis = 0,
+        phasePausedAtMillis = null,
+        isPaused = paused,
+        currentExerciseNotes = "",
+        isStartingExecution = inStartDelay,
+        plannedTimeline = PlannedWorkoutTimeline(listOf(segment))
+    )
 }
