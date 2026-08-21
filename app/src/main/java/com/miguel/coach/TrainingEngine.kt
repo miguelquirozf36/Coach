@@ -294,6 +294,8 @@ class TrainingEngine(
             phaseStartedAtMillis = monotonicClock.nowMillis(),
             phasePausedAtMillis = null,
             currentExerciseNotes = exercise.notes,
+            completedExerciseIndex = null,
+            upcomingExerciseIndex = null,
             isStartingExecution = false
         )
         schedulePhaseTick(activeSession)
@@ -309,7 +311,8 @@ class TrainingEngine(
             is TrainingUiState.Workout -> when (currentState.phase) {
                 TrainingPhase.REST -> voiceSpeaker.enqueue(REST_ANNOUNCEMENT)
                 TrainingPhase.REST_BETWEEN_EXERCISES -> {
-                    val nextExerciseName = currentState.routine.exercises[currentState.exerciseIndex].name
+                    val nextExerciseIndex = requireNotNull(currentState.upcomingExerciseIndex)
+                    val nextExerciseName = currentState.routine.exercises[nextExerciseIndex].name
                     voiceSpeaker.enqueue("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
                 }
                 else -> Unit
@@ -462,6 +465,8 @@ class TrainingEngine(
             val nextExerciseIndex = workout.exerciseIndex + 1
             state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
                 exerciseIndex = nextExerciseIndex,
+                completedExerciseIndex = workout.exerciseIndex,
+                upcomingExerciseIndex = nextExerciseIndex,
                 seriesNumber = 1,
                 repetitionNumber = 1,
                 currentSide = workout.routine.exercises[nextExerciseIndex].initialSide(),
@@ -690,12 +695,17 @@ sealed interface TrainingUiState {
         val isPaused: Boolean,
         val currentExerciseNotes: String,
         val currentSide: ExerciseSide? = null,
+        val completedExerciseIndex: Int? = null,
+        val upcomingExerciseIndex: Int? = null,
         val isStartingExecution: Boolean = false,
         val plannedTimeline: PlannedWorkoutTimeline = PlannedWorkoutTimeline(emptyList()),
         val plannedSegmentIndex: Int = 0,
         val plannedSegmentStartedAtMillis: Long = phaseStartedAtMillis,
         val plannedSegmentPausedAtMillis: Long? = null
-    ) : TrainingUiState
+    ) : TrainingUiState {
+        val exerciseNotesIndex: Int
+            get() = completedExerciseIndex ?: exerciseIndex
+    }
 }
 
 private fun TrainingUiState.Workout.advancePlannedSegment(nowMillis: Long): TrainingUiState.Workout = copy(

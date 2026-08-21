@@ -443,6 +443,8 @@ class WorkoutNotificationTest {
         isPaused = paused,
         currentExerciseNotes = "",
         currentSide = currentSide,
+        completedExerciseIndex = if (phase == TrainingPhase.REST_BETWEEN_EXERCISES) 0 else null,
+        upcomingExerciseIndex = if (phase == TrainingPhase.REST_BETWEEN_EXERCISES) exerciseIndex else null,
         isStartingExecution = startingExecution
     )
 

@@ -1004,6 +1004,17 @@ class TrainingEngineTest {
             fixture.completeCurrentRepetition()
         }
         fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 3, 1, 1, 1, false)
+        assertEquals(0, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(1, fixture.currentWorkout().upcomingExerciseIndex)
+        assertEquals(fixture.currentWorkout().upcomingExerciseIndex, fixture.currentWorkout().exerciseIndex)
+        assertEquals(
+            PlannedWorkoutSegmentType.REST_BETWEEN_EXERCISES,
+            plannedSegmentType(fixture.currentWorkout())
+        )
+        assertEquals(
+            fixture.currentWorkout().completedExerciseIndex,
+            fixture.currentWorkout().plannedTimeline.segments[fixture.currentWorkout().plannedSegmentIndex].exerciseIndex
+        )
         assertEquals(3, fixture.currentWorkout().phaseDurationSeconds)
         val nextExerciseAnnouncement =
             "Descansa y prepárate para el siguiente ejercicio. Extensión de tríceps — unilateral."
@@ -1024,6 +1035,106 @@ class TrainingEngineTest {
         assertEquals(1, fixture.voice.phrases.count { it == "Entrenamiento finalizado." })
         assertEquals(0, fixture.voice.pendingCompletionCount)
         assertEquals(false, fixture.scheduler.hasPendingActions)
+    }
+
+    @Test
+    fun restBetweenExerciseContextsCoverBilateralAndUnilateralCombinations() {
+        listOf(
+            ExerciseExecutionMode.SIMULTANEOUS to ExerciseExecutionMode.SIMULTANEOUS,
+            ExerciseExecutionMode.SIMULTANEOUS to ExerciseExecutionMode.ONE_SIDE_AT_A_TIME,
+            ExerciseExecutionMode.ONE_SIDE_AT_A_TIME to ExerciseExecutionMode.SIMULTANEOUS
+        ).forEach { (completedMode, upcomingMode) ->
+            val fixture = Fixture(
+                listOf(
+                    seriesExercise(sets = 1, repetitions = 1, restSeconds = 0).copy(
+                        id = "completed",
+                        executionMode = completedMode
+                    ),
+                    seriesExercise(sets = 1, repetitions = 1, restSeconds = 0).copy(
+                        id = "upcoming",
+                        executionMode = upcomingMode
+                    )
+                ),
+                restBetweenExercisesSeconds = 2
+            )
+            fixture.startFirstConcentricPhase()
+            var transitions = 0
+            while (fixture.currentWorkout().phase != TrainingPhase.REST_BETWEEN_EXERCISES) {
+                fixture.scheduler.advance()
+                transitions += 1
+                check(transitions < 20)
+            }
+
+            val state = fixture.currentWorkout()
+            assertEquals(0, state.completedExerciseIndex)
+            assertEquals(1, state.upcomingExerciseIndex)
+            assertEquals(1, state.exerciseIndex)
+            assertEquals(
+                ExerciseSide.RIGHT.takeIf { upcomingMode == ExerciseExecutionMode.ONE_SIDE_AT_A_TIME },
+                state.currentSide
+            )
+        }
+    }
+
+    @Test
+    fun startFromExerciseCreatesContextsOnlyAfterCompletingThatSessionsFirstExercise() {
+        val fixture = Fixture(
+            listOf(
+                seriesExercise(sets = 1, repetitions = 1, restSeconds = 0).copy(id = "ignored"),
+                seriesExercise(sets = 1, repetitions = 1, restSeconds = 0).copy(id = "started"),
+                seriesExercise(sets = 1, repetitions = 1, restSeconds = 0).copy(id = "next")
+            ),
+            restBetweenExercisesSeconds = 2
+        )
+        fixture.startFromExerciseConcentricPhase(1)
+        assertEquals(null, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(null, fixture.currentWorkout().upcomingExerciseIndex)
+
+        fixture.scheduler.advance()
+
+        assertEquals(TrainingPhase.REST_BETWEEN_EXERCISES, fixture.currentWorkout().phase)
+        assertEquals(1, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(2, fixture.currentWorkout().upcomingExerciseIndex)
+    }
+
+    @Test
+    fun pauseResumeAndSkipKeepThenClearRestBetweenExerciseContexts() {
+        val fixture = Fixture(
+            listOf(
+                seriesExercise(sets = 1, repetitions = 1, restSeconds = 0),
+                seriesExercise(sets = 1, repetitions = 1, restSeconds = 0)
+            ),
+            restBetweenExercisesSeconds = 30
+        )
+        fixture.startFirstConcentricPhase()
+        fixture.scheduler.advance()
+
+        fixture.engine.pause()
+        assertEquals(0, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(1, fixture.currentWorkout().upcomingExerciseIndex)
+        fixture.engine.resume()
+        assertEquals(0, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(1, fixture.currentWorkout().upcomingExerciseIndex)
+
+        fixture.engine.skip()
+        assertEquals(0, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(1, fixture.currentWorkout().upcomingExerciseIndex)
+        fixture.scheduler.advance()
+        assertEquals(TrainingPhase.CONCENTRIC, fixture.currentWorkout().phase)
+        assertEquals(null, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(null, fixture.currentWorkout().upcomingExerciseIndex)
+    }
+
+    @Test
+    fun completingTheLastExerciseNeverCreatesTransitionContexts() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 0))
+
+        fixture.runToCompletion()
+
+        assertTrue(fixture.publishedWorkouts().none { it.phase == TrainingPhase.REST_BETWEEN_EXERCISES })
+        assertTrue(fixture.publishedWorkouts().all {
+            it.completedExerciseIndex == null && it.upcomingExerciseIndex == null
+        })
     }
 
     @Test
@@ -1512,6 +1623,7 @@ class TrainingEngineTest {
 
         fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 2, 1, 1, 1, false)
         assertEquals("Nota del primero", fixture.currentWorkout().currentExerciseNotes)
+        assertEquals(0, fixture.currentWorkout().exerciseNotesIndex)
     }
 
     @Test
@@ -1531,6 +1643,9 @@ class TrainingEngineTest {
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 1, 1, 1, false)
         assertEquals("Nota nueva", fixture.currentWorkout().currentExerciseNotes)
+        assertEquals(1, fixture.currentWorkout().exerciseNotesIndex)
+        assertEquals(null, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(null, fixture.currentWorkout().upcomingExerciseIndex)
     }
 
     @Test

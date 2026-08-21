@@ -84,8 +84,8 @@ fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificat
     if (state.phase == TrainingPhase.COUNTDOWN) {
         return WorkoutNotificationContent(state.routine.name, "Preparando entrenamiento", state.isPaused)
     }
-    val exercise = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES && state.exerciseIndex > 0) {
-        state.routine.exercises[state.exerciseIndex - 1]
+    val exercise = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
+        state.routine.exercises[requireNotNull(state.completedExerciseIndex)]
     } else {
         state.routine.exercises[state.exerciseIndex]
     }
