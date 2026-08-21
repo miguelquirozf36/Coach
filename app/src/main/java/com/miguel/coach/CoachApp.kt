@@ -190,6 +190,9 @@ fun CoachApp(
     var selectedThemeId by rememberSaveable { mutableStateOf(themeRepository.load().id) }
     var userName by rememberSaveable { mutableStateOf(userPreferenceRepository.loadUserName()) }
     var beepVolumeLevel by rememberSaveable { mutableStateOf(userPreferenceRepository.loadBeepVolumeLevel()) }
+    var trainerVoiceVolumeLevel by rememberSaveable {
+        mutableStateOf(userPreferenceRepository.loadTrainerVoiceVolumeLevel())
+    }
     var launchStage by rememberSaveable { mutableStateOf(LaunchStage.INITIALIZING) }
     var showGreeting by rememberSaveable { mutableStateOf(false) }
     var tourStep by rememberSaveable { mutableStateOf<TourStep?>(null) }
@@ -371,9 +374,15 @@ fun CoachApp(
                                 userName = userName,
                                 currentTheme = selectedTheme,
                                 beepVolumeLevel = beepVolumeLevel,
+                                trainerVoiceVolumeLevel = trainerVoiceVolumeLevel,
                                 onBeepVolumeLevelChanged = { level ->
                                     if (userPreferenceRepository.saveBeepVolumeLevel(level)) {
                                         beepVolumeLevel = normalizeBeepVolumeLevel(level)
+                                    }
+                                },
+                                onTrainerVoiceVolumeLevelChanged = { level ->
+                                    if (userPreferenceRepository.saveTrainerVoiceVolumeLevel(level)) {
+                                        trainerVoiceVolumeLevel = normalizeAudioVolumeLevel(level)
                                     }
                                 },
                                 onSaveUserName = { input ->

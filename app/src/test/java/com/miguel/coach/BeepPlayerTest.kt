@@ -6,10 +6,10 @@ import org.junit.Test
 
 class BeepPlayerTest {
     @Test
-    fun levelOneKeepsThePreviousVolumeAndFiveIsTheInternalMaximum() {
-        assertEquals(80, beepToneVolume(1))
-        assertEquals(listOf(80, 85, 90, 95, 100), (1..5).map(::beepToneVolume))
-        assertEquals(80, beepToneVolume(-1))
+    fun fiveLevelsUseTheSharedRelativeMappingAndFiveIsTheInternalMaximum() {
+        assertEquals(20, beepToneVolume(1))
+        assertEquals(listOf(20, 40, 60, 80, 100), (1..5).map(::beepToneVolume))
+        assertEquals(20, beepToneVolume(-1))
         assertEquals(100, beepToneVolume(10))
     }
 
@@ -23,7 +23,7 @@ class BeepPlayerTest {
         level = 4
         player.play()
 
-        assertEquals(listOf(80, 95), factory.volumes)
+        assertEquals(listOf(20, 80), factory.volumes)
         assertEquals(listOf(100), factory.tones[0].durations)
         assertEquals(listOf(100), factory.tones[1].durations)
         assertTrue(factory.tones[0].released)

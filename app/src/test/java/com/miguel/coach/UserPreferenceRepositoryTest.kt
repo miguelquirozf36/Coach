@@ -26,6 +26,24 @@ class UserPreferenceRepositoryTest {
     }
 
     @Test
+    fun trainerVoiceVolumeDefaultsToLevelFiveAndPersistsSelection() {
+        val storage = InMemoryUserStorage()
+        assertEquals(5, UserPreferenceRepository(storage).loadTrainerVoiceVolumeLevel())
+        assertTrue(UserPreferenceRepository(storage).saveTrainerVoiceVolumeLevel(3))
+        assertEquals(3, UserPreferenceRepository(storage).loadTrainerVoiceVolumeLevel())
+        assertTrue("trainer_voice_volume_level" in storage.writtenKeys)
+    }
+
+    @Test
+    fun trainerVoiceVolumeNormalizesInvalidStoredValues() {
+        val storage = InMemoryUserStorage()
+        storage.trainerVoiceVolumeLevel = -1
+        assertEquals(1, UserPreferenceRepository(storage).loadTrainerVoiceVolumeLevel())
+        storage.trainerVoiceVolumeLevel = 9
+        assertEquals(5, UserPreferenceRepository(storage).loadTrainerVoiceVolumeLevel())
+    }
+
+    @Test
     fun trainerVoiceDefaultsToDeviceDefaultAndPersistsSelection() {
         val storage = InMemoryUserStorage()
         assertEquals(DEFAULT_TRAINER_VOICE_ID, UserPreferenceRepository(storage).loadTrainerVoiceId())
@@ -186,6 +204,7 @@ private class InMemoryUserStorage(var userName: String? = null) : UserPreference
     val writtenKeys = mutableSetOf<String>()
     var tourCompleted: Boolean? = null
     var beepVolumeLevel: Int? = null
+    var trainerVoiceVolumeLevel: Int? = null
     var trainerVoiceId: String? = null
     override fun readUserName(): String? = userName
     override fun writeUserName(name: String): Boolean {
@@ -203,6 +222,12 @@ private class InMemoryUserStorage(var userName: String? = null) : UserPreference
     override fun writeBeepVolumeLevel(level: Int): Boolean {
         beepVolumeLevel = level
         writtenKeys += "workout_beep_volume_level"
+        return true
+    }
+    override fun readTrainerVoiceVolumeLevel(): Int? = trainerVoiceVolumeLevel
+    override fun writeTrainerVoiceVolumeLevel(level: Int): Boolean {
+        trainerVoiceVolumeLevel = level
+        writtenKeys += "trainer_voice_volume_level"
         return true
     }
     override fun readTrainerVoiceId(): String? = trainerVoiceId

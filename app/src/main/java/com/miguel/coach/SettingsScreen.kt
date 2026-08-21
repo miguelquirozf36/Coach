@@ -58,7 +58,9 @@ fun SettingsScreen(
     userName: String,
     currentTheme: CoachTheme,
     beepVolumeLevel: Int,
+    trainerVoiceVolumeLevel: Int,
     onBeepVolumeLevelChanged: (Int) -> Unit,
+    onTrainerVoiceVolumeLevelChanged: (Int) -> Unit,
     onSaveUserName: (String) -> String?,
     onAppearance: () -> Unit,
     onExportBackup: () -> Unit,
@@ -177,6 +179,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium
             )
             BeepVolumeControl(beepVolumeLevel, onBeepVolumeLevelChanged)
+            TrainerVoiceVolumeControl(trainerVoiceVolumeLevel, onTrainerVoiceVolumeLevelChanged)
             SettingsCard(
                 title = "Voz del entrenador",
                 value = "Selecciona una de las voces en español disponibles en tu dispositivo.",
@@ -349,13 +352,23 @@ private val TrainerVoicePreviewIcon: ImageVector = ImageVector.Builder(
 
 @Composable
 internal fun BeepVolumeControl(level: Int, onLevelChanged: (Int) -> Unit) {
-    val normalizedLevel = normalizeBeepVolumeLevel(level)
+    FiveLevelVolumeControl("Volumen del pitido", level, onLevelChanged)
+}
+
+@Composable
+internal fun TrainerVoiceVolumeControl(level: Int, onLevelChanged: (Int) -> Unit) {
+    FiveLevelVolumeControl("Volumen de la voz", level, onLevelChanged)
+}
+
+@Composable
+private fun FiveLevelVolumeControl(title: String, level: Int, onLevelChanged: (Int) -> Unit) {
+    val normalizedLevel = normalizeAudioVolumeLevel(level)
     Card(modifier = Modifier.fillMaxWidth(), colors = contentCardColors()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text("Volumen del pitido", style = MaterialTheme.typography.titleMedium)
+            Text(title, style = MaterialTheme.typography.titleMedium)
             Text("Nivel $normalizedLevel", style = MaterialTheme.typography.bodyMedium)
             Slider(
                 value = normalizedLevel.toFloat(),

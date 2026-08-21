@@ -12,6 +12,8 @@ interface UserPreferenceStorage {
     fun writeTourCompleted(completed: Boolean): Boolean = false
     fun readBeepVolumeLevel(): Int? = null
     fun writeBeepVolumeLevel(level: Int): Boolean = false
+    fun readTrainerVoiceVolumeLevel(): Int? = null
+    fun writeTrainerVoiceVolumeLevel(level: Int): Boolean = false
     fun readTrainerVoiceId(): String? = null
     fun writeTrainerVoiceId(voiceId: String): Boolean = false
 }
@@ -35,6 +37,16 @@ class SharedPreferencesUserStorage(
     override fun writeBeepVolumeLevel(level: Int): Boolean =
         preferences.edit().putInt(BEEP_VOLUME_LEVEL, level).commit()
 
+    override fun readTrainerVoiceVolumeLevel(): Int? =
+        if (preferences.contains(TRAINER_VOICE_VOLUME_LEVEL)) {
+            preferences.getInt(TRAINER_VOICE_VOLUME_LEVEL, DEFAULT_TRAINER_VOICE_VOLUME_LEVEL)
+        } else {
+            null
+        }
+
+    override fun writeTrainerVoiceVolumeLevel(level: Int): Boolean =
+        preferences.edit().putInt(TRAINER_VOICE_VOLUME_LEVEL, level).commit()
+
     override fun readTrainerVoiceId(): String? = preferences.getString(TRAINER_VOICE_ID, null)
 
     override fun writeTrainerVoiceId(voiceId: String): Boolean =
@@ -44,6 +56,7 @@ class SharedPreferencesUserStorage(
         const val USER_NAME = "user_name"
         const val TOUR_COMPLETED = "onboarding_tour_completed_v17"
         const val BEEP_VOLUME_LEVEL = "workout_beep_volume_level"
+        const val TRAINER_VOICE_VOLUME_LEVEL = "trainer_voice_volume_level"
         const val TRAINER_VOICE_ID = "trainer_voice_id"
     }
 }
@@ -102,6 +115,12 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
     fun saveBeepVolumeLevel(level: Int): Boolean =
         storage.writeBeepVolumeLevel(normalizeBeepVolumeLevel(level))
 
+    fun loadTrainerVoiceVolumeLevel(): Int =
+        normalizeAudioVolumeLevel(storage.readTrainerVoiceVolumeLevel(), DEFAULT_TRAINER_VOICE_VOLUME_LEVEL)
+
+    fun saveTrainerVoiceVolumeLevel(level: Int): Boolean =
+        storage.writeTrainerVoiceVolumeLevel(normalizeAudioVolumeLevel(level))
+
     fun loadTrainerVoiceId(): String = storage.readTrainerVoiceId().orEmpty()
 
     fun saveTrainerVoiceId(voiceId: String): Boolean = storage.writeTrainerVoiceId(voiceId)
@@ -110,9 +129,17 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
 const val DEFAULT_BEEP_VOLUME_LEVEL = 1
 const val MIN_BEEP_VOLUME_LEVEL = 1
 const val MAX_BEEP_VOLUME_LEVEL = 5
+const val DEFAULT_TRAINER_VOICE_VOLUME_LEVEL = 5
+const val MIN_AUDIO_VOLUME_LEVEL = 1
+const val MAX_AUDIO_VOLUME_LEVEL = 5
+
+fun normalizeAudioVolumeLevel(level: Int?, defaultLevel: Int = MIN_AUDIO_VOLUME_LEVEL): Int =
+    (level ?: defaultLevel).coerceIn(MIN_AUDIO_VOLUME_LEVEL, MAX_AUDIO_VOLUME_LEVEL)
+
+fun relativeAudioVolume(level: Int): Float = normalizeAudioVolumeLevel(level) / MAX_AUDIO_VOLUME_LEVEL.toFloat()
 
 fun normalizeBeepVolumeLevel(level: Int?): Int =
-    (level ?: DEFAULT_BEEP_VOLUME_LEVEL).coerceIn(MIN_BEEP_VOLUME_LEVEL, MAX_BEEP_VOLUME_LEVEL)
+    normalizeAudioVolumeLevel(level, DEFAULT_BEEP_VOLUME_LEVEL)
 
 fun homeGreeting(userName: String): List<String> = buildList {
     userName.trim().takeIf(String::isNotEmpty)?.let { add("Hola, $it") }

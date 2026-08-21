@@ -3,6 +3,7 @@ package com.miguel.coach
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
@@ -74,13 +75,24 @@ class VoiceCoach(
     private fun speak(phrase: String, queueMode: Int, onCompleted: (() -> Unit)?) {
         if (!isReady || isReleased) return
 
+        val utteranceSettings = voiceUtteranceSettings(
+            preferences.loadTrainerVoiceVolumeLevel(),
+            queueMode
+        )
+
         val utteranceId: String
         synchronized(callbackLock) {
             utteranceSequence += 1
             utteranceId = "voice-coach-$utteranceSequence"
             onCompleted?.let { pendingCallbacks[utteranceId] = PendingCallback(voiceGeneration, it) }
         }
-        val result = textToSpeech?.speak(phrase, queueMode, null, utteranceId)
+        val parameters = Bundle().apply {
+            putFloat(
+                TextToSpeech.Engine.KEY_PARAM_VOLUME,
+                utteranceSettings.volume
+            )
+        }
+        val result = textToSpeech?.speak(phrase, utteranceSettings.queueMode, parameters, utteranceId)
         if (result != TextToSpeech.SUCCESS) removeUtterance(utteranceId)
     }
 
@@ -161,3 +173,8 @@ class VoiceCoach(
 
     private data class PendingCallback(val generation: Long, val onCompleted: () -> Unit)
 }
+
+internal data class VoiceUtteranceSettings(val queueMode: Int, val volume: Float)
+
+internal fun voiceUtteranceSettings(level: Int, queueMode: Int): VoiceUtteranceSettings =
+    VoiceUtteranceSettings(queueMode, relativeAudioVolume(level))

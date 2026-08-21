@@ -2,6 +2,7 @@ package com.miguel.coach
 
 import android.media.AudioManager
 import android.media.ToneGenerator
+import kotlin.math.roundToInt
 
 interface BeepSoundPlayer {
     fun play()
@@ -41,13 +42,8 @@ class BeepPlayer(
     }
 }
 
-internal fun beepToneVolume(level: Int): Int = when (normalizeBeepVolumeLevel(level)) {
-    1 -> 80
-    2 -> 85
-    3 -> 90
-    4 -> 95
-    else -> 100
-}
+internal fun beepToneVolume(level: Int): Int =
+    (relativeAudioVolume(level) * ToneGenerator.MAX_VOLUME).roundToInt()
 
 interface BeepToneFactory {
     fun create(volume: Int): BeepTone
