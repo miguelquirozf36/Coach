@@ -609,7 +609,7 @@ class TrainingEngine(
         const val START_ANNOUNCEMENT = "Comenzamos en diez segundos."
         const val START_FROM_EXERCISE_ANNOUNCEMENT = "Comenzamos en 10 segundos."
         const val WARMUP_ANNOUNCEMENT = "Comienza el calentamiento."
-        const val ONE_MINUTE_ANNOUNCEMENT = "Queda 1 minuto"
+        const val ONE_MINUTE_ANNOUNCEMENT = "Queda un minuto"
         const val THIRTY_SECONDS_ANNOUNCEMENT = "Quedan 30 segundos"
         const val REST_ANNOUNCEMENT = "Descansa."
         const val REST_BETWEEN_EXERCISES_ANNOUNCEMENT =

@@ -1008,24 +1008,96 @@ class TrainingEngineTest {
     }
 
     @Test
-    fun warmupWarningsUseCrossedRealTimeThresholdsAndSkipStaleOnes() {
+    fun warmupWarningsUseExactCopyCrossedThresholdsAndKeepTheirOrder() {
         val fixture = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 600)
         fixture.engine.start(fixture.routine)
         fixture.scheduler.fireAfter(540_400L)
-        assertEquals(1, fixture.voice.phrases.count { it == "Queda 1 minuto" })
+        assertEquals(1, fixture.voice.phrases.count { it == "Queda un minuto" })
         fixture.scheduler.fireAfter(49_600L)
         assertEquals(1, fixture.voice.phrases.count { it == "Quedan 10 segundos" })
+        assertTrue(
+            fixture.voice.phrases.indexOf("Queda un minuto") <
+                fixture.voice.phrases.indexOf("Quedan 10 segundos")
+        )
 
         val short = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 45)
         short.engine.start(short.routine)
         short.scheduler.fireAfter(35_000L)
-        assertEquals(0, short.voice.phrases.count { it == "Queda 1 minuto" })
+        assertEquals(0, short.voice.phrases.count { it == "Queda un minuto" })
         assertEquals(1, short.voice.phrases.count { it == "Quedan 10 segundos" })
 
         val stale = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 40)
         stale.engine.start(stale.routine)
         stale.scheduler.fireAfter(35_000L)
         assertEquals(0, stale.voice.phrases.count { it == "Quedan 30 segundos" || it == "Quedan 10 segundos" })
+    }
+
+    @Test
+    fun oneMinuteWarmupCueFiresOnceWhenATickCrossesFromSixtyOneToFiftyNine() {
+        val fixture = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 90)
+        fixture.engine.start(fixture.routine)
+
+        fixture.scheduler.fireAfter(29_000L)
+        assertEquals(61, fixture.currentWorkout().secondsRemaining)
+        assertEquals(0, fixture.voice.phrases.count { it == "Queda un minuto" })
+
+        fixture.scheduler.fireAfter(2_000L)
+        assertEquals(59, fixture.currentWorkout().secondsRemaining)
+        fixture.scheduler.advance()
+
+        assertEquals(1, fixture.voice.phrases.count { it == "Queda un minuto" })
+    }
+
+    @Test
+    fun sixtySecondWarmupDoesNotAnnounceAtTZeroButUsesTheFirstRealCrossing() {
+        val fixture = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 60)
+        fixture.engine.start(fixture.routine)
+
+        assertEquals(0, fixture.voice.phrases.count { it == "Queda un minuto" })
+        fixture.scheduler.advance()
+
+        assertEquals(59, fixture.currentWorkout().secondsRemaining)
+        assertEquals(1, fixture.voice.phrases.count { it == "Queda un minuto" })
+    }
+
+    @Test
+    fun warmupBelowOneMinuteNeverAnnouncesOneMinute() {
+        val fixture = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 59)
+        fixture.engine.start(fixture.routine)
+
+        repeat(59) { fixture.scheduler.advance() }
+
+        assertEquals(0, fixture.voice.phrases.count { it == "Queda un minuto" })
+    }
+
+    @Test
+    fun pauseBeforeOneMinuteFreezesTheCueUntilTheRealCrossingAfterResume() {
+        val fixture = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 70)
+        fixture.engine.start(fixture.routine)
+        fixture.scheduler.fireAfter(9_000L)
+        assertEquals(61, fixture.currentWorkout().secondsRemaining)
+
+        fixture.engine.pause()
+        fixture.clock.advanceBy(120_000L)
+        assertEquals(0, fixture.voice.phrases.count { it == "Queda un minuto" })
+        fixture.engine.resume()
+        fixture.scheduler.fireAfter(2_000L)
+
+        assertEquals(1, fixture.voice.phrases.count { it == "Queda un minuto" })
+    }
+
+    @Test
+    fun oneMinuteCueDoesNotBlockWarmupOrChangeItsPlannedDuration() {
+        val fixture = Fixture(listOf(seriesExercise(1, 1)), warmupSeconds = 61)
+        val plannedDuration = fixture.routine.plannedDurationSeconds()
+        fixture.engine.start(fixture.routine)
+
+        repeat(61) { fixture.scheduler.advance() }
+
+        assertEquals(61_000L, fixture.clock.now)
+        assertTrue(fixture.currentWorkout().isStartingExecution)
+        assertEquals(1, fixture.voice.phrases.count { it == "Queda un minuto" })
+        assertEquals(plannedDuration, fixture.routine.plannedDurationSeconds())
     }
 
     @Test
