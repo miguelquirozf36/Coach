@@ -374,12 +374,7 @@ class TrainingEngine(
 
     private fun schedulePhaseTick(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        val delay = if (workout.phase == TrainingPhase.ISOMETRIC) {
-            nextTickDelayMillis(workout)
-        } else {
-            ONE_SECOND_MILLIS
-        }
-        scheduler.schedule(delay) { advanceExercisePhase(activeSession) }
+        scheduler.schedule(nextTickDelayMillis(workout)) { advanceExercisePhase(activeSession) }
     }
 
     private fun advanceExercisePhase(activeSession: Long) {
@@ -389,11 +384,7 @@ class TrainingEngine(
             workout.phase != TrainingPhase.ISOMETRIC
         ) return
 
-        val secondsRemaining = if (workout.phase == TrainingPhase.ISOMETRIC) {
-            remainingSeconds(workout)
-        } else {
-            (workout.secondsRemaining - 1).coerceAtLeast(0)
-        }
+        val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
         if (secondsRemaining > 0) {
             schedulePhaseTick(activeSession)
@@ -678,6 +669,8 @@ enum class TrainingPhase {
 private val TrainingPhase.usesElapsedTime: Boolean
     get() = this == TrainingPhase.WARMUP ||
         this == TrainingPhase.COUNTDOWN ||
+        this == TrainingPhase.CONCENTRIC ||
+        this == TrainingPhase.ECCENTRIC ||
         this == TrainingPhase.REST ||
         this == TrainingPhase.REST_BETWEEN_EXERCISES ||
         this == TrainingPhase.ISOMETRIC

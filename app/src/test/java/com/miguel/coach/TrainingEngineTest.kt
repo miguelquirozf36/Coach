@@ -1498,6 +1498,60 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun concentricAndEccentricTicksUseMonotonicDeadlinesWithoutAccumulatingLateness() {
+        listOf(50L, 200L, 500L).forEach { latenessMillis ->
+            val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+                concentricSeconds = 3,
+                eccentricSeconds = 3
+            ))
+            fixture.engine.start(fixture.routine)
+            repeat(10) { fixture.scheduler.advance() }
+            fixture.scheduler.advance()
+
+            val concentricStartedAt = fixture.currentWorkout().phaseStartedAtMillis
+            while (fixture.currentWorkout().phase == TrainingPhase.CONCENTRIC) {
+                fixture.scheduler.fireAfter(fixture.scheduler.pendingDelayMillis + latenessMillis)
+            }
+            val eccentricStartedAt = fixture.currentWorkout().phaseStartedAtMillis
+
+            assertEquals(3_000L + latenessMillis, eccentricStartedAt - concentricStartedAt)
+            assertEquals(TrainingPhase.ECCENTRIC, fixture.currentWorkout().phase)
+            assertEquals(1, fixture.currentWorkout().completedRepetitions)
+
+            while (fixture.currentWorkout().phase == TrainingPhase.ECCENTRIC) {
+                fixture.scheduler.fireAfter(fixture.scheduler.pendingDelayMillis + latenessMillis)
+            }
+
+            assertEquals(
+                3_000L + latenessMillis,
+                fixture.currentWorkout().phaseStartedAtMillis - eccentricStartedAt
+            )
+            fixture.assertWorkout(TrainingPhase.CONCENTRIC, 3, 0, 1, 2, false)
+        }
+    }
+
+    @Test
+    fun veryLateFirstConcentricAndEccentricCallbacksCompleteImmediately() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+            concentricSeconds = 3,
+            eccentricSeconds = 3
+        ))
+        fixture.engine.start(fixture.routine)
+        repeat(10) { fixture.scheduler.advance() }
+        fixture.scheduler.advance()
+
+        fixture.scheduler.fireAfter(3_400L)
+
+        assertEquals(TrainingPhase.ECCENTRIC, fixture.currentWorkout().phase)
+        assertEquals(1, fixture.currentWorkout().completedRepetitions)
+        assertEquals(3, fixture.currentWorkout().secondsRemaining)
+
+        fixture.scheduler.fireAfter(3_400L)
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 3, 0, 1, 2, false)
+    }
+
+    @Test
     fun logicalTimelineIsIdenticalWhetherVoiceCallbacksAreAttemptedOrNeverArrive() {
         val immediate = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 1))
         val silent = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 1))
@@ -2429,6 +2483,8 @@ class TrainingEngineTest {
             private set
         val hasPendingActions: Boolean
             get() = pendingAction != null || cancelledAction != null
+        val pendingDelayMillis: Long
+            get() = requireNotNull(pendingAction).delayMillis
 
         override fun schedule(delayMillis: Long, action: () -> Unit) {
             if (pendingAction != null) {
