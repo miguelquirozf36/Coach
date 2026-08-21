@@ -18,11 +18,81 @@ class WorkoutNotificationTest {
     }
 
     @Test
-    fun warmupUsesRoutineNameAndWarmupText() {
-        val content = workoutNotificationContent(workout(phase = TrainingPhase.WARMUP))
+    fun warmupUsesRoutineNameAndDeadlineDerivedCountdown() {
+        val content = workoutNotificationContent(workout(phase = TrainingPhase.WARMUP, seconds = 30))
         assertEquals("Rutina de prueba", content.title)
-        assertEquals("Calentamiento", content.text)
+        assertEquals("Calentamiento · 00:30", content.text)
         assertEquals(false, content.isPaused)
+    }
+
+    @Test
+    fun warmupTicksUpdateTheNotificationAtEachPublishedSecond() {
+        val tracker = WorkoutNotificationTracker()
+
+        val first = tracker.next(workout(TrainingPhase.WARMUP, seconds = 30)) as WorkoutNotificationChange.Show
+        val second = tracker.next(workout(TrainingPhase.WARMUP, seconds = 29)) as WorkoutNotificationChange.Show
+
+        assertEquals("Calentamiento · 00:30", first.content.text)
+        assertEquals("Calentamiento · 00:29", second.content.text)
+    }
+
+    @Test
+    fun warmupFormatsSingleDigitAndLastSecondsWithTwoDigits() {
+        assertEquals(
+            "Calentamiento · 00:09",
+            workoutNotificationContent(workout(TrainingPhase.WARMUP, seconds = 9)).text
+        )
+        assertEquals(
+            "Calentamiento · 00:01",
+            workoutNotificationContent(workout(TrainingPhase.WARMUP, seconds = 1)).text
+        )
+    }
+
+    @Test
+    fun completedWarmupImmediatelyChangesToPreparationWithoutZeroCountdown() {
+        val content = workoutNotificationContent(
+            workout(TrainingPhase.WARMUP, seconds = 0, startingExecution = true)
+        )
+
+        assertEquals("Preparando entrenamiento", content.text)
+        assertTrue("Calentamiento" !in content.text && "00:00" !in content.text)
+    }
+
+    @Test
+    fun pausedWarmupKeepsTheFrozenPublishedSecondAndResumeAction() {
+        val content = workoutNotificationContent(
+            workout(TrainingPhase.WARMUP, paused = true, seconds = 21)
+        )
+
+        assertEquals("Calentamiento · 00:21", content.text)
+        assertTrue(content.isPaused)
+        assertEquals(
+            WorkoutSessionService.ACTION_RESUME_WORKOUT,
+            workoutNotificationActions(content).single().serviceAction
+        )
+    }
+
+    @Test
+    fun resumedWarmupContinuesFromTheNextPublishedDeadlineSecond() {
+        val paused = workoutNotificationContent(
+            workout(TrainingPhase.WARMUP, paused = true, seconds = 21)
+        )
+        val resumed = workoutNotificationContent(workout(TrainingPhase.WARMUP, seconds = 20))
+
+        assertEquals("Calentamiento · 00:21", paused.text)
+        assertEquals("Calentamiento · 00:20", resumed.text)
+    }
+
+    @Test
+    fun leavingWarmupRemovesItsCountdownWithoutAStaleUpdate() {
+        val tracker = WorkoutNotificationTracker()
+        tracker.next(workout(TrainingPhase.WARMUP, seconds = 17))
+
+        val execution = tracker.next(workout(TrainingPhase.CONCENTRIC, seconds = 2))
+            as WorkoutNotificationChange.Show
+        assertEquals("Serie 1 de 3 · Repetición 1 de 8", execution.content.text)
+        assertTrue("Calentamiento" !in execution.content.text)
+        assertEquals(WorkoutNotificationChange.Remove, tracker.next(TrainingUiState.Home))
     }
 
     @Test

@@ -74,7 +74,12 @@ class WorkoutNotificationTracker {
 
 fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificationContent {
     if (state.phase == TrainingPhase.WARMUP) {
-        return WorkoutNotificationContent(state.routine.name, "Calentamiento", state.isPaused)
+        val text = if (!state.isStartingExecution && state.secondsRemaining > 0) {
+            "Calentamiento · ${formatNotificationDuration(state.secondsRemaining)}"
+        } else {
+            "Preparando entrenamiento"
+        }
+        return WorkoutNotificationContent(state.routine.name, text, state.isPaused)
     }
     if (state.phase == TrainingPhase.COUNTDOWN) {
         return WorkoutNotificationContent(state.routine.name, "Preparando entrenamiento", state.isPaused)
