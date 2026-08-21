@@ -30,6 +30,8 @@ class TrainingEngine(
     private var previousTimedSeconds = 0
     private var startDelayRemainingMillis: Long? = null
     private var startDelayDeadlineMillis: Long? = null
+    private val immediateActions = ArrayDeque<() -> Unit>()
+    private var isRunningImmediateActions = false
 
     fun start(routine: Routine) {
         startSession(routine, exerciseIndex = 0, useRoutineWarmup = true)
@@ -217,7 +219,7 @@ class TrainingEngine(
         val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
         if (secondsRemaining == 0) {
-            announceStart(activeSession)
+            announceStart(activeSession, phaseDeadlineMillis(workout))
             return
         }
         announceCrossedThreshold(
@@ -235,7 +237,7 @@ class TrainingEngine(
         val secondsRemaining = remainingSeconds(workout)
         state = workout.copy(secondsRemaining = secondsRemaining)
         if (secondsRemaining == 0) {
-            announceStart(activeSession)
+            announceStart(activeSession, phaseDeadlineMillis(workout))
             return
         }
         announceCrossedThreshold(
@@ -246,39 +248,47 @@ class TrainingEngine(
         scheduleCountdownTick(activeSession)
     }
 
-    private fun announceStart(activeSession: Long) {
-        startStartDelay(activeSession)
+    private fun announceStart(activeSession: Long, plannedStartMillis: Long = monotonicClock.nowMillis()) {
+        startStartDelay(activeSession, plannedStartMillis)
         voiceSpeaker.speak("\u00A1Vamos!")
     }
 
     private fun startStartDelay(
         activeSession: Long,
+        plannedStartMillis: Long = monotonicClock.nowMillis(),
         prepareExecution: (TrainingUiState.Workout) -> TrainingUiState.Workout = { it }
     ) {
         val workout = activeWorkout(activeSession) ?: return
         state = prepareExecution(workout)
-            .advancePlannedSegment(monotonicClock.nowMillis())
+            .advancePlannedSegment(plannedStartMillis)
             .copy(
                 secondsRemaining = 0,
                 isStartingExecution = true
             )
         startDelayRemainingMillis = START_DELAY_SECONDS * ONE_SECOND_MILLIS
+        startDelayDeadlineMillis = plannedStartMillis + START_DELAY_SECONDS * ONE_SECOND_MILLIS
         scheduleStartDelay(activeSession)
     }
 
     private fun scheduleStartDelay(activeSession: Long) {
         activeWorkout(activeSession) ?: return
         val delayMillis = startDelayRemainingMillis ?: return
-        startDelayDeadlineMillis = monotonicClock.nowMillis() + delayMillis
-        scheduler.schedule(delayMillis) {
-            activeWorkout(activeSession) ?: return@schedule
+        val deadlineMillis = startDelayDeadlineMillis ?: (monotonicClock.nowMillis() + delayMillis).also {
+            startDelayDeadlineMillis = it
+        }
+        scheduleAtDeadline(deadlineMillis) action@{
+            activeWorkout(activeSession) ?: return@action
             startDelayRemainingMillis = null
             startDelayDeadlineMillis = null
-            startConcentricPhase(activeSession)
+            startConcentricPhase(activeSession, plannedStartMillis = deadlineMillis)
         }
     }
 
-    private fun startConcentricPhase(activeSession: Long, repetitionNumber: Int? = null) {
+    private fun startConcentricPhase(
+        activeSession: Long,
+        repetitionNumber: Int? = null,
+        plannedStartMillis: Long = monotonicClock.nowMillis()
+    ) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.COUNTDOWN &&
             workout.phase != TrainingPhase.WARMUP &&
@@ -289,13 +299,14 @@ class TrainingEngine(
         ) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        beepPlayer.play()
-        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
+        val secondsRemaining = remainingSeconds(plannedStartMillis, exercise.concentricSeconds)
+        if (secondsRemaining > 0) beepPlayer.play()
+        state = workout.advancePlannedSegment(plannedStartMillis).copy(
             repetitionNumber = repetitionNumber ?: workout.repetitionNumber,
             phase = TrainingPhase.CONCENTRIC,
-            secondsRemaining = exercise.concentricSeconds,
+            secondsRemaining = secondsRemaining,
             phaseDurationSeconds = exercise.concentricSeconds,
-            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phaseStartedAtMillis = plannedStartMillis,
             phasePausedAtMillis = null,
             currentExerciseNotes = exercise.notes,
             completedExerciseIndex = null,
@@ -305,11 +316,11 @@ class TrainingEngine(
         schedulePhaseTick(activeSession)
     }
 
-    private fun announceRepetition(activeSession: Long) {
+    private fun announceRepetition(activeSession: Long, plannedStartMillis: Long = monotonicClock.nowMillis()) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
         val repetitionNumber = workout.repetitionNumber
-        continueAfterCompletedConcentric(activeSession)
+        continueAfterCompletedConcentric(activeSession, plannedStartMillis)
         voiceSpeaker.speak(repetitionNumber.toString())
         when (val currentState = state) {
             is TrainingUiState.Workout -> when (currentState.phase) {
@@ -326,47 +337,58 @@ class TrainingEngine(
         }
     }
 
-    private fun continueAfterCompletedConcentric(activeSession: Long) {
+    private fun continueAfterCompletedConcentric(
+        activeSession: Long,
+        plannedStartMillis: Long = monotonicClock.nowMillis()
+    ) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (workout.repetitionNumber >= exercise.repetitions) {
-            completeExecution(activeSession)
+            completeExecution(activeSession, plannedStartMillis)
         } else if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
-            startIsometricPhase(activeSession)
+            startIsometricPhase(activeSession, plannedStartMillis)
         } else {
-            startEccentricPhase(activeSession)
+            startEccentricPhase(activeSession, plannedStartMillis)
         }
     }
 
-    private fun startEccentricPhase(activeSession: Long) {
+    private fun startEccentricPhase(
+        activeSession: Long,
+        plannedStartMillis: Long = monotonicClock.nowMillis()
+    ) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT &&
             workout.phase != TrainingPhase.ISOMETRIC
         ) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.phase == TrainingPhase.ISOMETRIC) beepPlayer.play()
-        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
+        val secondsRemaining = remainingSeconds(plannedStartMillis, exercise.eccentricSeconds)
+        if (workout.phase == TrainingPhase.ISOMETRIC && secondsRemaining > 0) beepPlayer.play()
+        state = workout.advancePlannedSegment(plannedStartMillis).copy(
             phase = TrainingPhase.ECCENTRIC,
-            secondsRemaining = exercise.eccentricSeconds,
+            secondsRemaining = secondsRemaining,
             phaseDurationSeconds = exercise.eccentricSeconds,
-            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phaseStartedAtMillis = plannedStartMillis,
             phasePausedAtMillis = null
         )
         schedulePhaseTick(activeSession)
     }
 
-    private fun startIsometricPhase(activeSession: Long) {
+    private fun startIsometricPhase(
+        activeSession: Long,
+        plannedStartMillis: Long = monotonicClock.nowMillis()
+    ) {
         val workout = activeWorkout(activeSession) ?: return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (exercise.isometricPauseMode == IsometricPauseMode.NONE) return
-        if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) beepPlayer.play()
-        state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
+        val secondsRemaining = remainingSeconds(plannedStartMillis, exercise.isometricDurationSeconds)
+        if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED && secondsRemaining > 0) beepPlayer.play()
+        state = workout.advancePlannedSegment(plannedStartMillis).copy(
             phase = TrainingPhase.ISOMETRIC,
-            secondsRemaining = exercise.isometricDurationSeconds,
+            secondsRemaining = secondsRemaining,
             phaseDurationSeconds = exercise.isometricDurationSeconds,
-            phaseStartedAtMillis = monotonicClock.nowMillis(),
+            phaseStartedAtMillis = plannedStartMillis,
             phasePausedAtMillis = null
         )
         schedulePhaseTick(activeSession)
@@ -374,7 +396,9 @@ class TrainingEngine(
 
     private fun schedulePhaseTick(activeSession: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        scheduler.schedule(nextTickDelayMillis(workout)) { advanceExercisePhase(activeSession) }
+        val deadlineMillis = phaseDeadlineMillis(workout)
+        val nextTickMillis = monotonicClock.nowMillis() + nextTickDelayMillis(workout)
+        scheduleAtDeadline(nextTickMillis.coerceAtMost(deadlineMillis)) { advanceExercisePhase(activeSession) }
     }
 
     private fun advanceExercisePhase(activeSession: Long) {
@@ -397,11 +421,11 @@ class TrainingEngine(
                     phase = TrainingPhase.REPETITION_ANNOUNCEMENT,
                     secondsRemaining = 0
                 )
-                announceRepetition(activeSession)
+                announceRepetition(activeSession, phaseDeadlineMillis(workout))
             }
 
-            TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession)
-            TrainingPhase.ISOMETRIC -> completeIsometricPhase(activeSession)
+            TrainingPhase.ECCENTRIC -> completeEccentricPhase(activeSession, phaseDeadlineMillis(workout))
+            TrainingPhase.ISOMETRIC -> completeIsometricPhase(activeSession, phaseDeadlineMillis(workout))
             TrainingPhase.WARMUP,
             TrainingPhase.COUNTDOWN,
             TrainingPhase.REPETITION_ANNOUNCEMENT,
@@ -410,45 +434,55 @@ class TrainingEngine(
         }
     }
 
-    private fun completeIsometricPhase(activeSession: Long) {
+    private fun completeIsometricPhase(
+        activeSession: Long,
+        plannedStartMillis: Long = monotonicClock.nowMillis()
+    ) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.ISOMETRIC) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
-            startEccentricPhase(activeSession)
+            startEccentricPhase(activeSession, plannedStartMillis)
         } else {
-            prepareNextRepetition(activeSession)
+            prepareNextRepetition(activeSession, plannedStartMillis)
         }
     }
 
-    private fun completeEccentricPhase(activeSession: Long) {
+    private fun completeEccentricPhase(
+        activeSession: Long,
+        plannedStartMillis: Long = monotonicClock.nowMillis()
+    ) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.ECCENTRIC) return
 
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
-            startIsometricPhase(activeSession)
+            startIsometricPhase(activeSession, plannedStartMillis)
             return
         }
-        prepareNextRepetition(activeSession)
+        prepareNextRepetition(activeSession, plannedStartMillis)
     }
 
-    private fun prepareNextRepetition(activeSession: Long) {
+    private fun prepareNextRepetition(activeSession: Long, plannedStartMillis: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        startConcentricPhase(activeSession, repetitionNumber = workout.repetitionNumber + 1)
+        startConcentricPhase(
+            activeSession,
+            repetitionNumber = workout.repetitionNumber + 1,
+            plannedStartMillis = plannedStartMillis
+        )
     }
 
-    private fun completeExecution(activeSession: Long) {
+    private fun completeExecution(activeSession: Long, plannedStartMillis: Long) {
         val workout = activeWorkout(activeSession) ?: return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         val hasAnotherExecution = workout.currentSide == ExerciseSide.RIGHT ||
             workout.seriesNumber < exercise.sets
         if (hasAnotherExecution) {
-            state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
+            state = workout.advancePlannedSegment(plannedStartMillis).copy(
                 phase = TrainingPhase.REST,
-                secondsRemaining = exercise.restSeconds,
+                secondsRemaining = remainingSeconds(plannedStartMillis, exercise.restSeconds),
                 phaseDurationSeconds = exercise.restSeconds,
-                phaseStartedAtMillis = monotonicClock.nowMillis(),
+                phaseStartedAtMillis = plannedStartMillis,
                 phasePausedAtMillis = null
             )
             resetTimedAnnouncements(exercise.restSeconds)
@@ -458,7 +492,7 @@ class TrainingEngine(
 
         if (workout.exerciseIndex < workout.routine.exercises.lastIndex) {
             val nextExerciseIndex = workout.exerciseIndex + 1
-            state = workout.advancePlannedSegment(monotonicClock.nowMillis()).copy(
+            state = workout.advancePlannedSegment(plannedStartMillis).copy(
                 exerciseIndex = nextExerciseIndex,
                 completedExerciseIndex = workout.exerciseIndex,
                 upcomingExerciseIndex = nextExerciseIndex,
@@ -466,9 +500,12 @@ class TrainingEngine(
                 repetitionNumber = 1,
                 currentSide = workout.routine.exercises[nextExerciseIndex].initialSide(),
                 phase = TrainingPhase.REST_BETWEEN_EXERCISES,
-                secondsRemaining = workout.routine.restBetweenExercisesSeconds,
+                secondsRemaining = remainingSeconds(
+                    plannedStartMillis,
+                    workout.routine.restBetweenExercisesSeconds
+                ),
                 phaseDurationSeconds = workout.routine.restBetweenExercisesSeconds,
-                phaseStartedAtMillis = monotonicClock.nowMillis(),
+                phaseStartedAtMillis = plannedStartMillis,
                 phasePausedAtMillis = null
             )
             resetTimedAnnouncements(workout.routine.restBetweenExercisesSeconds)
@@ -485,7 +522,27 @@ class TrainingEngine(
 
     private fun scheduleTimedTick(activeSession: Long, action: () -> Unit) {
         val workout = activeWorkout(activeSession) ?: return
-        scheduler.schedule(nextTickDelayMillis(workout)) { action() }
+        val deadlineMillis = phaseDeadlineMillis(workout)
+        val nextTickMillis = monotonicClock.nowMillis() + nextTickDelayMillis(workout)
+        scheduleAtDeadline(nextTickMillis.coerceAtMost(deadlineMillis), action)
+    }
+
+    private fun scheduleAtDeadline(deadlineMillis: Long, action: () -> Unit) {
+        val nowMillis = monotonicClock.nowMillis()
+        val delayMillis = (deadlineMillis - nowMillis).coerceAtLeast(0L)
+        if (nowMillis <= deadlineMillis) {
+            scheduler.schedule(delayMillis, action)
+            return
+        }
+        immediateActions.addLast(action)
+        if (isRunningImmediateActions) return
+        isRunningImmediateActions = true
+        try {
+            while (immediateActions.isNotEmpty()) immediateActions.removeFirst().invoke()
+        } finally {
+            immediateActions.clear()
+            isRunningImmediateActions = false
+        }
     }
 
     private fun advanceRest(activeSession: Long) {
@@ -498,8 +555,9 @@ class TrainingEngine(
         state = workout.copy(secondsRemaining = secondsRemaining)
         if (secondsRemaining == 0) {
             when (workout.phase) {
-                TrainingPhase.REST -> announceNextSeries(activeSession)
-                TrainingPhase.REST_BETWEEN_EXERCISES -> announceNextExercise(activeSession)
+                TrainingPhase.REST -> announceNextSeries(activeSession, phaseDeadlineMillis(workout))
+                TrainingPhase.REST_BETWEEN_EXERCISES ->
+                    announceNextExercise(activeSession, phaseDeadlineMillis(workout))
                 else -> Unit
             }
             return
@@ -537,12 +595,22 @@ class TrainingEngine(
     private fun remainingSeconds(
         workout: TrainingUiState.Workout,
         nowMillis: Long = monotonicClock.nowMillis()
+    ): Int = remainingSeconds(workout.phaseStartedAtMillis, workout.phaseDurationSeconds, nowMillis)
+
+    private fun remainingSeconds(
+        phaseStartedAtMillis: Long,
+        phaseDurationSeconds: Int,
+        nowMillis: Long = monotonicClock.nowMillis()
     ): Int {
-        val endMillis = workout.phaseStartedAtMillis +
-            workout.phaseDurationSeconds.coerceAtLeast(0) * ONE_SECOND_MILLIS
+        val endMillis = phaseStartedAtMillis +
+            phaseDurationSeconds.coerceAtLeast(0) * ONE_SECOND_MILLIS
         val remainingMillis = (endMillis - nowMillis).coerceAtLeast(0L)
         return ((remainingMillis + ONE_SECOND_MILLIS - 1) / ONE_SECOND_MILLIS).toInt()
     }
+
+    private fun phaseDeadlineMillis(workout: TrainingUiState.Workout): Long =
+        workout.phaseStartedAtMillis +
+            workout.phaseDurationSeconds.coerceAtLeast(0) * ONE_SECOND_MILLIS
 
     private fun nextTickDelayMillis(workout: TrainingUiState.Workout): Long {
         val endMillis = workout.phaseStartedAtMillis +
@@ -553,21 +621,21 @@ class TrainingEngine(
             ?: ONE_SECOND_MILLIS
     }
 
-    private fun announceNextSeries(activeSession: Long) {
+    private fun announceNextSeries(activeSession: Long, plannedStartMillis: Long = monotonicClock.nowMillis()) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST) return
-        startNextSeries(activeSession)
+        startNextSeries(activeSession, plannedStartMillis)
         voiceSpeaker.speak("\u00A1Vamos!")
     }
 
-    private fun announceNextExercise(activeSession: Long) {
+    private fun announceNextExercise(activeSession: Long, plannedStartMillis: Long = monotonicClock.nowMillis()) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES) return
-        startNextExercise(activeSession)
+        startNextExercise(activeSession, plannedStartMillis)
         voiceSpeaker.speak("\u00A1Vamos!")
     }
 
-    private fun startNextSeries(activeSession: Long) {
+    private fun startNextSeries(activeSession: Long, plannedStartMillis: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
@@ -578,7 +646,7 @@ class TrainingEngine(
             workout.seriesNumber + 1
         }
         if (nextSeries > exercise.sets) return
-        startStartDelay(activeSession) { current ->
+        startStartDelay(activeSession, plannedStartMillis) { current ->
             current.copy(
                 seriesNumber = nextSeries,
                 currentSide = nextSide,
@@ -587,10 +655,10 @@ class TrainingEngine(
         }
     }
 
-    private fun startNextExercise(activeSession: Long) {
+    private fun startNextExercise(activeSession: Long, plannedStartMillis: Long) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES) return
-        startStartDelay(activeSession)
+        startStartDelay(activeSession, plannedStartMillis)
     }
 
     private fun clearStartDelay() {

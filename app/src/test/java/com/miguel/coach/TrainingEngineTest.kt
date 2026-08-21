@@ -1344,11 +1344,8 @@ class TrainingEngineTest {
 
         fixture.scheduler.fireAfter(45_000L)
 
-        assertTrue(fixture.currentWorkout().isStartingExecution)
-        assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
-        fixture.voice.completeLatest()
-        fixture.scheduler.advance()
-        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(TrainingUiState.Completed, fixture.engine.state)
+        assertTrue("\u00A1Vamos!" in fixture.voice.phrases)
     }
 
     @Test
@@ -1498,7 +1495,7 @@ class TrainingEngineTest {
     }
 
     @Test
-    fun concentricAndEccentricTicksUseMonotonicDeadlinesWithoutAccumulatingLateness() {
+    fun exercisePhaseBoundariesDoNotTransferCallbackLateness() {
         listOf(50L, 200L, 500L).forEach { latenessMillis ->
             val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
                 concentricSeconds = 3,
@@ -1514,7 +1511,8 @@ class TrainingEngineTest {
             }
             val eccentricStartedAt = fixture.currentWorkout().phaseStartedAtMillis
 
-            assertEquals(3_000L + latenessMillis, eccentricStartedAt - concentricStartedAt)
+            assertEquals(3_000L, eccentricStartedAt - concentricStartedAt)
+            assertEquals(3_000L + latenessMillis, fixture.clock.now - concentricStartedAt)
             assertEquals(TrainingPhase.ECCENTRIC, fixture.currentWorkout().phase)
             assertEquals(1, fixture.currentWorkout().completedRepetitions)
 
@@ -1523,9 +1521,10 @@ class TrainingEngineTest {
             }
 
             assertEquals(
-                3_000L + latenessMillis,
+                3_000L,
                 fixture.currentWorkout().phaseStartedAtMillis - eccentricStartedAt
             )
+            assertEquals(6_000L + latenessMillis, fixture.clock.now - concentricStartedAt)
             fixture.assertWorkout(TrainingPhase.CONCENTRIC, 3, 0, 1, 2, false)
         }
     }
@@ -1549,6 +1548,70 @@ class TrainingEngineTest {
         fixture.scheduler.fireAfter(3_400L)
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 3, 0, 1, 2, false)
+    }
+
+    @Test
+    fun latenessThatConsumesAWholePhaseCatchesUpThroughZeroDelayCallbacks() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 3, restSeconds = 0).copy(
+            concentricSeconds = 3,
+            eccentricSeconds = 3
+        ))
+        fixture.engine.start(fixture.routine)
+        repeat(10) { fixture.scheduler.advance() }
+        fixture.scheduler.advance()
+        val executionStartedAt = fixture.currentWorkout().phaseStartedAtMillis
+
+        fixture.scheduler.fireAfter(7_500L)
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 2, 0, 1, 2, false)
+        assertEquals(executionStartedAt + 6_000L, fixture.currentWorkout().phaseStartedAtMillis)
+        assertEquals(executionStartedAt + 9_000L, fixture.currentWorkout().phaseStartedAtMillis + 3_000L)
+    }
+
+    @Test
+    fun lateWarmupBoundaryConsumesTheFollowingStartDelay() {
+        val fixture = Fixture(
+            listOf(seriesExercise(sets = 1, repetitions = 1, restSeconds = 0)),
+            warmupSeconds = 1
+        )
+        fixture.engine.start(fixture.routine)
+        val sessionStartedAt = fixture.currentWorkout().phaseStartedAtMillis
+
+        fixture.scheduler.fireAfter(1_200L)
+
+        assertImplicitStartDelay(fixture.currentWorkout())
+        assertEquals(sessionStartedAt + 1_000L, fixture.currentWorkout().plannedSegmentStartedAtMillis)
+        assertEquals(800L, fixture.scheduler.pendingDelayMillis)
+    }
+
+    @Test
+    fun longBilateralAndUnilateralTimelinesKeepOnlyTheLastObservableLateness() {
+        listOf(ExerciseExecutionMode.SIMULTANEOUS, ExerciseExecutionMode.ONE_SIDE_AT_A_TIME).forEach { mode ->
+            val fixture = Fixture(
+                exercises = listOf(
+                    seriesExercise(sets = 2, repetitions = 3, restSeconds = 2).copy(
+                        concentricSeconds = 2,
+                        eccentricSeconds = 2,
+                        executionMode = mode,
+                        isometricPauseMode = IsometricPauseMode.SHORTENED,
+                        isometricDurationSeconds = 1
+                    ),
+                    seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+                        concentricSeconds = 2,
+                        eccentricSeconds = 2,
+                        isometricPauseMode = IsometricPauseMode.STRETCHED,
+                        isometricDurationSeconds = 1
+                    )
+                ),
+                restBetweenExercisesSeconds = 3,
+                warmupSeconds = 2
+            )
+
+            val actualMillis = fixture.runToCompletionWithLateness(listOf(50L, 200L, 20L, 500L, 100L))
+            val plannedMillis = fixture.routine.plannedDurationSeconds() * 1_000L
+
+            assertTrue(actualMillis in plannedMillis..(plannedMillis + 500L))
+        }
     }
 
     @Test
@@ -2387,6 +2450,21 @@ class TrainingEngineTest {
             while (engine.state != TrainingUiState.Completed) {
                 check(scheduler.hasPendingActions) { "Engine stopped before completing the planned timeline." }
                 scheduler.advance()
+                scheduledActions += 1
+                check(scheduledActions < 10_000) { "Engine did not complete its planned timeline." }
+            }
+            return clock.now
+        }
+
+        fun runToCompletionWithLateness(latenessMillis: List<Long>): Long {
+            require(latenessMillis.isNotEmpty())
+            engine.start(routine)
+            var scheduledActions = 0
+            while (engine.state != TrainingUiState.Completed) {
+                check(scheduler.hasPendingActions) { "Engine stopped before completing the planned timeline." }
+                val delayMillis = scheduler.pendingDelayMillis
+                val lateness = if (delayMillis == 0L) 0L else latenessMillis[scheduledActions % latenessMillis.size]
+                scheduler.fireAfter(delayMillis + lateness)
                 scheduledActions += 1
                 check(scheduledActions < 10_000) { "Engine did not complete its planned timeline." }
             }
