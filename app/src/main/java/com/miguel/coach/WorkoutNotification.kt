@@ -90,7 +90,15 @@ fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificat
         state.routine.exercises[state.exerciseIndex]
     }
     val series = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) exercise.sets else state.seriesNumber
-    val repetition = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) exercise.repetitions else state.repetitionNumber
+    val repetition = if (state.phase == TrainingPhase.REST_BETWEEN_EXERCISES) {
+        exercise.repetitions
+    } else {
+        workoutCompletedRepetitions(
+            repetitionNumber = state.repetitionNumber,
+            phase = state.phase,
+            isStartingExecution = state.isStartingExecution
+        )
+    }
     val progress = "Serie $series de ${exercise.sets} · Repetición $repetition de ${exercise.repetitions}"
     val restText = if (state.phase.isNotificationRest && !state.isStartingExecution && state.secondsRemaining > 0) {
         " · Descanso ${formatNotificationDuration(state.secondsRemaining)}"

@@ -90,34 +90,97 @@ class WorkoutNotificationTest {
 
         val execution = tracker.next(workout(TrainingPhase.CONCENTRIC, seconds = 2))
             as WorkoutNotificationChange.Show
-        assertEquals("Serie 1 de 3 · Repetición 1 de 8", execution.content.text)
+        assertEquals("Serie 1 de 3 · Repetición 0 de 8", execution.content.text)
         assertTrue("Calentamiento" !in execution.content.text)
         assertEquals(WorkoutNotificationChange.Remove, tracker.next(TrainingUiState.Home))
     }
 
     @Test
-    fun concentricShowsExerciseSeriesAndRepetition() {
+    fun concentricShowsOnlyCompletedRepetitions() {
         val content = workoutNotificationContent(
             workout(phase = TrainingPhase.CONCENTRIC, series = 2, repetition = 3)
         )
         assertEquals("Ejercicio uno", content.title)
-        assertEquals("Serie 2 de 3 · Repetición 3 de 8", content.text)
+        assertEquals("Serie 2 de 3 · Repetición 2 de 8", content.text)
         assertEquals(false, content.isPaused)
     }
 
     @Test
     fun executionNeverShowsPhaseNamesOrRestText() {
-        listOf(
-            TrainingPhase.CONCENTRIC,
-            TrainingPhase.ECCENTRIC,
-            TrainingPhase.ISOMETRIC,
-            TrainingPhase.REPETITION_ANNOUNCEMENT
-        ).forEach { phase ->
-            val text = workoutNotificationContent(workout(phase)).text
-            assertEquals("Serie 1 de 3 · Repetición 1 de 8", text)
+        TrainingPhase.entries.forEach { phase ->
+            if (phase == TrainingPhase.WARMUP || phase == TrainingPhase.COUNTDOWN || phase.isRestForTest) return@forEach
+            val text = workoutNotificationContent(workout(phase, repetition = 2)).text
             listOf("Concéntrica", "Excéntrica", "SHORTENED", "STRETCHED", "Fase", "Descanso")
                 .forEach { forbidden -> assertTrue(forbidden !in text) }
         }
+    }
+
+    @Test
+    fun notificationChangesAtTheSameConcentricCompletionBoundaryAsWorkoutScreen() {
+        val phases = listOf(
+            Triple(TrainingPhase.CONCENTRIC, 3, 2),
+            Triple(TrainingPhase.REPETITION_ANNOUNCEMENT, 3, 3),
+            Triple(TrainingPhase.ECCENTRIC, 3, 3),
+            Triple(TrainingPhase.ISOMETRIC, 3, 3),
+            Triple(TrainingPhase.CONCENTRIC, 4, 3),
+            Triple(TrainingPhase.REPETITION_ANNOUNCEMENT, 4, 4)
+        )
+
+        phases.forEach { (phase, repetition, expectedCompleted) ->
+            val screenCompleted = workoutCompletedRepetitions(repetition, phase)
+            val notification = workoutNotificationContent(workout(phase, repetition = repetition))
+
+            assertEquals(expectedCompleted, screenCompleted)
+            assertEquals("Serie 1 de 3 · Repetición $screenCompleted de 8", notification.text)
+        }
+    }
+
+    @Test
+    fun initialConcentricDoesNotAdvanceAndCompletionImmediatelyShowsOne() {
+        assertEquals(
+            "Serie 1 de 3 · Repetición 0 de 8",
+            workoutNotificationContent(workout(TrainingPhase.CONCENTRIC, repetition = 1)).text
+        )
+        assertEquals(
+            "Serie 1 de 3 · Repetición 1 de 8",
+            workoutNotificationContent(workout(TrainingPhase.REPETITION_ANNOUNCEMENT, repetition = 1)).text
+        )
+    }
+
+    @Test
+    fun eccentricBeepAndIsometriesKeepTheLastAnnouncedRepetition() {
+        listOf(
+            TrainingPhase.ECCENTRIC,
+            TrainingPhase.REPETITION_ANNOUNCEMENT,
+            TrainingPhase.ISOMETRIC
+        ).forEach { phase ->
+            assertEquals(
+                "Serie 1 de 3 · Repetición 3 de 8",
+                workoutNotificationContent(workout(phase, repetition = 3)).text
+            )
+        }
+    }
+
+    @Test
+    fun bilateralAndBothUnilateralSidesUseTheSharedCompletedProjection() {
+        listOf(null, ExerciseSide.RIGHT, ExerciseSide.LEFT).forEach { side ->
+            val content = workoutNotificationContent(
+                workout(TrainingPhase.ECCENTRIC, repetition = 4, currentSide = side)
+            )
+            assertEquals("Serie 1 de 3 · Repetición 4 de 8", content.text)
+        }
+    }
+
+    @Test
+    fun pauseAndResumeDoNotChangeCompletedRepetitions() {
+        val running = workoutNotificationContent(workout(TrainingPhase.ECCENTRIC, repetition = 3))
+        val paused = workoutNotificationContent(
+            workout(TrainingPhase.ECCENTRIC, repetition = 3, paused = true)
+        )
+        val resumed = workoutNotificationContent(workout(TrainingPhase.ECCENTRIC, repetition = 3))
+
+        assertEquals(running.text, paused.text)
+        assertEquals(paused.text, resumed.text)
     }
 
     @Test
@@ -258,8 +321,8 @@ class WorkoutNotificationTest {
             workout(TrainingPhase.CONCENTRIC, series = 2, repetition = 1, seconds = 2)
         )
 
-        assertEquals("Serie 1 de 3 · Repetición 8 de 8", finishedRest.text)
-        assertEquals("Serie 2 de 3 · Repetición 1 de 8", skippedRest.text)
+        assertEquals("Serie 1 de 3 · Repetición 0 de 8", finishedRest.text)
+        assertEquals("Serie 2 de 3 · Repetición 0 de 8", skippedRest.text)
         assertTrue("Descanso" !in finishedRest.text && "Descanso" !in skippedRest.text)
     }
 
@@ -396,3 +459,6 @@ class WorkoutNotificationTest {
         )
     }
 }
+
+private val TrainingPhase.isRestForTest: Boolean
+    get() = this == TrainingPhase.REST || this == TrainingPhase.REST_BETWEEN_EXERCISES
