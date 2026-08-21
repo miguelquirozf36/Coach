@@ -1,12 +1,16 @@
 package com.miguel.coach
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -361,12 +366,15 @@ internal fun TrainerVoiceVolumeControl(level: Int, onLevelChanged: (Int) -> Unit
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun FiveLevelVolumeControl(title: String, level: Int, onLevelChanged: (Int) -> Unit) {
     val normalizedLevel = normalizeAudioVolumeLevel(level)
+    val activeColor = MaterialTheme.colorScheme.primary
+    val inactiveColor = MaterialTheme.colorScheme.secondaryContainer
     Card(modifier = Modifier.fillMaxWidth(), colors = contentCardColors()) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text("Nivel $normalizedLevel", style = MaterialTheme.typography.bodyMedium)
@@ -375,7 +383,39 @@ private fun FiveLevelVolumeControl(title: String, level: Int, onLevelChanged: (I
                 onValueChange = { onLevelChanged(it.roundToInt().coerceIn(1, 5)) },
                 valueRange = 1f..5f,
                 steps = 3,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(40.dp),
+                thumb = {
+                    Box(
+                        Modifier
+                            .size(12.dp)
+                            .background(activeColor, CircleShape)
+                    )
+                },
+                track = {
+                    Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                        val cornerRadius = size.height / 2f
+                        drawRoundRect(
+                            color = inactiveColor,
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius)
+                        )
+                        val activeWidth = size.width * (normalizedLevel - 1) / 4f
+                        if (activeWidth > 0f) {
+                            drawRoundRect(
+                                color = activeColor,
+                                size = androidx.compose.ui.geometry.Size(activeWidth, size.height),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius)
+                            )
+                        }
+                        repeat(5) { index ->
+                            val x = size.width * index / 4f
+                            drawCircle(
+                                color = if (index < normalizedLevel) activeColor else inactiveColor,
+                                radius = cornerRadius,
+                                center = androidx.compose.ui.geometry.Offset(x, center.y)
+                            )
+                        }
+                    }
+                }
             )
         }
     }
