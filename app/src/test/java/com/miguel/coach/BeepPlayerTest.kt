@@ -15,18 +15,30 @@ class BeepPlayerTest {
 
     @Test
     fun nextBeepUsesAChangedLevelWithoutChangingToneOrDuration() {
-        var level = 1
         val factory = FakeToneFactory()
-        val player = BeepPlayer({ level }, factory)
+        val player = BeepPlayer(1, factory)
 
         player.play()
-        level = 4
+        player.updateVolumeLevel(4)
         player.play()
 
         assertEquals(listOf(20, 80), factory.volumes)
         assertEquals(listOf(100), factory.tones[0].durations)
         assertEquals(listOf(100), factory.tones[1].durations)
         assertTrue(factory.tones[0].released)
+    }
+
+    @Test
+    fun unchangedCachedLevelReusesTheExistingTone() {
+        val factory = FakeToneFactory()
+        val player = BeepPlayer(3, factory)
+
+        player.play()
+        player.updateVolumeLevel(3)
+        player.play()
+
+        assertEquals(listOf(60), factory.volumes)
+        assertEquals(listOf(100, 100), factory.tones.single().durations)
     }
 
     private class FakeToneFactory : BeepToneFactory {

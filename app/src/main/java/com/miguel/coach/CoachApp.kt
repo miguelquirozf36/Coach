@@ -379,11 +379,13 @@ fun CoachApp(
                                 onBeepVolumeLevelChanged = { level ->
                                     if (userPreferenceRepository.saveBeepVolumeLevel(level)) {
                                         beepVolumeLevel = normalizeBeepVolumeLevel(level)
+                                        WorkoutSessionController.updateBeepVolumeLevel(beepVolumeLevel)
                                     }
                                 },
                                 onTrainerVoiceVolumeLevelChanged = { level ->
                                     if (userPreferenceRepository.saveTrainerVoiceVolumeLevel(level)) {
                                         trainerVoiceVolumeLevel = normalizeAudioVolumeLevel(level)
+                                        WorkoutSessionController.updateTrainerVoiceVolumeLevel(trainerVoiceVolumeLevel)
                                     }
                                 },
                                 onSaveUserName = { input ->

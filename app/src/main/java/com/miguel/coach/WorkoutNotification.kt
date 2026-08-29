@@ -72,6 +72,39 @@ class WorkoutNotificationTracker {
     }
 }
 
+fun interface NotificationUpdateScheduler {
+    fun post(action: () -> Unit)
+}
+
+class LatestWorkoutNotificationUpdates(
+    private val scheduler: NotificationUpdateScheduler,
+    private val show: (WorkoutNotificationContent) -> Unit
+) {
+    private var pendingContent: WorkoutNotificationContent? = null
+    private var updateScheduled = false
+    private var generation = 0L
+
+    fun submit(content: WorkoutNotificationContent) {
+        pendingContent = content
+        if (updateScheduled) return
+        updateScheduled = true
+        val scheduledGeneration = generation
+        scheduler.post {
+            if (scheduledGeneration != generation) return@post
+            updateScheduled = false
+            val latestContent = pendingContent ?: return@post
+            pendingContent = null
+            show(latestContent)
+        }
+    }
+
+    fun cancelPending() {
+        generation += 1
+        pendingContent = null
+        updateScheduled = false
+    }
+}
+
 fun workoutNotificationContent(state: TrainingUiState.Workout): WorkoutNotificationContent {
     if (state.phase == TrainingPhase.WARMUP) {
         val text = if (!state.isInStartDelay && state.secondsRemaining > 0) {

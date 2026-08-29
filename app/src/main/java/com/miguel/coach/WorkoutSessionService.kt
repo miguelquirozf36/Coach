@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -27,6 +29,14 @@ object WorkoutSessionController {
     fun trainerVoiceCoach(context: Context): VoiceCoach {
         ensureEngine(context)
         return requireNotNull(voiceCoach)
+    }
+
+    fun updateBeepVolumeLevel(level: Int) {
+        beepPlayer?.updateVolumeLevel(level)
+    }
+
+    fun updateTrainerVoiceVolumeLevel(level: Int) {
+        voiceCoach?.updateVolumeLevel(level)
     }
 
     fun startWorkout(context: Context, routine: Routine) {
@@ -107,7 +117,7 @@ object WorkoutSessionController {
                 context.applicationContext.getSharedPreferences("coach_user", Context.MODE_PRIVATE)
             )
         )
-        val beep = BeepPlayer(preferences::loadBeepVolumeLevel)
+        val beep = BeepPlayer(preferences.loadBeepVolumeLevel())
         val voice = VoiceCoach(context.applicationContext, preferences)
         beepPlayer = beep
         voiceCoach = voice
@@ -130,6 +140,12 @@ class WorkoutSessionService : Service() {
     private lateinit var workoutNotification: WorkoutNotification
     private lateinit var workoutWakeLock: WorkoutWakeLock
     private val notificationTracker = WorkoutNotificationTracker()
+    private val notificationUpdates by lazy {
+        LatestWorkoutNotificationUpdates(
+            scheduler = NotificationUpdateScheduler { action -> Handler(Looper.getMainLooper()).post(action) },
+            show = { content -> workoutNotification.notify(content) }
+        )
+    }
     private var intentionalStop = false
     private val stateObserver: (TrainingUiState) -> Unit = ::handleState
 
@@ -155,6 +171,7 @@ class WorkoutSessionService : Service() {
 
     override fun onDestroy() {
         WorkoutSessionController.detachObserver(stateObserver)
+        notificationUpdates.cancelPending()
         workoutWakeLock.release()
         workoutNotification.cancel()
         if (!intentionalStop) WorkoutSessionController.handleUnexpectedServiceStop()
@@ -190,9 +207,12 @@ class WorkoutSessionService : Service() {
     private fun handleState(state: TrainingUiState) {
         workoutWakeLock.update(state)
         when (val change = notificationTracker.next(state)) {
-            is WorkoutNotificationChange.Show -> workoutNotification.notify(change.content)
+            is WorkoutNotificationChange.Show -> notificationUpdates.submit(change.content)
             WorkoutNotificationChange.None -> Unit
-            WorkoutNotificationChange.Remove -> workoutNotification.cancel()
+            WorkoutNotificationChange.Remove -> {
+                notificationUpdates.cancelPending()
+                workoutNotification.cancel()
+            }
         }
         if (state is TrainingUiState.Workout) return
         stopSessionService()
@@ -201,6 +221,7 @@ class WorkoutSessionService : Service() {
 
     private fun stopSessionService() {
         intentionalStop = true
+        notificationUpdates.cancelPending()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         workoutNotification.cancel()
         stopSelf()

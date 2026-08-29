@@ -7,6 +7,34 @@ import org.junit.Test
 
 class WorkoutNotificationTest {
     @Test
+    fun rapidUpdatesApplyOnlyTheLatestContent() {
+        val scheduler = QueuedNotificationScheduler()
+        val shown = mutableListOf<WorkoutNotificationContent>()
+        val updates = LatestWorkoutNotificationUpdates(scheduler, shown::add)
+
+        updates.submit(WorkoutNotificationContent("A", "A", false))
+        updates.submit(WorkoutNotificationContent("B", "B", false))
+        updates.submit(WorkoutNotificationContent("C", "C", true))
+        scheduler.runAll()
+
+        assertEquals(listOf(WorkoutNotificationContent("C", "C", true)), shown)
+    }
+
+    @Test
+    fun finishInvalidatesPendingUpdatesAndLaterSessionsCannotBeOverwritten() {
+        val scheduler = QueuedNotificationScheduler()
+        val shown = mutableListOf<WorkoutNotificationContent>()
+        val updates = LatestWorkoutNotificationUpdates(scheduler, shown::add)
+
+        updates.submit(WorkoutNotificationContent("old", "running", false))
+        updates.cancelPending()
+        updates.submit(WorkoutNotificationContent("new", "paused", true))
+        scheduler.runAll()
+
+        assertEquals(listOf(WorkoutNotificationContent("new", "paused", true)), shown)
+    }
+
+    @Test
     fun coachIconIsTheStablePrimarySmallIconForRunningAndPausedStates() {
         val runningSmallIcon = workoutNotificationSmallIconResId()
         val pausedSmallIcon = workoutNotificationSmallIconResId()
@@ -478,6 +506,16 @@ class WorkoutNotificationTest {
             ),
             restBetweenExercisesSeconds = 60
         )
+    }
+}
+
+private class QueuedNotificationScheduler : NotificationUpdateScheduler {
+    private val actions = ArrayDeque<() -> Unit>()
+    override fun post(action: () -> Unit) {
+        actions.addLast(action)
+    }
+    fun runAll() {
+        while (actions.isNotEmpty()) actions.removeFirst().invoke()
     }
 }
 

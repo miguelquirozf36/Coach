@@ -28,4 +28,14 @@ class VoiceCoachVolumeTest {
         assertEquals(0.8f, preview.volume)
         assertEquals(TextToSpeech.QUEUE_FLUSH, preview.queueMode)
     }
+
+    @Test
+    fun cachedVolumeChangesImmediatelyWithoutRecreatingVoiceCoach() {
+        val cachedVolume = CachedTrainerVoiceVolume(2)
+
+        assertEquals(0.4f, cachedVolume.settings(TextToSpeech.QUEUE_FLUSH).volume)
+        cachedVolume.update(5)
+        assertEquals(1.0f, cachedVolume.settings(TextToSpeech.QUEUE_ADD).volume)
+        assertEquals(TextToSpeech.QUEUE_ADD, cachedVolume.settings(TextToSpeech.QUEUE_ADD).queueMode)
+    }
 }

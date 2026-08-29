@@ -33,6 +33,7 @@ class VoiceCoach(
     private var utteranceSequence = 0L
     private var voiceGeneration = 0L
     private var textToSpeech: TextToSpeech? = null
+    private val cachedVolume = CachedTrainerVoiceVolume(preferences.loadTrainerVoiceVolumeLevel())
 
     init {
         textToSpeech = TextToSpeech(context.applicationContext) { status ->
@@ -75,10 +76,7 @@ class VoiceCoach(
     private fun speak(phrase: String, queueMode: Int, onCompleted: (() -> Unit)?) {
         if (!isReady || isReleased) return
 
-        val utteranceSettings = voiceUtteranceSettings(
-            preferences.loadTrainerVoiceVolumeLevel(),
-            queueMode
-        )
+        val utteranceSettings = cachedVolume.settings(queueMode)
 
         val utteranceId: String
         synchronized(callbackLock) {
@@ -136,6 +134,10 @@ class VoiceCoach(
         return !isReady || applyVoice(resolved)
     }
 
+    fun updateVolumeLevel(level: Int) {
+        cachedVolume.update(level)
+    }
+
     fun release() {
         isReleased = true
         isReady = false
@@ -175,6 +177,16 @@ class VoiceCoach(
 }
 
 internal data class VoiceUtteranceSettings(val queueMode: Int, val volume: Float)
+
+internal class CachedTrainerVoiceVolume(initialLevel: Int) {
+    private var level = normalizeAudioVolumeLevel(initialLevel, DEFAULT_TRAINER_VOICE_VOLUME_LEVEL)
+
+    fun update(newLevel: Int) {
+        level = normalizeAudioVolumeLevel(newLevel, DEFAULT_TRAINER_VOICE_VOLUME_LEVEL)
+    }
+
+    fun settings(queueMode: Int): VoiceUtteranceSettings = voiceUtteranceSettings(level, queueMode)
+}
 
 internal fun voiceUtteranceSettings(level: Int, queueMode: Int): VoiceUtteranceSettings =
     VoiceUtteranceSettings(queueMode, relativeAudioVolume(level))

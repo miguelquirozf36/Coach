@@ -10,20 +10,25 @@ interface BeepSoundPlayer {
 }
 
 class BeepPlayer(
-    private val volumeLevelProvider: () -> Int = { DEFAULT_BEEP_VOLUME_LEVEL },
+    initialVolumeLevel: Int = DEFAULT_BEEP_VOLUME_LEVEL,
     private val toneFactory: BeepToneFactory = AndroidBeepToneFactory
 ) : BeepSoundPlayer {
     private var tone: BeepTone? = null
     private var activeVolume: Int? = null
+    private var volumeLevel = normalizeBeepVolumeLevel(initialVolumeLevel)
 
     override fun play() {
-        val volume = beepToneVolume(volumeLevelProvider())
+        val volume = beepToneVolume(volumeLevel)
         if (volume != activeVolume) {
             tone?.release()
             tone = toneFactory.create(volume)
             activeVolume = volume
         }
         tone?.play(BEEP_DURATION_MILLIS)
+    }
+
+    fun updateVolumeLevel(level: Int) {
+        volumeLevel = normalizeBeepVolumeLevel(level)
     }
 
     override fun stop() {
