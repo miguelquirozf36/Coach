@@ -7,6 +7,58 @@ import org.junit.Test
 
 class WorkoutSessionLifecycleTest {
     @Test
+    fun unexpectedServiceDestroyDoesNotFinishActiveWorkout() {
+        val fixture = LifecycleFixture()
+        fixture.engine.start(routine)
+        val activeState = fixture.engine.state
+
+        val sessionRemainsActive = workoutSessionRemainsActiveAfterServiceStop(true, activeState)
+
+        assertTrue(sessionRemainsActive)
+        assertSame(activeState, fixture.engine.state)
+        assertTrue(fixture.engine.state is TrainingUiState.Workout)
+    }
+
+    @Test
+    fun unexpectedServiceDestroyPreservesPausedWorkout() {
+        val fixture = LifecycleFixture()
+        fixture.engine.start(routine)
+        fixture.engine.pause()
+        val pausedState = fixture.engine.state as TrainingUiState.Workout
+
+        val sessionRemainsActive = workoutSessionRemainsActiveAfterServiceStop(true, pausedState)
+
+        assertTrue(sessionRemainsActive)
+        assertSame(pausedState, fixture.engine.state)
+        assertTrue((fixture.engine.state as TrainingUiState.Workout).isPaused)
+        assertEquals(1, (fixture.engine.state as TrainingUiState.Workout).repetitionNumber)
+        assertEquals(1, (fixture.engine.state as TrainingUiState.Workout).seriesNumber)
+        assertEquals(0, (fixture.engine.state as TrainingUiState.Workout).exerciseIndex)
+    }
+
+    @Test
+    fun expectedOrFinishedServiceDestroyDoesNotKeepSessionActive() {
+        assertTrue(!workoutSessionRemainsActiveAfterServiceStop(false, TrainingUiState.Home))
+        assertTrue(!workoutSessionRemainsActiveAfterServiceStop(true, TrainingUiState.Home))
+        assertTrue(!workoutSessionRemainsActiveAfterServiceStop(true, TrainingUiState.Completed))
+    }
+
+    @Test
+    fun oldServiceDestroyCannotAffectANewWorkoutSession() {
+        val fixture = LifecycleFixture()
+        fixture.engine.start(routine)
+        fixture.engine.finish()
+        fixture.engine.start(routine.copy(id = "new-session"))
+        val newSessionState = fixture.engine.state
+
+        val sessionRemainsActive = workoutSessionRemainsActiveAfterServiceStop(true, newSessionState)
+
+        assertTrue(sessionRemainsActive)
+        assertSame(newSessionState, fixture.engine.state)
+        assertEquals("new-session", (fixture.engine.state as TrainingUiState.Workout).routine.id)
+    }
+
+    @Test
     fun manualFinishAllowsASecondWorkoutWithTheSameReadyInfrastructure() {
         val voice = ReusableVoiceSpeaker()
         val beep = ReusableBeepPlayer()
@@ -62,6 +114,13 @@ class WorkoutSessionLifecycleTest {
         assertTrue(engine.isVoiceReady)
         engine.start(routine)
         assertTrue(engine.state is TrainingUiState.Workout)
+    }
+
+    private class LifecycleFixture {
+        val voice = ReusableVoiceSpeaker()
+        val clock = TestClock()
+        val scheduler = QueueScheduler(clock)
+        val engine = TrainingEngine(voice, ReusableBeepPlayer(), scheduler, clock)
     }
 
     private class ReusableVoiceSpeaker : VoiceSpeaker {

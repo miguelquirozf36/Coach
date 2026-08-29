@@ -97,9 +97,7 @@ object WorkoutSessionController {
     }
 
     fun handleUnexpectedServiceStop() {
-        if (!sessionActive) return
-        engine?.finish()
-        sessionActive = false
+        sessionActive = workoutSessionRemainsActiveAfterServiceStop(sessionActive, engine?.state)
     }
 
     fun releaseFinishedSession() {
@@ -164,7 +162,7 @@ class WorkoutSessionService : Service() {
             ACTION_RESUME_WORKOUT -> handleNotificationAction(WorkoutSessionController::resumeWorkout)
             else -> promoteCurrentWorkout()
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -234,3 +232,8 @@ class WorkoutSessionService : Service() {
         const val ACTION_RESUME_WORKOUT = "com.miguel.coach.action.RESUME_WORKOUT"
     }
 }
+
+internal fun workoutSessionRemainsActiveAfterServiceStop(
+    wasSessionActive: Boolean,
+    state: TrainingUiState?
+): Boolean = wasSessionActive && state is TrainingUiState.Workout
