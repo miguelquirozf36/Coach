@@ -566,6 +566,104 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun concentricPauseResumePreservesMillisecondPrecisionAtFractionalBoundaries() {
+        listOf(5L, 250L, 500L, 900L, 999L).forEach { elapsedBeforePauseMillis ->
+            val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+                concentricSeconds = 1,
+                eccentricSeconds = 3
+            ))
+            fixture.startFirstConcentricPhase()
+            val originalPhaseStart = fixture.currentWorkout().phaseStartedAtMillis
+            fixture.clock.advanceBy(elapsedBeforePauseMillis)
+
+            fixture.engine.pause()
+            val paused = fixture.currentWorkout()
+            fixture.scheduler.advanceCancelled()
+            assertEquals(paused, fixture.currentWorkout())
+            val pausedAtMillis = fixture.clock.now
+            fixture.clock.advanceBy(10_000L)
+
+            fixture.engine.resume()
+            val resumedAtMillis = fixture.clock.now
+            val expectedRemainingMillis = 1_000L - elapsedBeforePauseMillis
+            val expectedPauseDurationMillis = resumedAtMillis - pausedAtMillis
+            assertEquals(originalPhaseStart + expectedPauseDurationMillis, fixture.currentWorkout().phaseStartedAtMillis)
+            assertEquals(expectedRemainingMillis, fixture.scheduler.pendingDelayMillis)
+            assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
+
+            fixture.clock.advanceBy((expectedRemainingMillis - 1L).coerceAtLeast(0L))
+            assertEquals(TrainingPhase.CONCENTRIC, fixture.currentWorkout().phase)
+            fixture.scheduler.advance()
+
+            assertEquals(TrainingPhase.ECCENTRIC, fixture.currentWorkout().phase)
+            assertEquals(expectedRemainingMillis, fixture.clock.now - resumedAtMillis)
+        }
+    }
+
+    @Test
+    fun eccentricPauseResumePreservesExactFractionalRemainingMillis() {
+        listOf(250L, 1_250L, 2_750L).forEach { elapsedBeforePauseMillis ->
+            val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+                concentricSeconds = 1,
+                eccentricSeconds = 3
+            ))
+            fixture.startFirstConcentricPhase()
+            fixture.scheduler.advance()
+            assertEquals(TrainingPhase.ECCENTRIC, fixture.currentWorkout().phase)
+            fixture.clock.advanceBy(elapsedBeforePauseMillis)
+
+            fixture.engine.pause()
+            val paused = fixture.currentWorkout()
+            fixture.scheduler.advanceCancelled()
+            assertEquals(paused, fixture.currentWorkout())
+            fixture.clock.advanceBy(20_000L)
+            fixture.engine.resume()
+            val resumedAtMillis = fixture.clock.now
+            val expectedRemainingMillis = 3_000L - elapsedBeforePauseMillis
+
+            while (fixture.currentWorkout().phase == TrainingPhase.ECCENTRIC) {
+                fixture.scheduler.advance()
+            }
+
+            val actualActiveMillis = fixture.clock.now - resumedAtMillis
+            val pauseResumePrecisionError = actualActiveMillis - expectedRemainingMillis
+            assertEquals(expectedRemainingMillis, actualActiveMillis)
+            assertEquals(0L, pauseResumePrecisionError)
+            fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 2, false)
+        }
+    }
+
+    @Test
+    fun repeatedConcentricPauseResumeCyclesDoNotAccumulateRoundingError() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+            concentricSeconds = 1,
+            eccentricSeconds = 3
+        ))
+        fixture.startFirstConcentricPhase()
+        val activeSlicesMillis = listOf(200L, 300L, 200L)
+
+        activeSlicesMillis.forEachIndexed { index, activeMillis ->
+            fixture.clock.advanceBy(activeMillis)
+            fixture.engine.pause()
+            val paused = fixture.currentWorkout()
+            fixture.scheduler.advanceCancelled()
+            assertEquals(paused, fixture.currentWorkout())
+            fixture.clock.advanceBy((index + 1L) * 5_000L)
+            fixture.engine.resume()
+        }
+
+        val expectedRemainingMillis = 1_000L - activeSlicesMillis.sum()
+        val pauseResumePrecisionError = fixture.scheduler.pendingDelayMillis - expectedRemainingMillis
+        assertEquals(300L, expectedRemainingMillis)
+        assertEquals(0L, pauseResumePrecisionError)
+        assertEquals(0, fixture.scheduler.overlappingScheduleRequests)
+
+        fixture.scheduler.advance()
+
+        assertEquals(TrainingPhase.ECCENTRIC, fixture.currentWorkout().phase)
+    }
+
+    @Test
     fun finishDuringVamosPreventsAnyLaterPhaseTransition() {
         val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.engine.start(fixture.routine)
