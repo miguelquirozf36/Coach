@@ -1496,7 +1496,7 @@ class TrainingEngineTest {
 
     @Test
     fun exercisePhaseBoundariesDoNotTransferCallbackLateness() {
-        listOf(50L, 200L, 500L).forEach { latenessMillis ->
+        listOf(5L, 50L, 200L, 500L).forEach { latenessMillis ->
             val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
                 concentricSeconds = 3,
                 eccentricSeconds = 3
@@ -1507,7 +1507,7 @@ class TrainingEngineTest {
 
             val concentricStartedAt = fixture.currentWorkout().phaseStartedAtMillis
             while (fixture.currentWorkout().phase == TrainingPhase.CONCENTRIC) {
-                fixture.scheduler.fireAfter(fixture.scheduler.pendingDelayMillis + latenessMillis)
+                fixture.scheduler.fireNextLateBy(latenessMillis)
             }
             val eccentricStartedAt = fixture.currentWorkout().phaseStartedAtMillis
 
@@ -1517,7 +1517,7 @@ class TrainingEngineTest {
             assertEquals(1, fixture.currentWorkout().completedRepetitions)
 
             while (fixture.currentWorkout().phase == TrainingPhase.ECCENTRIC) {
-                fixture.scheduler.fireAfter(fixture.scheduler.pendingDelayMillis + latenessMillis)
+                fixture.scheduler.fireNextLateBy(latenessMillis)
             }
 
             assertEquals(
@@ -1527,6 +1527,40 @@ class TrainingEngineTest {
             assertEquals(6_000L + latenessMillis, fixture.clock.now - concentricStartedAt)
             fixture.assertWorkout(TrainingPhase.CONCENTRIC, 3, 0, 1, 2, false)
         }
+    }
+
+    @Test
+    fun lateConcentricToEccentricKeepsThePreviousPlannedDeadlineAsItsOrigin() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 2, restSeconds = 0).copy(
+            concentricSeconds = 1,
+            eccentricSeconds = 3
+        ))
+        fixture.startFirstConcentricPhase()
+        val concentricStartedAt = fixture.currentWorkout().phaseStartedAtMillis
+
+        fixture.scheduler.fireNextLateBy(200L)
+
+        val eccentric = fixture.currentWorkout()
+        assertEquals(TrainingPhase.ECCENTRIC, eccentric.phase)
+        assertEquals(concentricStartedAt + 1_000L, eccentric.phaseStartedAtMillis)
+        assertEquals(concentricStartedAt + 4_000L, eccentric.phaseStartedAtMillis + 3_000L)
+        assertEquals(concentricStartedAt + 1_200L, fixture.clock.now)
+    }
+
+    @Test
+    fun repeatedLateCallbacksAcrossTenRepetitionsDoNotAccumulateDrift() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 10, restSeconds = 0).copy(
+            concentricSeconds = 1,
+            eccentricSeconds = 3
+        ))
+        val timing = fixture.runToCompletionWithLateness(listOf(50L))
+        val nominalBoundary = fixture.routine.plannedDurationSeconds() * 1_000L
+        val drift = timing.finalPlannedBoundaryMillis - nominalBoundary
+
+        assertTrue(timing.scheduledActions >= 20)
+        assertEquals(nominalBoundary, timing.finalPlannedBoundaryMillis)
+        assertEquals(0L, drift)
+        assertTrue(timing.observedCompletionMillis in nominalBoundary..(nominalBoundary + 50L))
     }
 
     @Test
@@ -1566,6 +1600,23 @@ class TrainingEngineTest {
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 2, 0, 1, 2, false)
         assertEquals(executionStartedAt + 6_000L, fixture.currentWorkout().phaseStartedAtMillis)
         assertEquals(executionStartedAt + 9_000L, fixture.currentWorkout().phaseStartedAtMillis + 3_000L)
+    }
+
+    @Test
+    fun callbackLateByMultiplePhasesCatchesUpToTheCurrentNominalBoundary() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 3, restSeconds = 0).copy(
+            concentricSeconds = 1,
+            eccentricSeconds = 3
+        ))
+        fixture.startFirstConcentricPhase()
+        val executionStartedAt = fixture.currentWorkout().phaseStartedAtMillis
+
+        fixture.scheduler.fireNextLateBy(4_500L)
+
+        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 3, 0, 1, 2, false)
+        assertEquals(executionStartedAt + 5_000L, fixture.currentWorkout().phaseStartedAtMillis)
+        assertEquals(executionStartedAt + 8_000L, fixture.currentWorkout().phaseStartedAtMillis + 3_000L)
+        assertEquals(1, fixture.scheduler.pendingActionCount)
     }
 
     @Test
@@ -1643,10 +1694,14 @@ class TrainingEngineTest {
                 warmupSeconds = 2
             )
 
-            val actualMillis = fixture.runToCompletionWithLateness(listOf(50L, 200L, 20L, 500L, 100L))
+            val timing = fixture.runToCompletionWithLateness(listOf(5L, 50L, 200L, 500L))
             val plannedMillis = fixture.routine.plannedDurationSeconds() * 1_000L
+            val accumulatedDrift = timing.finalPlannedBoundaryMillis - plannedMillis
 
-            assertTrue(actualMillis in plannedMillis..(plannedMillis + 500L))
+            assertTrue(timing.scheduledActions >= 20)
+            assertEquals(plannedMillis, timing.finalPlannedBoundaryMillis)
+            assertEquals(0L, accumulatedDrift)
+            assertTrue(timing.observedCompletionMillis in plannedMillis..(plannedMillis + 500L))
         }
     }
 
@@ -2492,7 +2547,7 @@ class TrainingEngineTest {
             return clock.now
         }
 
-        fun runToCompletionWithLateness(latenessMillis: List<Long>): Long {
+        fun runToCompletionWithLateness(latenessMillis: List<Long>): CompletionTiming {
             require(latenessMillis.isNotEmpty())
             engine.start(routine)
             var scheduledActions = 0
@@ -2500,11 +2555,17 @@ class TrainingEngineTest {
                 check(scheduler.hasPendingActions) { "Engine stopped before completing the planned timeline." }
                 val delayMillis = scheduler.pendingDelayMillis
                 val lateness = if (delayMillis == 0L) 0L else latenessMillis[scheduledActions % latenessMillis.size]
-                scheduler.fireAfter(delayMillis + lateness)
+                scheduler.fireNextLateBy(lateness)
                 scheduledActions += 1
                 check(scheduledActions < 10_000) { "Engine did not complete its planned timeline." }
             }
-            return clock.now
+            val finalTimedState = publishedWorkouts().last { it.phaseDurationSeconds > 0 }
+            return CompletionTiming(
+                observedCompletionMillis = clock.now,
+                finalPlannedBoundaryMillis = finalTimedState.phaseStartedAtMillis +
+                    finalTimedState.phaseDurationSeconds * 1_000L,
+                scheduledActions = scheduledActions
+            )
         }
 
         fun assertWorkout(
@@ -2599,6 +2660,8 @@ class TrainingEngineTest {
             get() = pendingAction != null || cancelledAction != null
         val pendingDelayMillis: Long
             get() = requireNotNull(pendingAction).delayMillis
+        val pendingActionCount: Int
+            get() = if (pendingAction == null) 0 else 1
 
         override fun schedule(delayMillis: Long, action: () -> Unit) {
             if (pendingAction != null) {
@@ -2626,6 +2689,15 @@ class TrainingEngineTest {
             scheduled.action()
         }
 
+        fun fireNextLateBy(latenessMillis: Long) {
+            require(latenessMillis >= 0L)
+            val scheduled = pendingAction ?: return
+            pendingAction = null
+            val callbackAtMillis = scheduled.scheduledAtMillis + scheduled.delayMillis + latenessMillis
+            clock.advanceBy((callbackAtMillis - clock.now).coerceAtLeast(0L))
+            scheduled.action()
+        }
+
         fun advanceCancelled() {
             val action = cancelledAction ?: return
             cancelledAction = null
@@ -2650,6 +2722,12 @@ class TrainingEngineTest {
             restSeconds = restSeconds
         )
     }
+
+    private data class CompletionTiming(
+        val observedCompletionMillis: Long,
+        val finalPlannedBoundaryMillis: Long,
+        val scheduledActions: Int
+    )
 }
 
 private fun completedProjection(state: TrainingUiState.Workout): Int =
