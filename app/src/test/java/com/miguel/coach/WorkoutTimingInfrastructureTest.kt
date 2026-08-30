@@ -7,13 +7,41 @@ import org.junit.Test
 
 class WorkoutTimingInfrastructureTest {
     @Test
-    fun progressRingUsesTheSameElapsedTimelineAsTheWorkout() {
-        val workout = workout(durationSeconds = 600, startedAtMillis = 10_000L)
+    fun oneSecondProgressRingUsesElapsedMonotonicTimeFromZeroToOne() {
+        val workout = workout(durationSeconds = 1, startedAtMillis = 10_000L)
 
-        assertEquals(1f, workoutRemainingFraction(workout, 10_000L), 0f)
-        assertEquals(500f / 600f, workoutRemainingFraction(workout, 110_000L), 0.0001f)
-        assertEquals(0.5f, workoutRemainingFraction(workout, 310_000L), 0f)
-        assertEquals(0f, workoutRemainingFraction(workout, 700_000L), 0f)
+        assertEquals(0f, workoutElapsedFraction(workout, 10_000L), 0f)
+        assertEquals(0.25f, workoutElapsedFraction(workout, 10_250L), 0f)
+        assertEquals(0.5f, workoutElapsedFraction(workout, 10_500L), 0f)
+        assertEquals(0.75f, workoutElapsedFraction(workout, 10_750L), 0f)
+        assertEquals(1f, workoutElapsedFraction(workout, 11_000L), 0f)
+    }
+
+    @Test
+    fun progressRingClampsBeforeStartAndAfterDeadline() {
+        val workout = workout(durationSeconds = 1, startedAtMillis = 10_000L)
+
+        assertEquals(0f, workoutElapsedFraction(workout, 9_500L), 0f)
+        assertEquals(1f, workoutElapsedFraction(workout, 11_500L), 0f)
+    }
+
+    @Test
+    fun lateFirstRenderReflectsConsumedTimeWithoutMovingTheDeadline() {
+        val workout = workout(durationSeconds = 1, startedAtMillis = 10_000L)
+
+        assertEquals(0.2f, workoutElapsedFraction(workout, 10_200L), 0.0001f)
+        assertEquals(11_000L, workout.phaseStartedAtMillis + workout.phaseDurationSeconds * 1_000L)
+    }
+
+    @Test
+    fun pausedProgressRingStaysFrozenAtThePausedMonotonicInstant() {
+        val workout = workout(durationSeconds = 1, startedAtMillis = 10_000L, paused = true)
+            .copy(phasePausedAtMillis = 10_400L)
+        val progressAcrossLaterFrames = listOf(10_400L, 20_000L).map { frameTimeMillis ->
+            workoutElapsedFraction(workout, workout.phasePausedAtMillis ?: frameTimeMillis)
+        }
+
+        assertEquals(listOf(0.4f, 0.4f), progressAcrossLaterFrames)
     }
 
     @Test

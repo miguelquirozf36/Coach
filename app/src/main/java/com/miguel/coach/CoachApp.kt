@@ -2338,7 +2338,7 @@ private fun TrainingTimer(
     )
     val sideLabel = visibleSide.displayLabel()
     val effectiveTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
-    val progress = workoutRemainingFraction(state, effectiveTimeMillis)
+    val progress = workoutElapsedFraction(state, effectiveTimeMillis)
     val progressColor = timerProgressColor(MaterialTheme.colorScheme)
     val trackColor = MaterialTheme.colorScheme.outlineVariant
 
@@ -2431,12 +2431,11 @@ internal fun workoutTimerSide(
     else -> currentSide
 }
 
-internal fun workoutRemainingFraction(state: TrainingUiState.Workout, nowMillis: Long): Float {
+internal fun workoutElapsedFraction(state: TrainingUiState.Workout, nowMillis: Long): Float {
     val durationMillis = state.phaseDurationSeconds.coerceAtLeast(0) * 1_000L
     if (durationMillis == 0L) return 0f
-    val endMillis = state.phaseStartedAtMillis + durationMillis
-    val remainingMillis = (endMillis - nowMillis).coerceIn(0L, durationMillis)
-    return remainingMillis.toFloat() / durationMillis
+    val elapsedMillis = (nowMillis - state.phaseStartedAtMillis).coerceIn(0L, durationMillis)
+    return elapsedMillis.toFloat() / durationMillis
 }
 
 internal fun timerProgressColor(colorScheme: ColorScheme): Color = colorScheme.primary
