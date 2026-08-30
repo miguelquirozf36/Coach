@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -21,6 +22,8 @@ object WorkoutSessionController {
     private var voiceCoach: VoiceCoach? = null
     private var beepPlayer: BeepPlayer? = null
     private var observer: ((TrainingUiState) -> Unit)? = null
+    private var audioFocusEnabledObserver: ((Boolean) -> Unit)? = null
+    private var audioFocusEnabled = false
     private var sessionActive = false
 
     fun ensureEngine(context: Context): TrainingEngine =
@@ -37,6 +40,11 @@ object WorkoutSessionController {
 
     fun updateTrainerVoiceVolumeLevel(level: Int) {
         voiceCoach?.updateVolumeLevel(level)
+    }
+
+    fun updateAudioFocusEnabled(enabled: Boolean) {
+        audioFocusEnabled = enabled
+        audioFocusEnabledObserver?.invoke(enabled)
     }
 
     fun startWorkout(context: Context, routine: Routine) {
@@ -96,6 +104,23 @@ object WorkoutSessionController {
         if (observer === stateObserver) observer = null
     }
 
+    internal fun attachAudioFocusIntegration(
+        enabledObserver: (Boolean) -> Unit,
+        utteranceListener: VoiceUtteranceLifecycleListener
+    ) {
+        audioFocusEnabledObserver = enabledObserver
+        voiceCoach?.setUtteranceLifecycleListener(utteranceListener)
+        enabledObserver(audioFocusEnabled)
+    }
+
+    internal fun detachAudioFocusIntegration(
+        enabledObserver: (Boolean) -> Unit,
+        utteranceListener: VoiceUtteranceLifecycleListener
+    ) {
+        if (audioFocusEnabledObserver === enabledObserver) audioFocusEnabledObserver = null
+        voiceCoach?.clearUtteranceLifecycleListener(utteranceListener)
+    }
+
     fun handleUnexpectedServiceStop() {
         sessionActive = workoutSessionRemainsActiveAfterServiceStop(sessionActive, engine?.state)
     }
@@ -137,6 +162,7 @@ object WorkoutSessionController {
 class WorkoutSessionService : Service() {
     private lateinit var workoutNotification: WorkoutNotification
     private lateinit var workoutWakeLock: WorkoutWakeLock
+    private lateinit var audioFocusSession: WorkoutAudioFocusSession
     private val notificationTracker = WorkoutNotificationTracker()
     private val notificationUpdates by lazy {
         LatestWorkoutNotificationUpdates(
@@ -146,12 +172,22 @@ class WorkoutSessionService : Service() {
     }
     private var intentionalStop = false
     private val stateObserver: (TrainingUiState) -> Unit = ::handleState
+    private val audioFocusEnabledObserver: (Boolean) -> Unit = { enabled ->
+        audioFocusSession.setEnabled(enabled)
+    }
 
     override fun onCreate() {
         super.onCreate()
         workoutNotification = WorkoutNotification(this)
         workoutWakeLock = createWorkoutWakeLock(this)
+        audioFocusSession = WorkoutAudioFocusSession(
+            WorkoutAudioFocusController.create(getSystemService(AudioManager::class.java))
+        )
         workoutNotification.createChannel()
+        WorkoutSessionController.attachAudioFocusIntegration(
+            audioFocusEnabledObserver,
+            audioFocusSession
+        )
         WorkoutSessionController.attachObserver(stateObserver)
     }
 
@@ -169,6 +205,11 @@ class WorkoutSessionService : Service() {
 
     override fun onDestroy() {
         WorkoutSessionController.detachObserver(stateObserver)
+        WorkoutSessionController.detachAudioFocusIntegration(
+            audioFocusEnabledObserver,
+            audioFocusSession
+        )
+        audioFocusSession.cleanup()
         notificationUpdates.cancelPending()
         workoutWakeLock.release()
         workoutNotification.cancel()
@@ -203,6 +244,7 @@ class WorkoutSessionService : Service() {
     }
 
     private fun handleState(state: TrainingUiState) {
+        audioFocusSession.onStateChanged(state)
         workoutWakeLock.update(state)
         when (val change = notificationTracker.next(state)) {
             is WorkoutNotificationChange.Show -> notificationUpdates.submit(change.content)

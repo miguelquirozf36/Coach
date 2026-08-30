@@ -19,6 +19,11 @@ interface VoiceSpeaker {
     fun stop()
 }
 
+internal interface VoiceUtteranceLifecycleListener {
+    fun onUtteranceSubmitted(utteranceId: String)
+    fun onUtteranceTerminated(utteranceId: String)
+}
+
 class VoiceCoach(
     context: Context,
     private val preferences: UserPreferenceRepository
@@ -26,14 +31,12 @@ class VoiceCoach(
     override var isReady by mutableStateOf(false)
         private set
 
-    private val callbackLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val pendingCallbacks = mutableMapOf<String, PendingCallback>()
     private var isReleased = false
     private var utteranceSequence = 0L
-    private var voiceGeneration = 0L
     private var textToSpeech: TextToSpeech? = null
     private val cachedVolume = CachedTrainerVoiceVolume(preferences.loadTrainerVoiceVolumeLevel())
+    private val utterances = VoiceUtteranceBookkeeper()
 
     init {
         textToSpeech = TextToSpeech(context.applicationContext) { status ->
@@ -51,16 +54,20 @@ class VoiceCoach(
             override fun onStart(utteranceId: String) = Unit
 
             override fun onDone(utteranceId: String) {
-                completeUtterance(utteranceId)
+                mainHandler.post { utterances.complete(utteranceId) }
             }
 
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String) {
-                removeUtterance(utteranceId)
+                mainHandler.post { utterances.fail(utteranceId) }
             }
 
             override fun onError(utteranceId: String, errorCode: Int) {
-                removeUtterance(utteranceId)
+                mainHandler.post { utterances.fail(utteranceId) }
+            }
+
+            override fun onStop(utteranceId: String, interrupted: Boolean) {
+                mainHandler.post { utterances.fail(utteranceId) }
             }
         })
     }
@@ -78,12 +85,13 @@ class VoiceCoach(
 
         val utteranceSettings = cachedVolume.settings(queueMode)
 
-        val utteranceId: String
-        synchronized(callbackLock) {
-            utteranceSequence += 1
-            utteranceId = "voice-coach-$utteranceSequence"
-            onCompleted?.let { pendingCallbacks[utteranceId] = PendingCallback(voiceGeneration, it) }
-        }
+        utteranceSequence += 1
+        val utteranceId = "voice-coach-$utteranceSequence"
+        utterances.submit(
+            utteranceId = utteranceId,
+            replacesPending = utteranceSettings.queueMode == TextToSpeech.QUEUE_FLUSH,
+            onCompleted = onCompleted
+        )
         val parameters = Bundle().apply {
             putFloat(
                 TextToSpeech.Engine.KEY_PARAM_VOLUME,
@@ -91,15 +99,20 @@ class VoiceCoach(
             )
         }
         val result = textToSpeech?.speak(phrase, utteranceSettings.queueMode, parameters, utteranceId)
-        if (result != TextToSpeech.SUCCESS) removeUtterance(utteranceId)
+        if (result != TextToSpeech.SUCCESS) utterances.fail(utteranceId)
     }
 
     override fun stop() {
-        synchronized(callbackLock) {
-            voiceGeneration += 1
-            pendingCallbacks.clear()
-        }
+        utterances.stop()
         textToSpeech?.stop()
+    }
+
+    internal fun setUtteranceLifecycleListener(listener: VoiceUtteranceLifecycleListener?) {
+        utterances.listener = listener
+    }
+
+    internal fun clearUtteranceLifecycleListener(listener: VoiceUtteranceLifecycleListener) {
+        if (utterances.listener === listener) utterances.listener = null
     }
 
     fun availableSpanishVoices(): List<TrainerVoiceOption> =
@@ -146,22 +159,6 @@ class VoiceCoach(
         textToSpeech = null
     }
 
-    private fun completeUtterance(utteranceId: String) {
-        val pendingCallback = synchronized(callbackLock) {
-            pendingCallbacks.remove(utteranceId)
-        } ?: return
-        mainHandler.post {
-            val shouldRun = synchronized(callbackLock) {
-                !isReleased && pendingCallback.generation == voiceGeneration
-            }
-            if (shouldRun) pendingCallback.onCompleted()
-        }
-    }
-
-    private fun removeUtterance(utteranceId: String) {
-        synchronized(callbackLock) { pendingCallbacks.remove(utteranceId) }
-    }
-
     private fun applyStoredVoice() {
         val voices = currentOfflineSpanishVoices()
         storedTrainerVoiceToApply(preferences.loadTrainerVoiceId(), voices.map(Voice::getName))
@@ -173,7 +170,45 @@ class VoiceCoach(
 
     private fun Voice.toDescriptor() = TrainerVoiceDescriptor(name, locale, isNetworkConnectionRequired)
 
-    private data class PendingCallback(val generation: Long, val onCompleted: () -> Unit)
+}
+
+internal class VoiceUtteranceBookkeeper {
+    var listener: VoiceUtteranceLifecycleListener? = null
+    private val pending = linkedMapOf<String, (() -> Unit)?>()
+
+    fun submit(utteranceId: String, replacesPending: Boolean, onCompleted: (() -> Unit)?) {
+        val replacedIds = if (replacesPending) pending.keys.toList() else emptyList()
+        pending[utteranceId] = onCompleted
+        listener?.onUtteranceSubmitted(utteranceId)
+        replacedIds.forEach { replacedId ->
+            pending.remove(replacedId)
+            listener?.onUtteranceTerminated(replacedId)
+        }
+    }
+
+    fun complete(utteranceId: String) {
+        val callback = remove(utteranceId) ?: return
+        callback.onCompleted?.invoke()
+    }
+
+    fun fail(utteranceId: String) {
+        remove(utteranceId)
+    }
+
+    fun stop() {
+        val utteranceIds = pending.keys.toList()
+        pending.clear()
+        utteranceIds.forEach { listener?.onUtteranceTerminated(it) }
+    }
+
+    private fun remove(utteranceId: String): RemovedUtterance? {
+        if (!pending.containsKey(utteranceId)) return null
+        val callback = pending.remove(utteranceId)
+        listener?.onUtteranceTerminated(utteranceId)
+        return RemovedUtterance(callback)
+    }
+
+    private data class RemovedUtterance(val onCompleted: (() -> Unit)?)
 }
 
 internal data class VoiceUtteranceSettings(val queueMode: Int, val volume: Float)
