@@ -16,6 +16,8 @@ interface VoiceSpeaker {
     val isReady: Boolean
     fun speak(phrase: String, onCompleted: (() -> Unit)? = null)
     fun enqueue(phrase: String)
+    fun beginUtteranceGroup(groupId: String) = Unit
+    fun endUtteranceGroup(groupId: String) = Unit
     fun stop()
 }
 
@@ -78,6 +80,14 @@ class VoiceCoach(
 
     override fun enqueue(phrase: String) {
         speak(phrase, TextToSpeech.QUEUE_ADD, null)
+    }
+
+    override fun beginUtteranceGroup(groupId: String) {
+        utterances.beginGroup(groupId)
+    }
+
+    override fun endUtteranceGroup(groupId: String) {
+        utterances.endGroup(groupId)
     }
 
     private fun speak(phrase: String, queueMode: Int, onCompleted: (() -> Unit)?) {
@@ -175,6 +185,15 @@ class VoiceCoach(
 internal class VoiceUtteranceBookkeeper {
     var listener: VoiceUtteranceLifecycleListener? = null
     private val pending = linkedMapOf<String, (() -> Unit)?>()
+    private val activeGroups = mutableSetOf<String>()
+
+    fun beginGroup(groupId: String) {
+        if (activeGroups.add(groupId)) listener?.onUtteranceSubmitted(groupToken(groupId))
+    }
+
+    fun endGroup(groupId: String) {
+        if (activeGroups.remove(groupId)) listener?.onUtteranceTerminated(groupToken(groupId))
+    }
 
     fun submit(utteranceId: String, replacesPending: Boolean, onCompleted: (() -> Unit)?) {
         val replacedIds = if (replacesPending) pending.keys.toList() else emptyList()
@@ -197,8 +216,11 @@ internal class VoiceUtteranceBookkeeper {
 
     fun stop() {
         val utteranceIds = pending.keys.toList()
+        val groupIds = activeGroups.toList()
         pending.clear()
+        activeGroups.clear()
         utteranceIds.forEach { listener?.onUtteranceTerminated(it) }
+        groupIds.forEach { listener?.onUtteranceTerminated(groupToken(it)) }
     }
 
     private fun remove(utteranceId: String): RemovedUtterance? {
@@ -209,6 +231,8 @@ internal class VoiceUtteranceBookkeeper {
     }
 
     private data class RemovedUtterance(val onCompleted: (() -> Unit)?)
+
+    private fun groupToken(groupId: String): String = "voice-group:$groupId"
 }
 
 internal data class VoiceUtteranceSettings(val queueMode: Int, val volume: Float)

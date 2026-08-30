@@ -12,13 +12,13 @@ class WorkoutAudioFocusIntegrationTest {
             TrainingPhase.CONCENTRIC,
             TrainingPhase.ECCENTRIC,
             TrainingPhase.ISOMETRIC,
-            TrainingPhase.REPETITION_ANNOUNCEMENT
+            TrainingPhase.REPETITION_ANNOUNCEMENT,
+            TrainingPhase.WARMUP,
+            TrainingPhase.COUNTDOWN
         ).forEach { phase ->
             assertTrue(phase.name, shouldUseContinuousWorkoutDucking(workout(phase)))
         }
         listOf(
-            TrainingPhase.WARMUP,
-            TrainingPhase.COUNTDOWN,
             TrainingPhase.REST,
             TrainingPhase.REST_BETWEEN_EXERCISES
         ).forEach { phase ->
@@ -252,7 +252,44 @@ class WorkoutAudioFocusIntegrationTest {
         fixture.session.onStateChanged(workout(TrainingPhase.COUNTDOWN))
         fixture.session.onUtteranceSubmitted("countdown")
 
-        assertEquals(0, fixture.gateway.requestCount)
+        assertEquals(1, fixture.gateway.requestCount)
+        assertEquals(0, fixture.gateway.abandonCount)
+    }
+
+    @Test
+    fun finalRestCountdownKeepsOneFocusRequestThroughEveryUtteranceAndHandsOffToContinuous() {
+        val fixture = fixture(enabled = true)
+        fixture.session.onStateChanged(workout(TrainingPhase.REST))
+        val utterances = VoiceUtteranceBookkeeper().apply { listener = fixture.session }
+
+        utterances.beginGroup("final-countdown")
+        listOf("three", "two", "one").forEach { utteranceId ->
+            utterances.submit(utteranceId, replacesPending = false, onCompleted = null)
+            utterances.complete(utteranceId)
+            assertEquals(0, fixture.gateway.abandonCount)
+        }
+
+        fixture.session.onStateChanged(workout(TrainingPhase.REST, inStartDelay = true))
+        utterances.submit("go", replacesPending = false, onCompleted = null)
+        utterances.endGroup("final-countdown")
+        utterances.complete("go")
+
+        assertEquals(1, fixture.gateway.requestCount)
+        assertEquals(0, fixture.gateway.abandonCount)
+    }
+
+    @Test
+    fun stoppingVoiceDuringGroupedRestCountdownReleasesFocusOnce() {
+        val fixture = fixture(enabled = true)
+        fixture.session.onStateChanged(workout(TrainingPhase.REST))
+        val utterances = VoiceUtteranceBookkeeper().apply { listener = fixture.session }
+        utterances.beginGroup("final-countdown")
+        utterances.submit("three", replacesPending = false, onCompleted = null)
+
+        utterances.stop()
+
+        assertEquals(1, fixture.gateway.requestCount)
+        assertEquals(1, fixture.gateway.abandonCount)
     }
 
     @Test

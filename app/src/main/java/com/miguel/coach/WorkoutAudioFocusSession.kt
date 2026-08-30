@@ -38,9 +38,9 @@ internal fun shouldUseContinuousWorkoutDucking(state: TrainingUiState): Boolean 
         TrainingPhase.CONCENTRIC,
         TrainingPhase.ECCENTRIC,
         TrainingPhase.ISOMETRIC,
-        TrainingPhase.REPETITION_ANNOUNCEMENT -> true
+        TrainingPhase.REPETITION_ANNOUNCEMENT,
         TrainingPhase.WARMUP,
-        TrainingPhase.COUNTDOWN,
+        TrainingPhase.COUNTDOWN -> true
         TrainingPhase.REST,
         TrainingPhase.REST_BETWEEN_EXERCISES -> false
     }

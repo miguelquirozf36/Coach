@@ -229,7 +229,8 @@ class TrainingEngine(
         }
         announceCrossedThreshold(
             secondsRemaining,
-            listOf(60 to ONE_MINUTE_ANNOUNCEMENT, 10 to TEN_SECONDS_ANNOUNCEMENT, 3 to "Tres", 2 to "Dos", 1 to "Uno")
+            listOf(60 to ONE_MINUTE_ANNOUNCEMENT, 10 to TEN_SECONDS_ANNOUNCEMENT, 3 to "Tres", 2 to "Dos", 1 to "Uno"),
+            groupFinalCountdown = true
         )
         previousTimedSeconds = secondsRemaining
         scheduleWarmupTick(activeSession)
@@ -247,7 +248,8 @@ class TrainingEngine(
         }
         announceCrossedThreshold(
             secondsRemaining,
-            listOf(3 to "Tres", 2 to "Dos", 1 to "Uno")
+            listOf(3 to "Tres", 2 to "Dos", 1 to "Uno"),
+            groupFinalCountdown = true
         )
         previousTimedSeconds = secondsRemaining
         scheduleCountdownTick(activeSession)
@@ -256,6 +258,7 @@ class TrainingEngine(
     private fun announceStart(activeSession: Long, plannedStartMillis: Long = monotonicClock.nowMillis()) {
         startStartDelay(activeSession, plannedStartMillis)
         voiceSpeaker.speak("\u00A1Vamos!")
+        voiceSpeaker.endUtteranceGroup(FINAL_COUNTDOWN_UTTERANCE_GROUP)
     }
 
     private fun startStartDelay(
@@ -623,7 +626,8 @@ class TrainingEngine(
         }
         announceCrossedThreshold(
             secondsRemaining,
-            listOf(30 to THIRTY_SECONDS_ANNOUNCEMENT, 10 to TEN_SECONDS_ANNOUNCEMENT, 3 to "Tres", 2 to "Dos", 1 to "Uno")
+            listOf(30 to THIRTY_SECONDS_ANNOUNCEMENT, 10 to TEN_SECONDS_ANNOUNCEMENT, 3 to "Tres", 2 to "Dos", 1 to "Uno"),
+            groupFinalCountdown = true
         )
         previousTimedSeconds = secondsRemaining
         scheduleRestTick(activeSession)
@@ -636,7 +640,8 @@ class TrainingEngine(
 
     private fun announceCrossedThreshold(
         secondsRemaining: Int,
-        thresholds: List<Pair<Int, String>>
+        thresholds: List<Pair<Int, String>>,
+        groupFinalCountdown: Boolean = false
     ) {
         val useful = thresholds
             .filter { (threshold, _) ->
@@ -648,6 +653,9 @@ class TrainingEngine(
             .minByOrNull { (threshold, _) -> threshold - secondsRemaining }
             ?: return
         announcedThresholds += useful.first
+        if (groupFinalCountdown && useful.first in 1..3) {
+            voiceSpeaker.beginUtteranceGroup(FINAL_COUNTDOWN_UTTERANCE_GROUP)
+        }
         voiceSpeaker.speak(useful.second)
     }
 
@@ -685,6 +693,7 @@ class TrainingEngine(
         if (workout.phase != TrainingPhase.REST) return
         startNextSeries(activeSession, plannedStartMillis)
         voiceSpeaker.speak("\u00A1Vamos!")
+        voiceSpeaker.endUtteranceGroup(FINAL_COUNTDOWN_UTTERANCE_GROUP)
     }
 
     private fun announceNextExercise(activeSession: Long, plannedStartMillis: Long = monotonicClock.nowMillis()) {
@@ -692,6 +701,7 @@ class TrainingEngine(
         if (workout.phase != TrainingPhase.REST_BETWEEN_EXERCISES) return
         startNextExercise(activeSession, plannedStartMillis)
         voiceSpeaker.speak("\u00A1Vamos!")
+        voiceSpeaker.endUtteranceGroup(FINAL_COUNTDOWN_UTTERANCE_GROUP)
     }
 
     private fun startNextSeries(activeSession: Long, plannedStartMillis: Long) {
@@ -748,6 +758,7 @@ class TrainingEngine(
             "Descansa y prepárate para el siguiente ejercicio."
         const val TEN_SECONDS_ANNOUNCEMENT = "Quedan 10 segundos"
         const val MAX_USEFUL_ANNOUNCEMENT_LATENESS_SECONDS = 1
+        const val FINAL_COUNTDOWN_UTTERANCE_GROUP = "final-countdown"
         const val TRAINING_COMPLETE_ANNOUNCEMENT = "Entrenamiento finalizado."
     }
 }

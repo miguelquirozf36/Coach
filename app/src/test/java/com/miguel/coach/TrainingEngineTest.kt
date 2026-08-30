@@ -414,6 +414,10 @@ class TrainingEngineTest {
         val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4))
         fixture.startFirstConcentricPhase()
         fixture.completeCurrentRepetition()
+        val groupStartsBeforeRestCountdown =
+            fixture.events.count { it == "voice-group-start:final-countdown" }
+        val groupEndsBeforeRestCountdown =
+            fixture.events.count { it == "voice-group-end:final-countdown" }
 
         fixture.scheduler.advance()
         fixture.assertWorkout(TrainingPhase.REST, 3, 0, 1, 1, false)
@@ -424,6 +428,20 @@ class TrainingEngineTest {
         assertEquals("Uno", fixture.voice.phrases.last())
         fixture.scheduler.advance()
         assertEquals("\u00A1Vamos!", fixture.voice.phrases.last())
+        val groupStart = fixture.events.indexOf("voice-group-start:final-countdown")
+        val three = fixture.events.indexOf("voice:Tres")
+        val vamos = fixture.events.indexOf("voice:\u00A1Vamos!")
+        val groupEnd = fixture.events.indexOf("voice-group-end:final-countdown")
+        assertTrue(groupStart in 0 until three)
+        assertTrue(groupEnd > vamos)
+        assertEquals(
+            groupStartsBeforeRestCountdown + 1,
+            fixture.events.count { it == "voice-group-start:final-countdown" }
+        )
+        assertEquals(
+            groupEndsBeforeRestCountdown + 1,
+            fixture.events.count { it == "voice-group-end:final-countdown" }
+        )
 
         fixture.voice.completeLatest()
         fixture.scheduler.advance()
@@ -2699,6 +2717,7 @@ class TrainingEngineTest {
         val queuedPhrases = mutableListOf<String>()
         var stopCalls = 0
         private val completions = mutableListOf<() -> Unit>()
+        private val activeUtteranceGroups = mutableSetOf<String>()
         val pendingCompletionCount: Int
             get() = completions.size
 
@@ -2712,6 +2731,14 @@ class TrainingEngineTest {
             phrases += phrase
             queuedPhrases += phrase
             events += "voice-add:$phrase"
+        }
+
+        override fun beginUtteranceGroup(groupId: String) {
+            if (activeUtteranceGroups.add(groupId)) events += "voice-group-start:$groupId"
+        }
+
+        override fun endUtteranceGroup(groupId: String) {
+            if (activeUtteranceGroups.remove(groupId)) events += "voice-group-end:$groupId"
         }
 
         override fun stop() {
