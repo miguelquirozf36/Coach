@@ -2761,6 +2761,98 @@ class TrainingEngineTest {
         assertEquals(1f, workoutOverallProgress(fixture.engine.state, fixture.clock.now), 0f)
     }
 
+    @Test
+    fun restartingTrainingInvalidatesTheOldDeadlineAndStartsTheSameBlockAfterTenSeconds() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 4, repetitions = 2))
+        fixture.startFirstConcentricPhase()
+        fixture.clock.advanceBy(400L)
+        val navigationStartedAt = fixture.clock.now
+
+        fixture.engine.restartStage()
+
+        assertTrue(fixture.currentWorkout().isInStartDelay)
+        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+        assertEquals(1, fixture.currentWorkout().seriesNumber)
+        assertEquals(1, fixture.currentWorkout().repetitionNumber)
+        fixture.scheduler.advanceCancelled()
+        assertTrue(fixture.currentWorkout().isInStartDelay)
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(navigationStartedAt + 10_000L, fixture.currentWorkout().phaseStartedAtMillis)
+        assertTrue(fixture.voice.stopCalls > 0)
+        assertTrue(fixture.beep.stopCalls > 0)
+    }
+
+    @Test
+    fun previousAndNextDestinationsUseTenSecondsForTrainingAndFullDurationForRest() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 7, repetitions = 1))
+        fixture.engine.start(fixture.routine)
+
+        fixture.engine.nextStage()
+        assertTrue(fixture.currentWorkout().isInStartDelay)
+        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+        fixture.scheduler.advance()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+
+        val restStartedAt = fixture.clock.now
+        fixture.engine.nextStage()
+        fixture.assertWorkout(TrainingPhase.REST, 7, 0, 1, 1, false)
+        assertEquals(restStartedAt, fixture.currentWorkout().phaseStartedAtMillis)
+        assertEquals(7, fixture.currentWorkout().phaseDurationSeconds)
+
+        fixture.engine.previousStage()
+        assertTrue(fixture.currentWorkout().isInStartDelay)
+        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+        fixture.scheduler.advance()
+        fixture.engine.nextStage()
+        fixture.assertWorkout(TrainingPhase.REST, 7, 0, 1, 1, false)
+    }
+
+    @Test
+    fun unilateralStageNavigationPreservesExerciseSeriesAndSideContext() {
+        val fixture = Fixture(seriesExercise(sets = 2, restSeconds = 5, repetitions = 1).copy(
+            executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+        ))
+        fixture.startFirstConcentricPhase()
+
+        fixture.engine.nextStage()
+        fixture.assertWorkout(TrainingPhase.REST, 5, 0, 1, 1, false)
+        assertEquals(ExerciseSide.RIGHT, fixture.currentWorkout().currentSide)
+        fixture.engine.nextStage()
+        assertEquals(1, fixture.currentWorkout().seriesNumber)
+        assertEquals(ExerciseSide.LEFT, fixture.currentWorkout().currentSide)
+        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+        fixture.scheduler.advance()
+        fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(ExerciseSide.LEFT, fixture.currentWorkout().currentSide)
+
+        fixture.engine.nextStage()
+        fixture.engine.nextStage()
+        assertEquals(2, fixture.currentWorkout().seriesNumber)
+        assertEquals(ExerciseSide.RIGHT, fixture.currentWorkout().currentSide)
+        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+    }
+
+    @Test
+    fun betweenExerciseRestNavigationUsesTheNextExerciseContextImmediately() {
+        val fixture = Fixture(
+            exercises = listOf(seriesExercise(1, 3), seriesExercise(1, 4)),
+            restBetweenExercisesSeconds = 9
+        )
+        fixture.startFirstConcentricPhase()
+
+        fixture.engine.nextStage()
+
+        fixture.assertWorkout(TrainingPhase.REST_BETWEEN_EXERCISES, 9, 1, 1, 1, false)
+        assertEquals(0, fixture.currentWorkout().completedExerciseIndex)
+        assertEquals(1, fixture.currentWorkout().upcomingExerciseIndex)
+        fixture.engine.nextStage()
+        assertTrue(fixture.currentWorkout().isInStartDelay)
+        assertEquals(1, fixture.currentWorkout().exerciseIndex)
+        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+    }
+
     private class Fixture(
         exercises: List<Exercise>,
         private val restBetweenExercisesSeconds: Int = 12,

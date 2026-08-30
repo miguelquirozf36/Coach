@@ -287,19 +287,53 @@ class WorkoutLayoutTest {
     }
 
     @Test
-    fun skipEnablementDistinguishesRealCountdownFromEveryStartDelayOrigin() {
-        assertEquals(false, workoutSkipEnabled(workoutState(TrainingPhase.COUNTDOWN)))
-        assertEquals(true, workoutSkipEnabled(workoutState(TrainingPhase.COUNTDOWN, inStartDelay = true)))
-        assertEquals(true, workoutSkipEnabled(workoutState(TrainingPhase.WARMUP, inStartDelay = true)))
-        assertEquals(true, workoutSkipEnabled(workoutState(TrainingPhase.REST, inStartDelay = true)))
-        assertEquals(
-            true,
-            workoutSkipEnabled(workoutState(TrainingPhase.REST_BETWEEN_EXERCISES, inStartDelay = true))
-        )
-        assertEquals(
-            false,
-            workoutSkipEnabled(workoutState(TrainingPhase.COUNTDOWN, inStartDelay = true, paused = true))
-        )
+    fun previousControlWaitsForTheDoubleTapWindowBeforeRestarting() {
+        val scheduler = FakeWorkoutControlDelayScheduler()
+        var restarts = 0
+        var previous = 0
+        val resolver = WorkoutPreviousStageTapResolver(scheduler, { restarts++ }, { previous++ })
+
+        resolver.onTap()
+        assertEquals(0, restarts)
+        assertEquals(0, previous)
+
+        scheduler.runPending()
+        assertEquals(1, restarts)
+        assertEquals(0, previous)
+    }
+
+    @Test
+    fun secondPreviousTapCancelsRestartAndNavigatesBackOnce() {
+        val scheduler = FakeWorkoutControlDelayScheduler()
+        var restarts = 0
+        var previous = 0
+        val resolver = WorkoutPreviousStageTapResolver(scheduler, { restarts++ }, { previous++ })
+
+        resolver.onTap()
+        resolver.onTap()
+        scheduler.runCancelled()
+
+        assertEquals(0, restarts)
+        assertEquals(1, previous)
+    }
+
+    @Test
+    fun disposingPreviousControlCancelsItsPendingRestart() {
+        val scheduler = FakeWorkoutControlDelayScheduler()
+        var restarts = 0
+        val resolver = WorkoutPreviousStageTapResolver(scheduler, { restarts++ }, {})
+
+        resolver.onTap()
+        resolver.dispose()
+        scheduler.runCancelled()
+
+        assertEquals(0, restarts)
+    }
+
+    @Test
+    fun centerControlUsesPauseAndPlaySymbolsWithoutChangingCallbacks() {
+        assertEquals("||", workoutPlaybackSymbol(isPaused = false))
+        assertEquals("▶", workoutPlaybackSymbol(isPaused = true))
     }
 
     @Test
@@ -418,6 +452,30 @@ class WorkoutLayoutTest {
         assertEquals(expected, warmup)
         assertEquals(expected, countdown)
         assertEquals(expected, betweenExercises)
+    }
+}
+
+private class FakeWorkoutControlDelayScheduler : WorkoutControlDelayScheduler {
+    private var pending: (() -> Unit)? = null
+    private var cancelled: (() -> Unit)? = null
+
+    override fun schedule(delayMillis: Long, action: () -> Unit): PendingWorkoutControlAction {
+        assertEquals(WORKOUT_PREVIOUS_STAGE_DOUBLE_TAP_MILLIS, delayMillis)
+        pending = action
+        return PendingWorkoutControlAction {
+            cancelled = pending
+            pending = null
+        }
+    }
+
+    fun runPending() {
+        pending?.invoke()
+        pending = null
+    }
+
+    fun runCancelled() {
+        cancelled?.invoke()
+        cancelled = null
     }
 }
 

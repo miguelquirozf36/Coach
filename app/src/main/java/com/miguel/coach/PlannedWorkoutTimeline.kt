@@ -2,6 +2,19 @@ package com.miguel.coach
 
 internal const val INITIAL_COUNTDOWN_SECONDS = 10
 internal const val START_DELAY_SECONDS = 1
+internal const val STAGE_NAVIGATION_START_DELAY_SECONDS = 10
+
+enum class WorkoutStageType {
+    WARMUP,
+    TRAINING,
+    REST
+}
+
+data class WorkoutStageBoundary(
+    val stageIndex: Int,
+    val type: WorkoutStageType,
+    val segmentIndex: Int
+)
 
 enum class PlannedWorkoutSegmentType {
     WARMUP,
@@ -30,7 +43,36 @@ data class PlannedWorkoutTimeline(val segments: List<PlannedWorkoutSegment>) {
 
     fun remainingDurationSeconds(fromSegmentIndex: Int): Long =
         segments.drop(fromSegmentIndex.coerceIn(0, segments.size)).sumOf { it.durationSeconds.toLong() }
+
+    fun stageBoundaries(): List<WorkoutStageBoundary> = buildList {
+        segments.forEachIndexed { segmentIndex, segment ->
+            val stageType = segment.type.stageType
+            if (lastOrNull()?.type != stageType) {
+                add(WorkoutStageBoundary(size, stageType, segmentIndex))
+            }
+        }
+    }
+
+    fun stageBoundaryForSegment(segmentIndex: Int): WorkoutStageBoundary? {
+        val boundaries = stageBoundaries()
+        if (segments.isEmpty()) return null
+        val resolvedSegmentIndex = segmentIndex.coerceIn(0, segments.lastIndex)
+        return boundaries.lastOrNull { it.segmentIndex <= resolvedSegmentIndex }
+    }
 }
+
+private val PlannedWorkoutSegmentType.stageType: WorkoutStageType
+    get() = when (this) {
+        PlannedWorkoutSegmentType.WARMUP,
+        PlannedWorkoutSegmentType.INITIAL_COUNTDOWN -> WorkoutStageType.WARMUP
+        PlannedWorkoutSegmentType.REST,
+        PlannedWorkoutSegmentType.REST_BETWEEN_EXERCISES -> WorkoutStageType.REST
+        PlannedWorkoutSegmentType.START_DELAY,
+        PlannedWorkoutSegmentType.CONCENTRIC,
+        PlannedWorkoutSegmentType.ECCENTRIC,
+        PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED,
+        PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED -> WorkoutStageType.TRAINING
+    }
 
 fun Routine.plannedTimeline(): PlannedWorkoutTimeline =
     buildPlannedTimeline(startExerciseIndex = 0, includeRoutineWarmup = true)

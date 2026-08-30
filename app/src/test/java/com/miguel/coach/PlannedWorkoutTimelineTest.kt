@@ -132,6 +132,40 @@ class PlannedWorkoutTimelineTest {
     }
 
     @Test
+    fun coarseStageBoundariesAlternateWithoutChangingTheCanonicalTimeline() {
+        val timeline = routine(
+            exercises = listOf(exercise(
+                sets = 2,
+                repetitions = 2,
+                mode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
+            )),
+            warmup = 12
+        ).plannedTimeline()
+        val originalSegments = timeline.segments.toList()
+        val originalDuration = timeline.totalDurationSeconds
+        val boundaries = timeline.stageBoundaries()
+
+        assertEquals(
+            listOf(
+                WorkoutStageType.WARMUP,
+                WorkoutStageType.TRAINING,
+                WorkoutStageType.REST,
+                WorkoutStageType.TRAINING,
+                WorkoutStageType.REST,
+                WorkoutStageType.TRAINING,
+                WorkoutStageType.REST,
+                WorkoutStageType.TRAINING
+            ),
+            boundaries.map(WorkoutStageBoundary::type)
+        )
+        boundaries.filter { it.type == WorkoutStageType.TRAINING }.forEach { boundary ->
+            assertEquals(PlannedWorkoutSegmentType.START_DELAY, timeline.segments[boundary.segmentIndex].type)
+        }
+        assertEquals(originalSegments, timeline.segments)
+        assertEquals(originalDuration, timeline.totalDurationSeconds)
+    }
+
+    @Test
     fun twoExercisesHaveOneBetweenExerciseRestAndDelayBeforeSecondExercise() {
         val timeline = routine(
             listOf(exercise(id = "one", repetitions = 1), exercise(id = "two", repetitions = 1)),

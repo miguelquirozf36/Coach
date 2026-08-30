@@ -63,6 +63,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -101,6 +102,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlin.math.min
 import java.time.LocalDate
 import java.util.Locale
@@ -571,7 +573,9 @@ fun CoachApp(
                     state = state,
                     onPause = trainingEngine::pause,
                     onResume = trainingEngine::resume,
-                    onSkip = trainingEngine::skip,
+                    onRestartStage = trainingEngine::restartStage,
+                    onPreviousStage = trainingEngine::previousStage,
+                    onNextStage = trainingEngine::nextStage,
                     onFinish = onFinishWorkout
                 )
 
@@ -1134,20 +1138,6 @@ private val StartWorkoutPlayIcon: ImageVector = ImageVector.Builder(
         close()
     }
 }.build()
-
-private val PauseIcon = coachIcon("Pause") {
-    path(fill = SolidColor(Color.Black)) {
-        moveTo(6f, 5f); lineTo(10f, 5f); lineTo(10f, 19f); lineTo(6f, 19f); close()
-        moveTo(14f, 5f); lineTo(18f, 5f); lineTo(18f, 19f); lineTo(14f, 19f); close()
-    }
-}
-
-private val SkipNextIcon = coachIcon("SkipNext") {
-    path(fill = SolidColor(Color.Black)) {
-        moveTo(6f, 18f); lineTo(14.5f, 12f); lineTo(6f, 6f); close()
-        moveTo(16f, 6f); lineTo(19f, 6f); lineTo(19f, 18f); lineTo(16f, 18f); close()
-    }
-}
 
 private val StopIcon = coachIcon("Stop") {
     path(fill = SolidColor(Color.Black)) {
@@ -1730,7 +1720,9 @@ fun WorkoutScreen(
     state: TrainingUiState.Workout,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onSkip: () -> Unit,
+    onRestartStage: () -> Unit,
+    onPreviousStage: () -> Unit,
+    onNextStage: () -> Unit,
     onFinish: () -> Unit
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
@@ -1818,7 +1810,9 @@ fun WorkoutScreen(
                 ringDiameter = workoutRingDiameter(maxWidth, maxHeight),
                 onPause = onPause,
                 onResume = onResume,
-                onSkip = onSkip,
+                onRestartStage = onRestartStage,
+                onPreviousStage = onPreviousStage,
+                onNextStage = onNextStage,
                 onRequestFinish = { showFinishConfirmation = true }
             )
             WorkoutLayout.LANDSCAPE -> WorkoutLandscapeLayout(
@@ -1830,7 +1824,9 @@ fun WorkoutScreen(
                 ringDiameter = landscapeWorkoutRingDiameter(maxWidth * 0.4f, maxHeight),
                 onPause = onPause,
                 onResume = onResume,
-                onSkip = onSkip,
+                onRestartStage = onRestartStage,
+                onPreviousStage = onPreviousStage,
+                onNextStage = onNextStage,
                 onRequestFinish = { showFinishConfirmation = true }
             )
         }
@@ -1852,7 +1848,9 @@ private fun WorkoutPortraitLayout(
     ringDiameter: Dp,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onSkip: () -> Unit,
+    onRestartStage: () -> Unit,
+    onPreviousStage: () -> Unit,
+    onNextStage: () -> Unit,
     onRequestFinish: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -1874,7 +1872,9 @@ private fun WorkoutPortraitLayout(
             compact = false,
             onPause = onPause,
             onResume = onResume,
-            onSkip = onSkip,
+            onRestartStage = onRestartStage,
+            onPreviousStage = onPreviousStage,
+            onNextStage = onNextStage,
             onRequestFinish = onRequestFinish,
             modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp)
         )
@@ -1891,7 +1891,9 @@ private fun WorkoutLandscapeLayout(
     ringDiameter: Dp,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onSkip: () -> Unit,
+    onRestartStage: () -> Unit,
+    onPreviousStage: () -> Unit,
+    onNextStage: () -> Unit,
     onRequestFinish: () -> Unit
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -1929,7 +1931,9 @@ private fun WorkoutLandscapeLayout(
             compact = true,
             onPause = onPause,
             onResume = onResume,
-            onSkip = onSkip,
+            onRestartStage = onRestartStage,
+            onPreviousStage = onPreviousStage,
+            onNextStage = onNextStage,
             onRequestFinish = onRequestFinish,
             modifier = Modifier.align(Alignment.CenterEnd).width(sideWidth)
         )
@@ -2070,35 +2074,69 @@ private fun WorkoutControls(
     compact: Boolean,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onSkip: () -> Unit,
+    onRestartStage: () -> Unit,
+    onPreviousStage: () -> Unit,
+    onNextStage: () -> Unit,
     onRequestFinish: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val buttonHeight = if (compact) 44.dp else 56.dp
+    val coroutineScope = rememberCoroutineScope()
+    val currentRestartStage by rememberUpdatedState(onRestartStage)
+    val currentPreviousStage by rememberUpdatedState(onPreviousStage)
+    val previousTapScheduler = remember(coroutineScope) {
+        WorkoutControlDelayScheduler { delayMillis, action ->
+            val job = coroutineScope.launch {
+                delay(delayMillis)
+                action()
+            }
+            PendingWorkoutControlAction { job.cancel() }
+        }
+    }
+    val previousTapResolver = remember(previousTapScheduler) {
+        WorkoutPreviousStageTapResolver(
+            scheduler = previousTapScheduler,
+            onRestartStage = { currentRestartStage() },
+            onPreviousStage = { currentPreviousStage() }
+        )
+    }
+    DisposableEffect(previousTapResolver) {
+        onDispose(previousTapResolver::dispose)
+    }
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 8.dp)) {
         if (state.phase != TrainingPhase.WARMUP) {
             workoutNoteText(state.currentExerciseNotes)?.let { note ->
                 WorkoutNote(note)
             }
         }
-        Button(
-            modifier = Modifier.fillMaxWidth().height(buttonHeight),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ),
-            onClick = workoutPauseAction(state.isPaused, onPause, onResume)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            WorkoutButtonContent(if (state.isPaused) StartWorkoutPlayIcon else PauseIcon, if (state.isPaused) "REANUDAR" else "PAUSA")
+            Button(
+                modifier = Modifier.weight(1f).height(buttonHeight),
+                shape = RoundedCornerShape(16.dp),
+                colors = workoutNeutralButtonColors(),
+                enabled = !state.isPaused,
+                onClick = previousTapResolver::onTap
+            ) { Text("<<", style = MaterialTheme.typography.titleLarge) }
+            Button(
+                modifier = Modifier.weight(1f).height(buttonHeight),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                onClick = workoutPauseAction(state.isPaused, onPause, onResume)
+            ) { Text(workoutPlaybackSymbol(state.isPaused), style = MaterialTheme.typography.titleLarge) }
+            Button(
+                modifier = Modifier.weight(1f).height(buttonHeight),
+                shape = RoundedCornerShape(16.dp),
+                colors = workoutNeutralButtonColors(),
+                enabled = !state.isPaused,
+                onClick = onNextStage
+            ) { Text(">>", style = MaterialTheme.typography.titleLarge) }
         }
-        Button(
-            modifier = Modifier.fillMaxWidth().height(buttonHeight),
-            shape = RoundedCornerShape(16.dp),
-            colors = workoutNeutralButtonColors(),
-            enabled = workoutSkipEnabled(state),
-            onClick = onSkip
-        ) { WorkoutButtonContent(SkipNextIcon, "OMITIR") }
         Button(
             modifier = Modifier.fillMaxWidth().height(buttonHeight),
             shape = RoundedCornerShape(16.dp),
@@ -2108,8 +2146,50 @@ private fun WorkoutControls(
     }
 }
 
-internal fun workoutSkipEnabled(state: TrainingUiState.Workout): Boolean =
-    !state.isPaused && (state.phase != TrainingPhase.COUNTDOWN || state.isInStartDelay)
+internal const val WORKOUT_PREVIOUS_STAGE_DOUBLE_TAP_MILLIS = 500L
+
+internal fun workoutPlaybackSymbol(isPaused: Boolean): String = if (isPaused) "▶" else "||"
+
+internal fun interface PendingWorkoutControlAction {
+    fun cancel()
+}
+
+internal fun interface WorkoutControlDelayScheduler {
+    fun schedule(delayMillis: Long, action: () -> Unit): PendingWorkoutControlAction
+}
+
+internal class WorkoutPreviousStageTapResolver(
+    private val scheduler: WorkoutControlDelayScheduler,
+    private val onRestartStage: () -> Unit,
+    private val onPreviousStage: () -> Unit
+) {
+    private var pendingRestart: PendingWorkoutControlAction? = null
+    private var generation = 0L
+
+    fun onTap() {
+        val pending = pendingRestart
+        if (pending != null) {
+            generation += 1
+            pending.cancel()
+            pendingRestart = null
+            onPreviousStage()
+            return
+        }
+        generation += 1
+        val scheduledGeneration = generation
+        pendingRestart = scheduler.schedule(WORKOUT_PREVIOUS_STAGE_DOUBLE_TAP_MILLIS) {
+            if (scheduledGeneration != generation) return@schedule
+            pendingRestart = null
+            onRestartStage()
+        }
+    }
+
+    fun dispose() {
+        generation += 1
+        pendingRestart?.cancel()
+        pendingRestart = null
+    }
+}
 
 @Composable
 private fun WorkoutNote(note: String) {

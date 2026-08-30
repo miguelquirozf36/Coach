@@ -264,17 +264,20 @@ class TrainingEngine(
     private fun startStartDelay(
         activeSession: Long,
         plannedStartMillis: Long = monotonicClock.nowMillis(),
+        delaySeconds: Int = START_DELAY_SECONDS,
+        sourceWorkout: TrainingUiState.Workout? = null,
         prepareExecution: (TrainingUiState.Workout) -> TrainingUiState.Workout = { it }
     ) {
-        val workout = activeWorkout(activeSession) ?: return
+        val workout = sourceWorkout ?: activeWorkout(activeSession) ?: return
+        if (activeSession != sessionId || workout.isPaused) return
         val startDelayState = prepareExecution(workout)
             .advancePlannedSegment(plannedStartMillis)
             .copy(
                 secondsRemaining = 0,
                 isStartingExecution = true
             )
-        startDelayRemainingMillis = START_DELAY_SECONDS * ONE_SECOND_MILLIS
-        startDelayDeadlineMillis = plannedStartMillis + START_DELAY_SECONDS * ONE_SECOND_MILLIS
+        startDelayRemainingMillis = delaySeconds * ONE_SECOND_MILLIS
+        startDelayDeadlineMillis = plannedStartMillis + delaySeconds * ONE_SECOND_MILLIS
         val wasArmed = scheduleStartDelay(activeSession, deferImmediateUntilPublished = true)
         state = startDelayState
         if (!wasArmed) scheduleStartDelay(activeSession)
@@ -338,6 +341,171 @@ class TrainingEngine(
                 voiceSpeaker.speak(repetitionNumber.toString())
             }
         }
+    }
+
+    fun restartStage() = navigateStage(0)
+
+    fun previousStage() = navigateStage(-1)
+
+    fun nextStage() = navigateStage(1)
+
+    private fun navigateStage(offset: Int) {
+        val workout = state as? TrainingUiState.Workout ?: return
+        if (workout.isPaused) return
+        val boundaries = workout.plannedTimeline.stageBoundaries()
+        val currentBoundary = workout.plannedTimeline.stageBoundaryForSegment(workout.plannedSegmentIndex) ?: return
+        val destinationIndex = (currentBoundary.stageIndex + offset).coerceIn(0, boundaries.lastIndex)
+        if (offset != 0 && destinationIndex == currentBoundary.stageIndex) return
+
+        invalidatePendingWork()
+        clearStartDelay()
+        sessionId += 1
+        val activeSession = sessionId
+        navigateToStage(
+            workout = workout,
+            boundary = boundaries[destinationIndex],
+            activeSession = activeSession,
+            nowMillis = monotonicClock.nowMillis()
+        )
+    }
+
+    private fun navigateToStage(
+        workout: TrainingUiState.Workout,
+        boundary: WorkoutStageBoundary,
+        activeSession: Long,
+        nowMillis: Long
+    ) {
+        when (boundary.type) {
+            WorkoutStageType.WARMUP -> navigateToWarmup(workout, boundary, activeSession, nowMillis)
+            WorkoutStageType.TRAINING -> navigateToTraining(workout, boundary, activeSession, nowMillis)
+            WorkoutStageType.REST -> navigateToRest(workout, boundary, activeSession, nowMillis)
+        }
+    }
+
+    private fun navigateToWarmup(
+        workout: TrainingUiState.Workout,
+        boundary: WorkoutStageBoundary,
+        activeSession: Long,
+        nowMillis: Long
+    ) {
+        val segment = workout.plannedTimeline.segments[boundary.segmentIndex]
+        val targetExecution = workout.plannedTimeline.segments
+            .drop(boundary.segmentIndex + 1)
+            .first { it.type == PlannedWorkoutSegmentType.START_DELAY }
+        val targetExerciseIndex = requireNotNull(targetExecution.exerciseIndex)
+        val phase = if (segment.type == PlannedWorkoutSegmentType.WARMUP) {
+            TrainingPhase.WARMUP
+        } else {
+            TrainingPhase.COUNTDOWN
+        }
+        val warmupState = workout.copy(
+            exerciseIndex = targetExerciseIndex,
+            seriesNumber = requireNotNull(targetExecution.seriesNumber),
+            repetitionNumber = 1,
+            phase = phase,
+            secondsRemaining = segment.durationSeconds,
+            phaseDurationSeconds = segment.durationSeconds,
+            phaseStartedAtMillis = nowMillis,
+            phasePausedAtMillis = null,
+            isPaused = false,
+            currentExerciseNotes = workout.routine.exercises[targetExerciseIndex].notes,
+            currentSide = targetExecution.side,
+            completedExerciseIndex = null,
+            upcomingExerciseIndex = null,
+            isStartingExecution = false,
+            plannedSegmentIndex = boundary.segmentIndex,
+            plannedSegmentStartedAtMillis = nowMillis,
+            plannedSegmentPausedAtMillis = null
+        )
+        resetTimedAnnouncements(segment.durationSeconds)
+        val action = if (phase == TrainingPhase.WARMUP) {
+            { advanceWarmup(activeSession) }
+        } else {
+            { advanceCountdown(activeSession) }
+        }
+        val wasArmed = scheduleTimedTick(activeSession, warmupState, action, true)
+        state = warmupState
+        if (!wasArmed) scheduleTimedTick(activeSession, action)
+        voiceSpeaker.speak(if (phase == TrainingPhase.WARMUP) WARMUP_ANNOUNCEMENT else START_ANNOUNCEMENT)
+    }
+
+    private fun navigateToTraining(
+        workout: TrainingUiState.Workout,
+        boundary: WorkoutStageBoundary,
+        activeSession: Long,
+        nowMillis: Long
+    ) {
+        val segment = workout.plannedTimeline.segments[boundary.segmentIndex]
+        require(segment.type == PlannedWorkoutSegmentType.START_DELAY)
+        val exerciseIndex = requireNotNull(segment.exerciseIndex)
+        val startingWorkout = workout.copy(
+            exerciseIndex = exerciseIndex,
+            seriesNumber = requireNotNull(segment.seriesNumber),
+            repetitionNumber = 1,
+            phase = TrainingPhase.COUNTDOWN,
+            secondsRemaining = 0,
+            phaseDurationSeconds = 0,
+            phaseStartedAtMillis = nowMillis,
+            phasePausedAtMillis = null,
+            isPaused = false,
+            currentExerciseNotes = workout.routine.exercises[exerciseIndex].notes,
+            currentSide = segment.side,
+            completedExerciseIndex = null,
+            upcomingExerciseIndex = null,
+            isStartingExecution = false,
+            plannedSegmentIndex = boundary.segmentIndex - 1,
+            plannedSegmentStartedAtMillis = nowMillis,
+            plannedSegmentPausedAtMillis = null
+        )
+        startStartDelay(
+            activeSession = activeSession,
+            plannedStartMillis = nowMillis,
+            delaySeconds = STAGE_NAVIGATION_START_DELAY_SECONDS,
+            sourceWorkout = startingWorkout
+        )
+    }
+
+    private fun navigateToRest(
+        workout: TrainingUiState.Workout,
+        boundary: WorkoutStageBoundary,
+        activeSession: Long,
+        nowMillis: Long
+    ) {
+        val segment = workout.plannedTimeline.segments[boundary.segmentIndex]
+        val isBetweenExercises = segment.type == PlannedWorkoutSegmentType.REST_BETWEEN_EXERCISES
+        val nextExecution = workout.plannedTimeline.segments.getOrNull(boundary.segmentIndex + 1)
+        val exerciseIndex = if (isBetweenExercises) {
+            requireNotNull(nextExecution?.exerciseIndex)
+        } else {
+            requireNotNull(segment.exerciseIndex)
+        }
+        val restState = workout.copy(
+            exerciseIndex = exerciseIndex,
+            seriesNumber = if (isBetweenExercises) {
+                requireNotNull(nextExecution?.seriesNumber)
+            } else {
+                requireNotNull(segment.seriesNumber)
+            },
+            repetitionNumber = if (isBetweenExercises) 1 else requireNotNull(segment.repetitionNumber),
+            phase = if (isBetweenExercises) TrainingPhase.REST_BETWEEN_EXERCISES else TrainingPhase.REST,
+            secondsRemaining = segment.durationSeconds,
+            phaseDurationSeconds = segment.durationSeconds,
+            phaseStartedAtMillis = nowMillis,
+            phasePausedAtMillis = null,
+            isPaused = false,
+            currentExerciseNotes = workout.routine.exercises[exerciseIndex].notes,
+            currentSide = if (isBetweenExercises) nextExecution?.side else segment.side,
+            completedExerciseIndex = segment.exerciseIndex.takeIf { isBetweenExercises },
+            upcomingExerciseIndex = exerciseIndex.takeIf { isBetweenExercises },
+            isStartingExecution = false,
+            plannedSegmentIndex = boundary.segmentIndex,
+            plannedSegmentStartedAtMillis = nowMillis,
+            plannedSegmentPausedAtMillis = null
+        )
+        resetTimedAnnouncements(segment.durationSeconds)
+        val wasArmed = scheduleRestTick(activeSession, restState, true)
+        state = restState
+        if (!wasArmed) scheduleRestTick(activeSession)
     }
 
     private fun continueAfterCompletedConcentric(
