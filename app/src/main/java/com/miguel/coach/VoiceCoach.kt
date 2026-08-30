@@ -184,6 +184,13 @@ class VoiceCoach(
 
 internal class VoiceUtteranceBookkeeper {
     var listener: VoiceUtteranceLifecycleListener? = null
+        set(value) {
+            if (field === value) return
+            field = value
+            value ?: return
+            activeGroups.forEach { value.onUtteranceSubmitted(groupToken(it)) }
+            pending.keys.forEach(value::onUtteranceSubmitted)
+        }
     private val pending = linkedMapOf<String, (() -> Unit)?>()
     private val activeGroups = mutableSetOf<String>()
 

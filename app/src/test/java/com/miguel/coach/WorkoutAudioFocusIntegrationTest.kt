@@ -12,13 +12,13 @@ class WorkoutAudioFocusIntegrationTest {
             TrainingPhase.CONCENTRIC,
             TrainingPhase.ECCENTRIC,
             TrainingPhase.ISOMETRIC,
-            TrainingPhase.REPETITION_ANNOUNCEMENT,
-            TrainingPhase.WARMUP,
-            TrainingPhase.COUNTDOWN
+            TrainingPhase.REPETITION_ANNOUNCEMENT
         ).forEach { phase ->
             assertTrue(phase.name, shouldUseContinuousWorkoutDucking(workout(phase)))
         }
         listOf(
+            TrainingPhase.WARMUP,
+            TrainingPhase.COUNTDOWN,
             TrainingPhase.REST,
             TrainingPhase.REST_BETWEEN_EXERCISES
         ).forEach { phase ->
@@ -244,13 +244,49 @@ class WorkoutAudioFocusIntegrationTest {
     }
 
     @Test
-    fun warmupAndCountdownUtterancesDoNotRequestTransientFocus() {
-        val fixture = fixture(enabled = true)
+    fun warmupAndInitialCountdownUseFocusOnlyWhileEachUtteranceIsPending() {
+        listOf(TrainingPhase.WARMUP, TrainingPhase.COUNTDOWN).forEach { phase ->
+            val fixture = fixture(enabled = true)
+            fixture.session.onStateChanged(workout(phase))
 
+            fixture.session.onUtteranceSubmitted(phase.name)
+            assertEquals(1, fixture.gateway.requestCount)
+            fixture.session.onUtteranceTerminated(phase.name)
+
+            assertEquals(1, fixture.gateway.abandonCount)
+        }
+    }
+
+    @Test
+    fun pendingInitialWarmupUtteranceIsReplayedWhenServiceListenerAttaches() {
+        val fixture = fixture(enabled = true)
         fixture.session.onStateChanged(workout(TrainingPhase.WARMUP))
-        fixture.session.onUtteranceSubmitted("warmup")
+        val utterances = VoiceUtteranceBookkeeper()
+        utterances.submit("initial-warmup", replacesPending = false, onCompleted = null)
+
+        utterances.listener = fixture.session
+        assertEquals(1, fixture.gateway.requestCount)
+        utterances.complete("initial-warmup")
+
+        assertEquals(1, fixture.gateway.abandonCount)
+    }
+
+    @Test
+    fun groupedInitialCountdownKeepsOneTransientRequestUntilContinuousStartDelayTakesOver() {
+        val fixture = fixture(enabled = true)
         fixture.session.onStateChanged(workout(TrainingPhase.COUNTDOWN))
-        fixture.session.onUtteranceSubmitted("countdown")
+        val utterances = VoiceUtteranceBookkeeper().apply { listener = fixture.session }
+
+        utterances.beginGroup("final-countdown")
+        listOf("three", "two", "one").forEach { utteranceId ->
+            utterances.submit(utteranceId, replacesPending = false, onCompleted = null)
+            utterances.complete(utteranceId)
+            assertEquals(0, fixture.gateway.abandonCount)
+        }
+        fixture.session.onStateChanged(workout(TrainingPhase.COUNTDOWN, inStartDelay = true))
+        utterances.submit("go", replacesPending = false, onCompleted = null)
+        utterances.endGroup("final-countdown")
+        utterances.complete("go")
 
         assertEquals(1, fixture.gateway.requestCount)
         assertEquals(0, fixture.gateway.abandonCount)

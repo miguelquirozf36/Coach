@@ -118,8 +118,8 @@ object WorkoutSessionController {
         utteranceListener: VoiceUtteranceLifecycleListener
     ) {
         audioFocusEnabledObserver = enabledObserver
-        voiceCoach?.setUtteranceLifecycleListener(utteranceListener)
         enabledObserver(audioFocusEnabled)
+        voiceCoach?.setUtteranceLifecycleListener(utteranceListener)
     }
 
     internal fun detachAudioFocusIntegration(
@@ -194,11 +194,11 @@ class WorkoutSessionService : Service() {
         )
         workoutNotification.createChannel()
         WorkoutSessionController.reloadAudioFocusEnabled(this)
+        WorkoutSessionController.attachObserver(stateObserver)
         WorkoutSessionController.attachAudioFocusIntegration(
             audioFocusEnabledObserver,
             audioFocusSession
         )
-        WorkoutSessionController.attachObserver(stateObserver)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

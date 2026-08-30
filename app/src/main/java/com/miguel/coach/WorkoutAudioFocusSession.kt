@@ -38,9 +38,9 @@ internal fun shouldUseContinuousWorkoutDucking(state: TrainingUiState): Boolean 
         TrainingPhase.CONCENTRIC,
         TrainingPhase.ECCENTRIC,
         TrainingPhase.ISOMETRIC,
-        TrainingPhase.REPETITION_ANNOUNCEMENT,
+        TrainingPhase.REPETITION_ANNOUNCEMENT -> true
         TrainingPhase.WARMUP,
-        TrainingPhase.COUNTDOWN -> true
+        TrainingPhase.COUNTDOWN,
         TrainingPhase.REST,
         TrainingPhase.REST_BETWEEN_EXERCISES -> false
     }
@@ -49,6 +49,8 @@ internal fun shouldUseContinuousWorkoutDucking(state: TrainingUiState): Boolean 
 private fun shouldUseTransientWorkoutDucking(state: TrainingUiState): Boolean {
     val workout = state as? TrainingUiState.Workout ?: return false
     if (workout.isPaused || workout.isInStartDelay) return false
-    return workout.phase == TrainingPhase.REST ||
+    return workout.phase == TrainingPhase.WARMUP ||
+        workout.phase == TrainingPhase.COUNTDOWN ||
+        workout.phase == TrainingPhase.REST ||
         workout.phase == TrainingPhase.REST_BETWEEN_EXERCISES
 }
