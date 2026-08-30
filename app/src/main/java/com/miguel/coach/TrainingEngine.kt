@@ -334,19 +334,6 @@ class TrainingEngine(
         val repetitionNumber = workout.repetitionNumber
         continueAfterCompletedConcentric(activeSession, plannedStartMillis)
         voiceSpeaker.speak(repetitionNumber.toString())
-        when (val currentState = state) {
-            is TrainingUiState.Workout -> when (currentState.phase) {
-                TrainingPhase.REST -> voiceSpeaker.enqueue(REST_ANNOUNCEMENT)
-                TrainingPhase.REST_BETWEEN_EXERCISES -> {
-                    val nextExerciseIndex = requireNotNull(currentState.upcomingExerciseIndex)
-                    val nextExerciseName = currentState.routine.exercises[nextExerciseIndex].name
-                    voiceSpeaker.enqueue("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
-                }
-                else -> Unit
-            }
-            TrainingUiState.Completed -> voiceSpeaker.enqueue(TRAINING_COMPLETE_ANNOUNCEMENT)
-            TrainingUiState.Home -> Unit
-        }
     }
 
     private fun continueAfterCompletedConcentric(
@@ -356,9 +343,7 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.repetitionNumber >= exercise.repetitions) {
-            completeExecution(activeSession, plannedStartMillis)
-        } else if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
+        if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
             startIsometricPhase(activeSession, plannedStartMillis)
         } else {
             startEccentricPhase(activeSession, plannedStartMillis)
@@ -471,7 +456,7 @@ class TrainingEngine(
         if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
             startEccentricPhase(activeSession, plannedStartMillis)
         } else {
-            prepareNextRepetition(activeSession, plannedStartMillis)
+            finishPhysicalRepetition(activeSession, plannedStartMillis)
         }
     }
 
@@ -487,7 +472,35 @@ class TrainingEngine(
             startIsometricPhase(activeSession, plannedStartMillis)
             return
         }
-        prepareNextRepetition(activeSession, plannedStartMillis)
+        finishPhysicalRepetition(activeSession, plannedStartMillis)
+    }
+
+    private fun finishPhysicalRepetition(activeSession: Long, plannedStartMillis: Long) {
+        val workout = activeWorkout(activeSession) ?: return
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (workout.repetitionNumber < exercise.repetitions) {
+            prepareNextRepetition(activeSession, plannedStartMillis)
+            return
+        }
+
+        completeExecution(activeSession, plannedStartMillis)
+        announceExecutionDestination()
+    }
+
+    private fun announceExecutionDestination() {
+        when (val currentState = state) {
+            is TrainingUiState.Workout -> when (currentState.phase) {
+                TrainingPhase.REST -> voiceSpeaker.enqueue(REST_ANNOUNCEMENT)
+                TrainingPhase.REST_BETWEEN_EXERCISES -> {
+                    val nextExerciseIndex = requireNotNull(currentState.upcomingExerciseIndex)
+                    val nextExerciseName = currentState.routine.exercises[nextExerciseIndex].name
+                    voiceSpeaker.enqueue("$REST_BETWEEN_EXERCISES_ANNOUNCEMENT $nextExerciseName.")
+                }
+                else -> Unit
+            }
+            TrainingUiState.Completed -> voiceSpeaker.enqueue(TRAINING_COMPLETE_ANNOUNCEMENT)
+            TrainingUiState.Home -> Unit
+        }
     }
 
     private fun prepareNextRepetition(activeSession: Long, plannedStartMillis: Long) {

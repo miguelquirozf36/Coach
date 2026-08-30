@@ -9,24 +9,24 @@ class PlannedWorkoutTimelineTest {
     @Test
     fun builtInRoundedDurationsRemainStableWhileUsingExactTimelines() {
         assertEquals(
-            listOf(50, 54, 50, 54, 44, 46, 18),
+            listOf(51, 54, 51, 54, 44, 47, 18),
             Routines.all.map(Routine::estimatedDurationMinutes)
         )
     }
 
     @Test
-    fun bilateralWarmupTimelineIncludesIntermediateEccentricsRestsAndEveryStartDelay() {
+    fun bilateralWarmupTimelineIncludesCompleteRepetitionsRestsAndEveryStartDelay() {
         val routine = routine(
             exercises = listOf(exercise(sets = 2, repetitions = 3, concentric = 2, eccentric = 4, rest = 7)),
             warmup = 30
         )
         val timeline = routine.plannedTimeline()
 
-        assertEquals(30 + 2 + 2 * (3 * 2 + 2 * 4) + 7, timeline.totalDurationSeconds)
+        assertEquals(30 + 2 + 2 * (3 * 2 + 3 * 4) + 7, timeline.totalDurationSeconds)
         assertEquals(1, timeline.count(PlannedWorkoutSegmentType.WARMUP))
         assertEquals(2, timeline.count(PlannedWorkoutSegmentType.START_DELAY))
         assertEquals(6, timeline.count(PlannedWorkoutSegmentType.CONCENTRIC))
-        assertEquals(4, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
+        assertEquals(6, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
         assertEquals(1, timeline.count(PlannedWorkoutSegmentType.REST))
     }
 
@@ -40,20 +40,26 @@ class PlannedWorkoutTimelineTest {
     }
 
     @Test
-    fun oneRepetitionHasNoFinalEccentricOrIsometricSegment() {
+    fun oneRepetitionIncludesItsFinalEccentricAndConfiguredIsometricSegment() {
         IsometricPauseMode.entries.forEach { mode ->
             val timeline = routine(listOf(exercise(repetitions = 1, isometricMode = mode, isometric = 9)))
                 .plannedTimeline()
 
             assertEquals(1, timeline.count(PlannedWorkoutSegmentType.CONCENTRIC))
-            assertEquals(0, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
-            assertEquals(0, timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED))
-            assertEquals(0, timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED))
+            assertEquals(1, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
+            assertEquals(
+                if (mode == IsometricPauseMode.SHORTENED) 1 else 0,
+                timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED)
+            )
+            assertEquals(
+                if (mode == IsometricPauseMode.STRETCHED) 1 else 0,
+                timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED)
+            )
         }
     }
 
     @Test
-    fun shortenedAndStretchedApplyOnlyToIntermediateRepetitionsInEngineOrder() {
+    fun shortenedAndStretchedApplyToEveryCompleteRepetitionInEngineOrder() {
         val shortened = routine(listOf(exercise(repetitions = 3, isometricMode = IsometricPauseMode.SHORTENED)))
             .plannedTimeline().workTypes()
         val stretched = routine(listOf(exercise(repetitions = 3, isometricMode = IsometricPauseMode.STRETCHED)))
@@ -67,7 +73,9 @@ class PlannedWorkoutTimelineTest {
                 PlannedWorkoutSegmentType.CONCENTRIC,
                 PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED,
                 PlannedWorkoutSegmentType.ECCENTRIC,
-                PlannedWorkoutSegmentType.CONCENTRIC
+                PlannedWorkoutSegmentType.CONCENTRIC,
+                PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED,
+                PlannedWorkoutSegmentType.ECCENTRIC
             ),
             shortened
         )
@@ -79,10 +87,31 @@ class PlannedWorkoutTimelineTest {
                 PlannedWorkoutSegmentType.CONCENTRIC,
                 PlannedWorkoutSegmentType.ECCENTRIC,
                 PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
-                PlannedWorkoutSegmentType.CONCENTRIC
+                PlannedWorkoutSegmentType.CONCENTRIC,
+                PlannedWorkoutSegmentType.ECCENTRIC,
+                PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED
             ),
             stretched
         )
+    }
+
+    @Test
+    fun tenRepetitionsPlanTenConcentricsEccentricsAndConfiguredIsometrics() {
+        IsometricPauseMode.entries.forEach { mode ->
+            val timeline = routine(listOf(exercise(repetitions = 10, isometricMode = mode)))
+                .plannedTimeline()
+
+            assertEquals(10, timeline.count(PlannedWorkoutSegmentType.CONCENTRIC))
+            assertEquals(10, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
+            assertEquals(
+                if (mode == IsometricPauseMode.SHORTENED) 10 else 0,
+                timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED)
+            )
+            assertEquals(
+                if (mode == IsometricPauseMode.STRETCHED) 10 else 0,
+                timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED)
+            )
+        }
     }
 
     @Test
@@ -153,8 +182,8 @@ class PlannedWorkoutTimelineTest {
     fun estimatedMinutesAreOnlyARoundedPresentationOfExactTimeline() {
         val routine = routine(listOf(exercise(repetitions = 3, concentric = 20, eccentric = 9)))
 
-        assertEquals(89L, routine.plannedDurationSeconds())
-        assertEquals(1, routine.estimatedDurationMinutes())
+        assertEquals(98L, routine.plannedDurationSeconds())
+        assertEquals(2, routine.estimatedDurationMinutes())
     }
 
     private fun PlannedWorkoutTimeline.count(type: PlannedWorkoutSegmentType): Int =

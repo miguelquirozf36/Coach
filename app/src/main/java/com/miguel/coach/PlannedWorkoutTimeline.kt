@@ -77,32 +77,30 @@ private fun Routine.buildPlannedTimeline(
                     execution,
                     repetitionNumber
                 )
-                if (repetitionNumber < exercise.repetitions) {
-                    if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
-                        segments += exerciseSegment(
-                            PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED,
-                            exercise.isometricDurationSeconds,
-                            exerciseIndex,
-                            execution,
-                            repetitionNumber
-                        )
-                    }
+                if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
                     segments += exerciseSegment(
-                        PlannedWorkoutSegmentType.ECCENTRIC,
-                        exercise.eccentricSeconds,
+                        PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED,
+                        exercise.isometricDurationSeconds,
                         exerciseIndex,
                         execution,
                         repetitionNumber
                     )
-                    if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
-                        segments += exerciseSegment(
-                            PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
-                            exercise.isometricDurationSeconds,
-                            exerciseIndex,
-                            execution,
-                            repetitionNumber
-                        )
-                    }
+                }
+                segments += exerciseSegment(
+                    PlannedWorkoutSegmentType.ECCENTRIC,
+                    exercise.eccentricSeconds,
+                    exerciseIndex,
+                    execution,
+                    repetitionNumber
+                )
+                if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
+                    segments += exerciseSegment(
+                        PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
+                        exercise.isometricDurationSeconds,
+                        exerciseIndex,
+                        execution,
+                        repetitionNumber
+                    )
                 }
             }
 
