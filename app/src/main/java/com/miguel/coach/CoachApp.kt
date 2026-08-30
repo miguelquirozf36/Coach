@@ -2119,7 +2119,7 @@ private fun WorkoutControls(
                 colors = workoutNeutralButtonColors(),
                 enabled = !state.isPaused,
                 onClick = previousTapResolver::onTap
-            ) { Text("<<", style = MaterialTheme.typography.titleLarge) }
+            ) { Icon(WorkoutPreviousIcon, contentDescription = "Etapa anterior") }
             Button(
                 modifier = Modifier.weight(1f).height(buttonHeight),
                 shape = RoundedCornerShape(16.dp),
@@ -2128,14 +2128,19 @@ private fun WorkoutControls(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 onClick = workoutPauseAction(state.isPaused, onPause, onResume)
-            ) { Text(workoutPlaybackSymbol(state.isPaused), style = MaterialTheme.typography.titleLarge) }
+            ) {
+                Icon(
+                    if (state.isPaused) StartWorkoutPlayIcon else WorkoutPauseIcon,
+                    contentDescription = if (state.isPaused) "Reanudar" else "Pausar"
+                )
+            }
             Button(
                 modifier = Modifier.weight(1f).height(buttonHeight),
                 shape = RoundedCornerShape(16.dp),
                 colors = workoutNeutralButtonColors(),
                 enabled = !state.isPaused,
                 onClick = onNextStage
-            ) { Text(">>", style = MaterialTheme.typography.titleLarge) }
+            ) { Icon(WorkoutNextIcon, contentDescription = "Etapa siguiente") }
         }
         Button(
             modifier = Modifier.fillMaxWidth().height(buttonHeight),
@@ -2143,6 +2148,27 @@ private fun WorkoutControls(
             colors = workoutNeutralButtonColors(),
             onClick = onRequestFinish
         ) { WorkoutButtonContent(StopIcon, stringResource(R.string.finish_workout)) }
+    }
+}
+
+private val WorkoutPreviousIcon = coachIcon("FastRewind") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(11f, 6f); lineTo(11f, 18f); lineTo(2.5f, 12f); close()
+        moveTo(21.5f, 6f); lineTo(21.5f, 18f); lineTo(13f, 12f); close()
+    }
+}
+
+private val WorkoutNextIcon = coachIcon("FastForward") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(2.5f, 6f); lineTo(2.5f, 18f); lineTo(11f, 12f); close()
+        moveTo(13f, 6f); lineTo(13f, 18f); lineTo(21.5f, 12f); close()
+    }
+}
+
+private val WorkoutPauseIcon = coachIcon("Pause") {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(5f, 4f); lineTo(10f, 4f); lineTo(10f, 20f); lineTo(5f, 20f); close()
+        moveTo(14f, 4f); lineTo(19f, 4f); lineTo(19f, 20f); lineTo(14f, 20f); close()
     }
 }
 

@@ -30,6 +30,7 @@ class TrainingEngine(
     private var previousTimedSeconds = 0
     private var startDelayRemainingMillis: Long? = null
     private var startDelayDeadlineMillis: Long? = null
+    private var startDelayAnnouncesCountdown = false
     private val immediateActions = ArrayDeque<() -> Unit>()
     private var isRunningImmediateActions = false
 
@@ -265,6 +266,7 @@ class TrainingEngine(
         activeSession: Long,
         plannedStartMillis: Long = monotonicClock.nowMillis(),
         delaySeconds: Int = START_DELAY_SECONDS,
+        announceCountdown: Boolean = false,
         sourceWorkout: TrainingUiState.Workout? = null,
         prepareExecution: (TrainingUiState.Workout) -> TrainingUiState.Workout = { it }
     ) {
@@ -278,6 +280,11 @@ class TrainingEngine(
             )
         startDelayRemainingMillis = delaySeconds * ONE_SECOND_MILLIS
         startDelayDeadlineMillis = plannedStartMillis + delaySeconds * ONE_SECOND_MILLIS
+        startDelayAnnouncesCountdown = announceCountdown
+        if (announceCountdown) {
+            resetTimedAnnouncements(delaySeconds)
+            voiceSpeaker.speak(START_ANNOUNCEMENT)
+        }
         val wasArmed = scheduleStartDelay(activeSession, deferImmediateUntilPublished = true)
         state = startDelayState
         if (!wasArmed) scheduleStartDelay(activeSession)
@@ -289,12 +296,62 @@ class TrainingEngine(
         val deadlineMillis = startDelayDeadlineMillis ?: (monotonicClock.nowMillis() + delayMillis).also {
             startDelayDeadlineMillis = it
         }
-        return scheduleAtDeadline(deadlineMillis, deferImmediateUntilPublished) action@{
-            activeWorkout(activeSession) ?: return@action
-            startDelayRemainingMillis = null
-            startDelayDeadlineMillis = null
-            startConcentricPhase(activeSession, plannedStartMillis = deadlineMillis)
+        if (startDelayAnnouncesCountdown) {
+            return scheduleStartDelayCountdownTick(activeSession, deadlineMillis, deferImmediateUntilPublished)
         }
+        return scheduleAtDeadline(deadlineMillis, deferImmediateUntilPublished) action@{
+            completeStartDelay(activeSession, deadlineMillis)
+        }
+    }
+
+    private fun scheduleStartDelayCountdownTick(
+        activeSession: Long,
+        deadlineMillis: Long,
+        deferImmediateUntilPublished: Boolean = false
+    ): Boolean {
+        val startedAtMillis = deadlineMillis -
+            STAGE_NAVIGATION_START_DELAY_SECONDS * ONE_SECOND_MILLIS
+        val secondsRemaining = remainingSeconds(
+            startedAtMillis,
+            STAGE_NAVIGATION_START_DELAY_SECONDS
+        )
+        if (secondsRemaining <= 0) {
+            completeStartDelay(activeSession, deadlineMillis)
+            return true
+        }
+        val nextTickMillis = deadlineMillis - (secondsRemaining - 1) * ONE_SECOND_MILLIS
+        return scheduleAtDeadline(nextTickMillis, deferImmediateUntilPublished) action@{
+            val workout = activeWorkout(activeSession) ?: return@action
+            if (!workout.isInStartDelay || !startDelayAnnouncesCountdown) return@action
+            val currentSeconds = remainingSeconds(
+                startedAtMillis,
+                STAGE_NAVIGATION_START_DELAY_SECONDS
+            )
+            announceCrossedThreshold(
+                currentSeconds,
+                listOf(3 to "Tres", 2 to "Dos", 1 to "Uno"),
+                groupFinalCountdown = true
+            )
+            previousTimedSeconds = currentSeconds
+            if (currentSeconds == 0) {
+                completeStartDelay(activeSession, deadlineMillis)
+            } else {
+                scheduleStartDelayCountdownTick(activeSession, deadlineMillis)
+            }
+        }
+    }
+
+    private fun completeStartDelay(activeSession: Long, deadlineMillis: Long) {
+        activeWorkout(activeSession) ?: return
+        startDelayRemainingMillis = null
+        startDelayDeadlineMillis = null
+        val announceStart = startDelayAnnouncesCountdown
+        startDelayAnnouncesCountdown = false
+        if (announceStart) {
+            voiceSpeaker.speak("\u00A1Vamos!")
+            voiceSpeaker.endUtteranceGroup(FINAL_COUNTDOWN_UTTERANCE_GROUP)
+        }
+        startConcentricPhase(activeSession, plannedStartMillis = deadlineMillis)
     }
 
     private fun startConcentricPhase(
@@ -461,6 +518,7 @@ class TrainingEngine(
             activeSession = activeSession,
             plannedStartMillis = nowMillis,
             delaySeconds = STAGE_NAVIGATION_START_DELAY_SECONDS,
+            announceCountdown = true,
             sourceWorkout = startingWorkout
         )
     }
@@ -918,6 +976,7 @@ class TrainingEngine(
     private fun clearStartDelay() {
         startDelayRemainingMillis = null
         startDelayDeadlineMillis = null
+        startDelayAnnouncesCountdown = false
     }
 
     private fun completeTraining() {

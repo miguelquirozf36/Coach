@@ -2771,15 +2771,17 @@ class TrainingEngineTest {
         fixture.engine.restartStage()
 
         assertTrue(fixture.currentWorkout().isInStartDelay)
-        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+        assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
         assertEquals(1, fixture.currentWorkout().seriesNumber)
         assertEquals(1, fixture.currentWorkout().repetitionNumber)
+        assertEquals("Comenzamos en diez segundos.", fixture.voice.phrases.last())
         fixture.scheduler.advanceCancelled()
         assertTrue(fixture.currentWorkout().isInStartDelay)
-        fixture.scheduler.advance()
+        fixture.advanceNavigationCountdown()
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
         assertEquals(navigationStartedAt + 10_000L, fixture.currentWorkout().phaseStartedAtMillis)
+        assertTrue(listOf("Tres", "Dos", "Uno", "\u00A1Vamos!").all(fixture.voice.phrases::contains))
         assertTrue(fixture.voice.stopCalls > 0)
         assertTrue(fixture.beep.stopCalls > 0)
     }
@@ -2791,8 +2793,8 @@ class TrainingEngineTest {
 
         fixture.engine.nextStage()
         assertTrue(fixture.currentWorkout().isInStartDelay)
-        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
-        fixture.scheduler.advance()
+        assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
+        fixture.advanceNavigationCountdown()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
 
         val restStartedAt = fixture.clock.now
@@ -2803,8 +2805,8 @@ class TrainingEngineTest {
 
         fixture.engine.previousStage()
         assertTrue(fixture.currentWorkout().isInStartDelay)
-        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
-        fixture.scheduler.advance()
+        assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
+        fixture.advanceNavigationCountdown()
         fixture.engine.nextStage()
         fixture.assertWorkout(TrainingPhase.REST, 7, 0, 1, 1, false)
     }
@@ -2822,8 +2824,8 @@ class TrainingEngineTest {
         fixture.engine.nextStage()
         assertEquals(1, fixture.currentWorkout().seriesNumber)
         assertEquals(ExerciseSide.LEFT, fixture.currentWorkout().currentSide)
-        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
-        fixture.scheduler.advance()
+        assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
+        fixture.advanceNavigationCountdown()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
         assertEquals(ExerciseSide.LEFT, fixture.currentWorkout().currentSide)
 
@@ -2831,7 +2833,7 @@ class TrainingEngineTest {
         fixture.engine.nextStage()
         assertEquals(2, fixture.currentWorkout().seriesNumber)
         assertEquals(ExerciseSide.RIGHT, fixture.currentWorkout().currentSide)
-        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+        assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
     }
 
     @Test
@@ -2850,7 +2852,7 @@ class TrainingEngineTest {
         fixture.engine.nextStage()
         assertTrue(fixture.currentWorkout().isInStartDelay)
         assertEquals(1, fixture.currentWorkout().exerciseIndex)
-        assertEquals(10_000L, fixture.scheduler.pendingDelayMillis)
+        assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
     }
 
     private class Fixture(
@@ -2902,6 +2904,10 @@ class TrainingEngineTest {
                 )) {
                 scheduler.advance()
             }
+        }
+
+        fun advanceNavigationCountdown() {
+            repeat(STAGE_NAVIGATION_START_DELAY_SECONDS) { scheduler.advance() }
         }
 
         fun runToCompletion(startExerciseIndex: Int? = null): Long {
