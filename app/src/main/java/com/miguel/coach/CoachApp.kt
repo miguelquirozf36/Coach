@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1858,12 +1857,7 @@ private fun WorkoutPortraitLayout(
             if (state.phase != TrainingPhase.WARMUP) WorkoutMetricsCard(metrics)
         }
         Box(modifier = Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
-            Text(
-                text = "Tiempo restante",
-                modifier = Modifier.align(Alignment.TopCenter).offset(y = (-32).dp),
-                style = MaterialTheme.typography.labelLarge
-            )
-            TrainingTimer(state, ringDiameter, showPhaseLabel = false, frameTimeMillis = frameTimeMillis)
+            TrainingTimer(state, ringDiameter, frameTimeMillis)
         }
         WorkoutControls(
             state = state,
@@ -1892,13 +1886,21 @@ private fun WorkoutLandscapeLayout(
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
         val sideWidth = landscapeWorkoutSideWidth(maxWidth)
+        OverallWorkoutProgressBar(overallProgress)
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .fillMaxWidth(0.6f),
+                .fillMaxWidth(0.6f)
+                .padding(top = WORKOUT_OVERALL_PROGRESS_HEIGHT),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            WorkoutHeader(state, exercise, nameMaxLines = 1, overallProgress = overallProgress)
+            WorkoutHeader(
+                state,
+                exercise,
+                nameMaxLines = 1,
+                overallProgress = overallProgress,
+                showOverallProgress = false
+            )
         }
         if (state.phase != TrainingPhase.WARMUP) {
             LandscapeWorkoutMetrics(
@@ -1906,11 +1908,12 @@ private fun WorkoutLandscapeLayout(
                 modifier = Modifier.align(Alignment.CenterStart).width(sideWidth)
             )
         }
-        Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Tiempo restante", style = MaterialTheme.typography.labelLarge)
-            Spacer(modifier = Modifier.height(8.dp))
-            TrainingTimer(state, ringDiameter, showPhaseLabel = true, frameTimeMillis = frameTimeMillis)
-        }
+        TrainingTimer(
+            state = state,
+            diameter = ringDiameter,
+            frameTimeMillis = frameTimeMillis,
+            modifier = Modifier.align(Alignment.Center)
+        )
         WorkoutControls(
             state = state,
             compact = true,
@@ -1928,9 +1931,10 @@ private fun WorkoutHeader(
     state: TrainingUiState.Workout,
     exercise: Exercise,
     nameMaxLines: Int,
-    overallProgress: Float
+    overallProgress: Float,
+    showOverallProgress: Boolean = true
 ) {
-    OverallWorkoutProgressBar(overallProgress)
+    if (showOverallProgress) OverallWorkoutProgressBar(overallProgress)
     Text(
         workoutHeaderTitle(state.phase, stringResource(R.string.workout_title)),
         modifier = Modifier.padding(top = 6.dp),
@@ -1988,7 +1992,7 @@ private fun OverallWorkoutProgressBar(progress: Float) {
     val safeProgress = progress.coerceIn(0f, 1f)
     val trackColor = MaterialTheme.colorScheme.outlineVariant
     val progressColor = MaterialTheme.colorScheme.primary
-    Canvas(modifier = Modifier.fillMaxWidth().height(3.dp)) {
+    Canvas(modifier = Modifier.fillMaxWidth().height(WORKOUT_OVERALL_PROGRESS_HEIGHT)) {
         val radius = size.height / 2f
         drawRoundRect(
             color = trackColor,
@@ -2005,6 +2009,8 @@ private fun OverallWorkoutProgressBar(progress: Float) {
         }
     }
 }
+
+private val WORKOUT_OVERALL_PROGRESS_HEIGHT = 3.dp
 
 @Composable
 private fun LandscapeWorkoutMetrics(metrics: WorkoutMetricTexts, modifier: Modifier = Modifier) {
@@ -2309,10 +2315,11 @@ internal fun usefulAreaCenter(
 private fun TrainingTimer(
     state: TrainingUiState.Workout,
     diameter: Dp,
-    showPhaseLabel: Boolean,
-    frameTimeMillis: Long
+    frameTimeMillis: Long,
+    modifier: Modifier = Modifier
 ) {
     val timerText = state.secondsRemaining.toClockFormat()
+    val categoryText = workoutTimerCategory(state.phase)
     val visibleSide = workoutTimerSide(
         phase = state.phase,
         secondsRemaining = state.secondsRemaining,
@@ -2320,18 +2327,12 @@ private fun TrainingTimer(
         isInStartDelay = state.isInStartDelay
     )
     val sideLabel = visibleSide.displayLabel()
-    val supportingText = workoutTimerSupportingText(
-        sideLabel = sideLabel,
-        phaseLabel = state.phase.label,
-        showPhaseLabel = showPhaseLabel,
-        hasUnilateralContext = state.currentSide != null
-    )
     val effectiveTimeMillis = state.phasePausedAtMillis ?: frameTimeMillis
     val progress = workoutRemainingFraction(state, effectiveTimeMillis)
     val progressColor = timerProgressColor(MaterialTheme.colorScheme)
     val trackColor = MaterialTheme.colorScheme.outlineVariant
 
-    Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val stroke = Stroke(width = 14.dp.toPx())
             val progressStroke = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round)
@@ -2350,32 +2351,17 @@ private fun TrainingTimer(
                 style = progressStroke
             )
         }
-        if (showPhaseLabel) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                supportingText?.let { text ->
-                    Text(
-                        text = text,
-                        style = if (sideLabel != null) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelLarge,
-                        color = if (sideLabel != null) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1
-                    )
-                }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(WORKOUT_TIMER_VERTICAL_SPACING)
+        ) {
+            Box(
+                modifier = Modifier.height(WORKOUT_TIMER_LABEL_SLOT_HEIGHT),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = timerText,
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.displayLarge.copy(
-                        fontSize = (diameter.value / 3f).coerceIn(52f, 80f).sp
-                    )
-                )
-            }
-        } else {
-            sideLabel?.let { side ->
-                Text(
-                    text = side,
-                    modifier = Modifier.align(Alignment.Center).offset(y = -(diameter.value / 5f).dp),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = categoryText,
+                    style = MaterialTheme.typography.labelLarge,
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
@@ -2387,16 +2373,37 @@ private fun TrainingTimer(
                     fontSize = (diameter.value / 3f).coerceIn(52f, 80f).sp
                 )
             )
+            Box(
+                modifier = Modifier.height(WORKOUT_TIMER_LABEL_SLOT_HEIGHT),
+                contentAlignment = Alignment.Center
+            ) {
+                sideLabel?.let { side ->
+                    Text(
+                        text = side,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
 
-internal fun workoutTimerSupportingText(
-    sideLabel: String?,
-    phaseLabel: String?,
-    showPhaseLabel: Boolean,
-    hasUnilateralContext: Boolean
-): String? = sideLabel ?: if (showPhaseLabel && !hasUnilateralContext) phaseLabel.orEmpty().uppercase() else null
+private val WORKOUT_TIMER_LABEL_SLOT_HEIGHT = 24.dp
+private val WORKOUT_TIMER_VERTICAL_SPACING = 2.dp
+
+internal fun workoutTimerCategory(phase: TrainingPhase): String = when (phase) {
+    TrainingPhase.WARMUP -> "CALENTAMIENTO"
+    TrainingPhase.REST,
+    TrainingPhase.REST_BETWEEN_EXERCISES -> "DESCANSO"
+    TrainingPhase.COUNTDOWN,
+    TrainingPhase.CONCENTRIC,
+    TrainingPhase.REPETITION_ANNOUNCEMENT,
+    TrainingPhase.ECCENTRIC,
+    TrainingPhase.ISOMETRIC -> "ENTRENAMIENTO"
+}
 
 internal fun workoutTimerSide(
     phase: TrainingPhase,

@@ -319,16 +319,25 @@ class WorkoutLayoutTest {
     }
 
     @Test
-    fun unilateralSideReplacesOrAddsTheTimerSupportingText() {
-        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", false, true))
-        assertEquals("Lado izquierdo", workoutTimerSupportingText("Lado izquierdo", "Excéntrica", false, true))
-        assertEquals("Lado derecho", workoutTimerSupportingText("Lado derecho", "Concéntrica", true, true))
+    fun timerCategoryMapsWarmupAndRestPhases() {
+        assertEquals("CALENTAMIENTO", workoutTimerCategory(TrainingPhase.WARMUP))
+        assertEquals("DESCANSO", workoutTimerCategory(TrainingPhase.REST))
+        assertEquals("DESCANSO", workoutTimerCategory(TrainingPhase.REST_BETWEEN_EXERCISES))
     }
 
     @Test
-    fun bilateralTimerKeepsItsExistingOrientationBehavior() {
-        assertEquals(null, workoutTimerSupportingText(null, "Concéntrica", false, false))
-        assertEquals("CONCÉNTRICA", workoutTimerSupportingText(null, "Concéntrica", true, false))
+    fun timerCategoryMapsEveryExecutionPhaseWithoutLeakingSpecificPhaseLabels() {
+        val executionPhases = listOf(
+            TrainingPhase.COUNTDOWN,
+            TrainingPhase.CONCENTRIC,
+            TrainingPhase.REPETITION_ANNOUNCEMENT,
+            TrainingPhase.ECCENTRIC,
+            TrainingPhase.ISOMETRIC
+        )
+
+        executionPhases.forEach { phase ->
+            assertEquals("ENTRENAMIENTO", workoutTimerCategory(phase))
+        }
     }
 
     @Test
@@ -363,11 +372,6 @@ class WorkoutLayoutTest {
         assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 10, ExerciseSide.RIGHT))
         assertEquals(ExerciseSide.RIGHT, workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 3, ExerciseSide.RIGHT))
         assertEquals(null, workoutTimerSide(TrainingPhase.REST_BETWEEN_EXERCISES, 3, null))
-    }
-
-    @Test
-    fun unilateralLandscapeDoesNotFallBackToPhaseWhileSideIsHidden() {
-        assertEquals(null, workoutTimerSupportingText(null, "Descanso", true, true))
     }
 
     @Test
