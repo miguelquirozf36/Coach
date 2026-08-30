@@ -333,7 +333,11 @@ class TrainingEngine(
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
         val repetitionNumber = workout.repetitionNumber
         continueAfterCompletedConcentric(activeSession, plannedStartMillis)
-        voiceSpeaker.speak(repetitionNumber.toString())
+        beepPlayer.playTick {
+            if (activeWorkout(activeSession) != null) {
+                voiceSpeaker.speak(repetitionNumber.toString())
+            }
+        }
     }
 
     private fun continueAfterCompletedConcentric(

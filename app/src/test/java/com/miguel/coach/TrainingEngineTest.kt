@@ -1548,6 +1548,64 @@ class TrainingEngineTest {
     }
 
     @Test
+    fun shortenedPointTickCompletesBeforeTheNumberWithoutMovingTheNextDeadline() {
+        val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 1, repetitions = 2))
+        fixture.startFirstConcentricPhase()
+        fixture.beep.completeTicksImmediately = false
+        val concentricDeadline = fixture.currentWorkout().phaseStartedAtMillis + 1_000L
+
+        fixture.scheduler.advance()
+
+        fixture.assertWorkout(TrainingPhase.ECCENTRIC, 1, 0, 1, 1, false)
+        assertEquals(concentricDeadline, fixture.currentWorkout().phaseStartedAtMillis)
+        assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
+        assertEquals("tick", fixture.events.last())
+        assertFalse("1" in fixture.voice.phrases)
+
+        fixture.beep.completeTick()
+
+        assertEquals(listOf("tick", "voice:1"), fixture.events.takeLast(2))
+    }
+
+    @Test
+    fun pauseFinishAndSkipInvalidatePendingShortenedPointTicks() {
+        listOf<(TrainingEngine) -> Unit>(
+            { it.pause() },
+            { it.finish() },
+            { it.skip() }
+        ).forEach { interrupt ->
+            val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 1, repetitions = 2))
+            fixture.startFirstConcentricPhase()
+            fixture.beep.completeTicksImmediately = false
+            fixture.scheduler.advance()
+            assertEquals(1, fixture.beep.tickCalls)
+
+            interrupt(fixture.engine)
+            fixture.beep.completeTick()
+
+            assertFalse("1" in fixture.voice.phrases)
+        }
+    }
+
+    @Test
+    fun consecutiveRepetitionsKeepTickThenNumberOrdering() {
+        val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 1, repetitions = 2))
+        fixture.startFirstConcentricPhase()
+        fixture.beep.completeTicksImmediately = false
+
+        repeat(2) { repetitionIndex ->
+            fixture.scheduler.advance()
+            assertEquals("tick", fixture.events.last())
+            fixture.beep.completeTick()
+            assertEquals("voice:${repetitionIndex + 1}", fixture.events.last())
+            fixture.scheduler.advance()
+        }
+
+        assertEquals(2, fixture.beep.tickCalls)
+        assertEquals(listOf("1", "2"), fixture.voice.phrases.filter { it.toIntOrNull() != null })
+    }
+
+    @Test
     fun vamosStartsItsOneSecondDeadlineImmediatelyWithoutACompletionCallback() {
         val fixture = Fixture(seriesExercise(sets = 1, restSeconds = 1))
         fixture.engine.start(fixture.routine)
@@ -2351,7 +2409,7 @@ class TrainingEngineTest {
         fixture.voice.completeLatest()
 
         fixture.assertWorkout(TrainingPhase.ISOMETRIC, 2, 0, 1, 1, false)
-        assertEquals(listOf("beep", "voice:1"), fixture.events.takeLast(2))
+        assertEquals(listOf("tick", "voice:1"), fixture.events.takeLast(2))
         fixture.scheduler.advance()
         fixture.scheduler.advance()
 
@@ -2872,15 +2930,30 @@ class TrainingEngineTest {
 
     private class FakeBeepPlayer(private val events: MutableList<String>) : BeepSoundPlayer {
         var playCalls = 0
+        var tickCalls = 0
         var stopCalls = 0
+        var completeTicksImmediately = true
+        private var pendingTickCompletion: (() -> Unit)? = null
 
         override fun play() {
             playCalls += 1
             events += "beep"
         }
 
+        override fun playTick(onCompleted: () -> Unit) {
+            tickCalls += 1
+            events += "tick"
+            if (completeTicksImmediately) onCompleted() else pendingTickCompletion = onCompleted
+        }
+
         override fun stop() {
             stopCalls += 1
+            pendingTickCompletion = null
+        }
+
+        fun completeTick() {
+            pendingTickCompletion?.invoke()
+            pendingTickCompletion = null
         }
     }
 
