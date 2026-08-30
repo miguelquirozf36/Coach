@@ -275,7 +275,7 @@ class TrainingEngine(
         val startDelayState = prepareExecution(workout)
             .advancePlannedSegment(plannedStartMillis)
             .copy(
-                secondsRemaining = 0,
+                secondsRemaining = if (announceCountdown) delaySeconds else 0,
                 isStartingExecution = true
             )
         startDelayRemainingMillis = delaySeconds * ONE_SECOND_MILLIS
@@ -327,6 +327,7 @@ class TrainingEngine(
                 startedAtMillis,
                 STAGE_NAVIGATION_START_DELAY_SECONDS
             )
+            state = workout.copy(secondsRemaining = currentSeconds)
             announceCrossedThreshold(
                 currentSeconds,
                 listOf(3 to "Tres", 2 to "Dos", 1 to "Uno"),

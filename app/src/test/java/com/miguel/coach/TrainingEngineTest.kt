@@ -2767,10 +2767,12 @@ class TrainingEngineTest {
         fixture.startFirstConcentricPhase()
         fixture.clock.advanceBy(400L)
         val navigationStartedAt = fixture.clock.now
+        val publicationCountBeforeNavigation = fixture.publishedWorkouts().size
 
         fixture.engine.restartStage()
 
         assertTrue(fixture.currentWorkout().isInStartDelay)
+        assertEquals(10, fixture.currentWorkout().secondsRemaining)
         assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
         assertEquals(1, fixture.currentWorkout().seriesNumber)
         assertEquals(1, fixture.currentWorkout().repetitionNumber)
@@ -2781,9 +2783,48 @@ class TrainingEngineTest {
 
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
         assertEquals(navigationStartedAt + 10_000L, fixture.currentWorkout().phaseStartedAtMillis)
+        assertEquals(
+            (10 downTo 0).toList(),
+            fixture.publishedWorkouts()
+                .drop(publicationCountBeforeNavigation)
+                .filter { it.isInStartDelay }
+                .map { it.secondsRemaining }
+        )
         assertTrue(listOf("Tres", "Dos", "Uno", "\u00A1Vamos!").all(fixture.voice.phrases::contains))
         assertTrue(fixture.voice.stopCalls > 0)
         assertTrue(fixture.beep.stopCalls > 0)
+    }
+
+    @Test
+    fun physicalPhaseBoundaryShowsTheNextDurationWithoutAnIntermediateZero() {
+        val fixture = Fixture(
+            seriesExercise(sets = 1, restSeconds = 0, repetitions = 1).copy(
+                concentricSeconds = 2,
+                eccentricSeconds = 3
+            )
+        )
+        fixture.startFirstConcentricPhase(expectedSeconds = 2)
+        val concentricStartedAt = fixture.currentWorkout().phaseStartedAtMillis
+        val visibleStates = mutableListOf(
+            fixture.currentWorkout().phase to fixture.currentWorkout().secondsRemaining
+        )
+
+        repeat(4) {
+            fixture.scheduler.advance()
+            visibleStates += fixture.currentWorkout().phase to fixture.currentWorkout().secondsRemaining
+        }
+
+        assertEquals(
+            listOf(
+                TrainingPhase.CONCENTRIC to 2,
+                TrainingPhase.CONCENTRIC to 1,
+                TrainingPhase.ECCENTRIC to 3,
+                TrainingPhase.ECCENTRIC to 2,
+                TrainingPhase.ECCENTRIC to 1
+            ),
+            visibleStates
+        )
+        assertEquals(concentricStartedAt + 2_000L, fixture.currentWorkout().phaseStartedAtMillis)
     }
 
     @Test
@@ -2793,6 +2834,7 @@ class TrainingEngineTest {
 
         fixture.engine.nextStage()
         assertTrue(fixture.currentWorkout().isInStartDelay)
+        assertEquals(10, fixture.currentWorkout().secondsRemaining)
         assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
         fixture.advanceNavigationCountdown()
         fixture.assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
@@ -2805,6 +2847,7 @@ class TrainingEngineTest {
 
         fixture.engine.previousStage()
         assertTrue(fixture.currentWorkout().isInStartDelay)
+        assertEquals(10, fixture.currentWorkout().secondsRemaining)
         assertEquals(1_000L, fixture.scheduler.pendingDelayMillis)
         fixture.advanceNavigationCountdown()
         fixture.engine.nextStage()
@@ -2878,12 +2921,12 @@ class TrainingEngineTest {
             warmupSeconds = warmupSeconds
         )
 
-        fun startFirstConcentricPhase() {
+        fun startFirstConcentricPhase(expectedSeconds: Int = 1) {
             engine.start(routine)
             repeat(10) { scheduler.advance() }
             voice.completeLatest()
             scheduler.advance()
-            assertWorkout(TrainingPhase.CONCENTRIC, 1, 0, 1, 1, false)
+            assertWorkout(TrainingPhase.CONCENTRIC, expectedSeconds, 0, 1, 1, false)
         }
 
         fun startFromExerciseConcentricPhase(exerciseIndex: Int) {
