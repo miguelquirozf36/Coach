@@ -47,6 +47,15 @@ object WorkoutSessionController {
         audioFocusEnabledObserver?.invoke(enabled)
     }
 
+    internal fun reloadAudioFocusEnabled(context: Context) {
+        val preferences = UserPreferenceRepository(
+            SharedPreferencesUserStorage(
+                context.applicationContext.getSharedPreferences("coach_user", Context.MODE_PRIVATE)
+            )
+        )
+        updateAudioFocusEnabled(preferences.loadReduceMusicDuringWorkout())
+    }
+
     fun startWorkout(context: Context, routine: Routine) {
         if (routine.exercises.isEmpty()) return
         val activeEngine = ensureEngine(context)
@@ -184,6 +193,7 @@ class WorkoutSessionService : Service() {
             WorkoutAudioFocusController.create(getSystemService(AudioManager::class.java))
         )
         workoutNotification.createChannel()
+        WorkoutSessionController.reloadAudioFocusEnabled(this)
         WorkoutSessionController.attachAudioFocusIntegration(
             audioFocusEnabledObserver,
             audioFocusSession

@@ -16,6 +16,8 @@ interface UserPreferenceStorage {
     fun writeTrainerVoiceVolumeLevel(level: Int): Boolean = false
     fun readTrainerVoiceId(): String? = null
     fun writeTrainerVoiceId(voiceId: String): Boolean = false
+    fun readReduceMusicDuringWorkout(): Boolean? = null
+    fun writeReduceMusicDuringWorkout(enabled: Boolean): Boolean = false
 }
 
 class SharedPreferencesUserStorage(
@@ -52,12 +54,23 @@ class SharedPreferencesUserStorage(
     override fun writeTrainerVoiceId(voiceId: String): Boolean =
         preferences.edit().putString(TRAINER_VOICE_ID, voiceId).commit()
 
+    override fun readReduceMusicDuringWorkout(): Boolean? =
+        if (preferences.contains(REDUCE_MUSIC_DURING_WORKOUT)) {
+            preferences.getBoolean(REDUCE_MUSIC_DURING_WORKOUT, false)
+        } else {
+            null
+        }
+
+    override fun writeReduceMusicDuringWorkout(enabled: Boolean): Boolean =
+        preferences.edit().putBoolean(REDUCE_MUSIC_DURING_WORKOUT, enabled).commit()
+
     private companion object {
         const val USER_NAME = "user_name"
         const val TOUR_COMPLETED = "onboarding_tour_completed_v17"
         const val BEEP_VOLUME_LEVEL = "workout_beep_volume_level"
         const val TRAINER_VOICE_VOLUME_LEVEL = "trainer_voice_volume_level"
         const val TRAINER_VOICE_ID = "trainer_voice_id"
+        const val REDUCE_MUSIC_DURING_WORKOUT = "reduce_music_during_workout"
     }
 }
 
@@ -124,6 +137,11 @@ class UserPreferenceRepository(private val storage: UserPreferenceStorage) {
     fun loadTrainerVoiceId(): String = storage.readTrainerVoiceId().orEmpty()
 
     fun saveTrainerVoiceId(voiceId: String): Boolean = storage.writeTrainerVoiceId(voiceId)
+
+    fun loadReduceMusicDuringWorkout(): Boolean = storage.readReduceMusicDuringWorkout() ?: false
+
+    fun saveReduceMusicDuringWorkout(enabled: Boolean): Boolean =
+        storage.writeReduceMusicDuringWorkout(enabled)
 }
 
 const val DEFAULT_BEEP_VOLUME_LEVEL = 5

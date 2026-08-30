@@ -7,6 +7,32 @@ import org.junit.Test
 
 class UserPreferenceRepositoryTest {
     @Test
+    fun reducingMusicDuringWorkoutDefaultsToFalse() {
+        assertEquals(false, UserPreferenceRepository(InMemoryUserStorage()).loadReduceMusicDuringWorkout())
+    }
+
+    @Test
+    fun reducingMusicDuringWorkoutPersistsTrueAndFalse() {
+        val storage = InMemoryUserStorage()
+        val repository = UserPreferenceRepository(storage)
+
+        assertTrue(repository.saveReduceMusicDuringWorkout(true))
+        assertTrue(UserPreferenceRepository(storage).loadReduceMusicDuringWorkout())
+        assertTrue(repository.saveReduceMusicDuringWorkout(false))
+        assertEquals(false, UserPreferenceRepository(storage).loadReduceMusicDuringWorkout())
+        assertTrue("reduce_music_during_workout" in storage.writtenKeys)
+    }
+
+    @Test
+    fun musicDuckingSettingUsesTheRequiredCopy() {
+        assertEquals("Reducir música durante el entrenamiento", REDUCE_MUSIC_DURING_WORKOUT_TITLE)
+        assertEquals(
+            "Reduce temporalmente el volumen de otras aplicaciones de música mientras Coach guía el entrenamiento.",
+            REDUCE_MUSIC_DURING_WORKOUT_DESCRIPTION
+        )
+    }
+
+    @Test
     fun beepVolumeDefaultsToLevelFiveAndNormalizesStoredValues() {
         val storage = InMemoryUserStorage()
         val repository = UserPreferenceRepository(storage)
@@ -209,6 +235,7 @@ private class InMemoryUserStorage(var userName: String? = null) : UserPreference
     var beepVolumeLevel: Int? = null
     var trainerVoiceVolumeLevel: Int? = null
     var trainerVoiceId: String? = null
+    var reduceMusicDuringWorkout: Boolean? = null
     override fun readUserName(): String? = userName
     override fun writeUserName(name: String): Boolean {
         userName = name
@@ -237,6 +264,12 @@ private class InMemoryUserStorage(var userName: String? = null) : UserPreference
     override fun writeTrainerVoiceId(voiceId: String): Boolean {
         trainerVoiceId = voiceId
         writtenKeys += "trainer_voice_id"
+        return true
+    }
+    override fun readReduceMusicDuringWorkout(): Boolean? = reduceMusicDuringWorkout
+    override fun writeReduceMusicDuringWorkout(enabled: Boolean): Boolean {
+        reduceMusicDuringWorkout = enabled
+        writtenKeys += "reduce_music_during_workout"
         return true
     }
 }

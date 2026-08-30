@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -57,6 +58,9 @@ internal fun openAppearanceFromSettings(): SettingsDestination = SettingsDestina
 internal fun backFromSettingsAppearance(): SettingsDestination = SettingsDestination.ROOT
 
 internal const val EXPORT_BACKUP_DESCRIPTION = "Guardar los datos en un archivo JSON."
+internal const val REDUCE_MUSIC_DURING_WORKOUT_TITLE = "Reducir música durante el entrenamiento"
+internal const val REDUCE_MUSIC_DURING_WORKOUT_DESCRIPTION =
+    "Reduce temporalmente el volumen de otras aplicaciones de música mientras Coach guía el entrenamiento."
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,8 +69,10 @@ fun SettingsScreen(
     currentTheme: CoachTheme,
     beepVolumeLevel: Int,
     trainerVoiceVolumeLevel: Int,
+    reduceMusicDuringWorkout: Boolean,
     onBeepVolumeLevelChanged: (Int) -> Unit,
     onTrainerVoiceVolumeLevelChanged: (Int) -> Unit,
+    onReduceMusicDuringWorkoutChanged: (Boolean) -> Unit,
     onSaveUserName: (String) -> String?,
     onAppearance: () -> Unit,
     onExportBackup: () -> Unit,
@@ -186,6 +192,10 @@ fun SettingsScreen(
             )
             BeepVolumeControl(beepVolumeLevel, onBeepVolumeLevelChanged)
             TrainerVoiceVolumeControl(trainerVoiceVolumeLevel, onTrainerVoiceVolumeLevelChanged)
+            ReduceMusicDuringWorkoutControl(
+                enabled = reduceMusicDuringWorkout,
+                onEnabledChanged = onReduceMusicDuringWorkoutChanged
+            )
             SettingsCard(
                 title = "Voz del entrenador",
                 value = "Selecciona una de las voces en español disponibles en tu dispositivo.",
@@ -364,6 +374,32 @@ internal fun BeepVolumeControl(level: Int, onLevelChanged: (Int) -> Unit) {
 @Composable
 internal fun TrainerVoiceVolumeControl(level: Int, onLevelChanged: (Int) -> Unit) {
     FiveLevelVolumeControl("Volumen de la voz", level, onLevelChanged)
+}
+
+@Composable
+internal fun ReduceMusicDuringWorkoutControl(
+    enabled: Boolean,
+    onEnabledChanged: (Boolean) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = contentCardColors()) {
+        ListItem(
+            headlineContent = {
+                Text(
+                    REDUCE_MUSIC_DURING_WORKOUT_TITLE,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            supportingContent = {
+                Text(
+                    REDUCE_MUSIC_DURING_WORKOUT_DESCRIPTION,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+            trailingContent = {
+                Switch(checked = enabled, onCheckedChange = onEnabledChanged)
+            }
+        )
+    }
 }
 
 @Composable

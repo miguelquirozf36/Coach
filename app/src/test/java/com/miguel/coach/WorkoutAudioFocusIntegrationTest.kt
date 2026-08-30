@@ -119,6 +119,55 @@ class WorkoutAudioFocusIntegrationTest {
     }
 
     @Test
+    fun enablingDuringExecutionRequestsAndDisablingReleasesFocusImmediately() {
+        val fixture = fixture(enabled = false)
+        fixture.session.onStateChanged(workout(TrainingPhase.CONCENTRIC))
+
+        fixture.session.setEnabled(true)
+        assertEquals(1, fixture.gateway.requestCount)
+
+        fixture.session.setEnabled(false)
+        assertEquals(1, fixture.gateway.abandonCount)
+    }
+
+    @Test
+    fun enablingOrReenablingDuringRestDoesNotRequestContinuousFocus() {
+        val fixture = fixture(enabled = false)
+        fixture.session.onStateChanged(workout(TrainingPhase.REST))
+
+        fixture.session.setEnabled(true)
+        fixture.session.setEnabled(false)
+        fixture.session.setEnabled(true)
+
+        assertEquals(0, fixture.gateway.requestCount)
+    }
+
+    @Test
+    fun reenablingDuringExecutionReevaluatesAndRequestsFocusAgain() {
+        val fixture = fixture(enabled = true)
+        fixture.session.onStateChanged(workout(TrainingPhase.ISOMETRIC))
+        fixture.session.setEnabled(false)
+
+        fixture.session.setEnabled(true)
+
+        assertEquals(2, fixture.gateway.requestCount)
+        assertEquals(1, fixture.gateway.abandonCount)
+    }
+
+    @Test
+    fun disablingDuringTransientSpeechReleasesFocusAndClearsItsToken() {
+        val fixture = fixture(enabled = true)
+        fixture.session.onStateChanged(workout(TrainingPhase.REST))
+        fixture.session.onUtteranceSubmitted("rest-alert")
+
+        fixture.session.setEnabled(false)
+        fixture.session.onUtteranceTerminated("rest-alert")
+
+        assertEquals(1, fixture.gateway.requestCount)
+        assertEquals(1, fixture.gateway.abandonCount)
+    }
+
+    @Test
     fun restUtteranceAcquiresAndDoneReleasesTransientFocus() {
         val fixture = fixture(enabled = true)
         fixture.session.onStateChanged(workout(TrainingPhase.REST))

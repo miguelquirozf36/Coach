@@ -193,6 +193,9 @@ fun CoachApp(
     var trainerVoiceVolumeLevel by rememberSaveable {
         mutableStateOf(userPreferenceRepository.loadTrainerVoiceVolumeLevel())
     }
+    var reduceMusicDuringWorkout by rememberSaveable {
+        mutableStateOf(userPreferenceRepository.loadReduceMusicDuringWorkout())
+    }
     var launchStage by rememberSaveable { mutableStateOf(LaunchStage.INITIALIZING) }
     var showGreeting by rememberSaveable { mutableStateOf(false) }
     var tourStep by rememberSaveable { mutableStateOf<TourStep?>(null) }
@@ -375,6 +378,7 @@ fun CoachApp(
                                 currentTheme = selectedTheme,
                                 beepVolumeLevel = beepVolumeLevel,
                                 trainerVoiceVolumeLevel = trainerVoiceVolumeLevel,
+                                reduceMusicDuringWorkout = reduceMusicDuringWorkout,
                                 onBeepVolumeLevelChanged = { level ->
                                     if (userPreferenceRepository.saveBeepVolumeLevel(level)) {
                                         beepVolumeLevel = normalizeBeepVolumeLevel(level)
@@ -385,6 +389,12 @@ fun CoachApp(
                                     if (userPreferenceRepository.saveTrainerVoiceVolumeLevel(level)) {
                                         trainerVoiceVolumeLevel = normalizeAudioVolumeLevel(level)
                                         WorkoutSessionController.updateTrainerVoiceVolumeLevel(trainerVoiceVolumeLevel)
+                                    }
+                                },
+                                onReduceMusicDuringWorkoutChanged = { enabled ->
+                                    if (userPreferenceRepository.saveReduceMusicDuringWorkout(enabled)) {
+                                        reduceMusicDuringWorkout = enabled
+                                        WorkoutSessionController.updateAudioFocusEnabled(enabled)
                                     }
                                 },
                                 onSaveUserName = { input ->
