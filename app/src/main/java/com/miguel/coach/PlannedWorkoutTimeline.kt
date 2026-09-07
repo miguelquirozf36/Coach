@@ -112,6 +112,16 @@ private fun Routine.buildPlannedTimeline(
         executions.forEachIndexed { executionIndex, execution ->
             repeat(exercise.repetitions) { repetitionIndex ->
                 val repetitionNumber = repetitionIndex + 1
+                val isLastRepetition = repetitionIndex == exercise.repetitions - 1
+                if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
+                    segments += exerciseSegment(
+                        PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
+                        exercise.isometricDurationSeconds,
+                        exerciseIndex,
+                        execution,
+                        repetitionNumber
+                    )
+                }
                 segments += exerciseSegment(
                     PlannedWorkoutSegmentType.CONCENTRIC,
                     exercise.concentricSeconds,
@@ -128,17 +138,10 @@ private fun Routine.buildPlannedTimeline(
                         repetitionNumber
                     )
                 }
-                segments += exerciseSegment(
-                    PlannedWorkoutSegmentType.ECCENTRIC,
-                    exercise.eccentricSeconds,
-                    exerciseIndex,
-                    execution,
-                    repetitionNumber
-                )
-                if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
+                if (!isLastRepetition) {
                     segments += exerciseSegment(
-                        PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
-                        exercise.isometricDurationSeconds,
+                        PlannedWorkoutSegmentType.ECCENTRIC,
+                        exercise.eccentricSeconds,
                         exerciseIndex,
                         execution,
                         repetitionNumber

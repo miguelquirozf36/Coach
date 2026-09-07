@@ -194,10 +194,10 @@ class RoutineRepositoryTest {
         )
         val routine = Routine("estimated", "Estimado", true, listOf(exercise), 0, warmupSeconds = 0)
 
-        assertEquals(252L, routine.plannedDurationSeconds())
+        assertEquals(250L, routine.plannedDurationSeconds())
         assertEquals(4, routine.estimatedDurationMinutes())
         assertEquals(
-            494L,
+            490L,
             routine.copy(exercises = listOf(exercise.copy(
                 executionMode = ExerciseExecutionMode.ONE_SIDE_AT_A_TIME
             ))).plannedDurationSeconds()

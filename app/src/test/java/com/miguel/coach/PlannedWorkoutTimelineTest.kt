@@ -9,7 +9,7 @@ class PlannedWorkoutTimelineTest {
     @Test
     fun builtInRoundedDurationsRemainStableWhileUsingExactTimelines() {
         assertEquals(
-            listOf(51, 54, 51, 54, 44, 47, 18),
+            listOf(50, 54, 50, 54, 44, 46, 18),
             Routines.all.map(Routine::estimatedDurationMinutes)
         )
     }
@@ -22,11 +22,11 @@ class PlannedWorkoutTimelineTest {
         )
         val timeline = routine.plannedTimeline()
 
-        assertEquals(30 + 2 + 2 * (3 * 2 + 3 * 4) + 7, timeline.totalDurationSeconds)
+        assertEquals(30 + 2 + 6 * 2 + 4 * 4 + 7, timeline.totalDurationSeconds)
         assertEquals(1, timeline.count(PlannedWorkoutSegmentType.WARMUP))
         assertEquals(2, timeline.count(PlannedWorkoutSegmentType.START_DELAY))
         assertEquals(6, timeline.count(PlannedWorkoutSegmentType.CONCENTRIC))
-        assertEquals(6, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
+        assertEquals(4, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
         assertEquals(1, timeline.count(PlannedWorkoutSegmentType.REST))
     }
 
@@ -40,13 +40,13 @@ class PlannedWorkoutTimelineTest {
     }
 
     @Test
-    fun oneRepetitionIncludesItsFinalEccentricAndConfiguredIsometricSegment() {
+    fun oneRepetitionStopsAtItsCountPointAndIncludesOnlyPriorPhysicalSegments() {
         IsometricPauseMode.entries.forEach { mode ->
             val timeline = routine(listOf(exercise(repetitions = 1, isometricMode = mode, isometric = 9)))
                 .plannedTimeline()
 
             assertEquals(1, timeline.count(PlannedWorkoutSegmentType.CONCENTRIC))
-            assertEquals(1, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
+            assertEquals(0, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
             assertEquals(
                 if (mode == IsometricPauseMode.SHORTENED) 1 else 0,
                 timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED)
@@ -74,22 +74,20 @@ class PlannedWorkoutTimelineTest {
                 PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED,
                 PlannedWorkoutSegmentType.ECCENTRIC,
                 PlannedWorkoutSegmentType.CONCENTRIC,
-                PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED,
-                PlannedWorkoutSegmentType.ECCENTRIC
+                PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED
             ),
             shortened
         )
         assertEquals(
             listOf(
-                PlannedWorkoutSegmentType.CONCENTRIC,
-                PlannedWorkoutSegmentType.ECCENTRIC,
                 PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
                 PlannedWorkoutSegmentType.CONCENTRIC,
                 PlannedWorkoutSegmentType.ECCENTRIC,
                 PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
                 PlannedWorkoutSegmentType.CONCENTRIC,
                 PlannedWorkoutSegmentType.ECCENTRIC,
-                PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED
+                PlannedWorkoutSegmentType.ISOMETRIC_STRETCHED,
+                PlannedWorkoutSegmentType.CONCENTRIC
             ),
             stretched
         )
@@ -102,7 +100,7 @@ class PlannedWorkoutTimelineTest {
                 .plannedTimeline()
 
             assertEquals(10, timeline.count(PlannedWorkoutSegmentType.CONCENTRIC))
-            assertEquals(10, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
+            assertEquals(9, timeline.count(PlannedWorkoutSegmentType.ECCENTRIC))
             assertEquals(
                 if (mode == IsometricPauseMode.SHORTENED) 10 else 0,
                 timeline.count(PlannedWorkoutSegmentType.ISOMETRIC_SHORTENED)
@@ -216,8 +214,8 @@ class PlannedWorkoutTimelineTest {
     fun estimatedMinutesAreOnlyARoundedPresentationOfExactTimeline() {
         val routine = routine(listOf(exercise(repetitions = 3, concentric = 20, eccentric = 9)))
 
-        assertEquals(98L, routine.plannedDurationSeconds())
-        assertEquals(2, routine.estimatedDurationMinutes())
+        assertEquals(89L, routine.plannedDurationSeconds())
+        assertEquals(1, routine.estimatedDurationMinutes())
     }
 
     private fun PlannedWorkoutTimeline.count(type: PlannedWorkoutSegmentType): Int =

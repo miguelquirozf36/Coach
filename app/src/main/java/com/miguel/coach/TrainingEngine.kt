@@ -352,7 +352,7 @@ class TrainingEngine(
             voiceSpeaker.speak("\u00A1Vamos!")
             voiceSpeaker.endUtteranceGroup(FINAL_COUNTDOWN_UTTERANCE_GROUP)
         }
-        startConcentricPhase(activeSession, plannedStartMillis = deadlineMillis)
+        startRepetitionPhase(activeSession, plannedStartMillis = deadlineMillis)
     }
 
     private fun startConcentricPhase(
@@ -392,13 +392,13 @@ class TrainingEngine(
     private fun announceRepetition(activeSession: Long, plannedStartMillis: Long = monotonicClock.nowMillis()) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
-        val repetitionNumber = workout.repetitionNumber
-        continueAfterCompletedConcentric(activeSession, plannedStartMillis)
-        beepPlayer.playTick {
-            if (activeWorkout(activeSession) != null) {
-                voiceSpeaker.speak(repetitionNumber.toString())
-            }
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
+            startIsometricPhase(activeSession, plannedStartMillis = plannedStartMillis)
+            return
         }
+        beepPlayer.playTick {}
+        announceCountedRepetition(activeSession, plannedStartMillis)
     }
 
     fun restartStage() = navigateStage(0)
@@ -573,12 +573,7 @@ class TrainingEngine(
     ) {
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.REPETITION_ANNOUNCEMENT) return
-        val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
-            startIsometricPhase(activeSession, plannedStartMillis)
-        } else {
-            startEccentricPhase(activeSession, plannedStartMillis)
-        }
+        announceRepetition(activeSession, plannedStartMillis)
     }
 
     private fun startEccentricPhase(
@@ -602,11 +597,24 @@ class TrainingEngine(
         val wasArmed = schedulePhaseTick(activeSession, eccentricState, true)
         state = eccentricState
         if (!wasArmed) schedulePhaseTick(activeSession)
-        if (workout.phase == TrainingPhase.ISOMETRIC && secondsRemaining > 0) beepPlayer.play()
+    }
+
+    private fun startRepetitionPhase(
+        activeSession: Long,
+        plannedStartMillis: Long = monotonicClock.nowMillis()
+    ) {
+        val workout = activeWorkout(activeSession) ?: return
+        val exercise = workout.routine.exercises[workout.exerciseIndex]
+        if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
+            startIsometricPhase(activeSession, plannedStartMillis = plannedStartMillis)
+        } else {
+            startConcentricPhase(activeSession, plannedStartMillis = plannedStartMillis)
+        }
     }
 
     private fun startIsometricPhase(
         activeSession: Long,
+        repetitionNumber: Int? = null,
         plannedStartMillis: Long = monotonicClock.nowMillis()
     ) {
         val workout = activeWorkout(activeSession) ?: return
@@ -614,6 +622,7 @@ class TrainingEngine(
         if (exercise.isometricPauseMode == IsometricPauseMode.NONE) return
         val secondsRemaining = remainingSeconds(plannedStartMillis, exercise.isometricDurationSeconds)
         val isometricState = workout.advancePlannedSegment(plannedStartMillis).copy(
+            repetitionNumber = repetitionNumber ?: workout.repetitionNumber,
             phase = TrainingPhase.ISOMETRIC,
             secondsRemaining = secondsRemaining,
             phaseDurationSeconds = exercise.isometricDurationSeconds,
@@ -624,6 +633,10 @@ class TrainingEngine(
         state = isometricState
         if (!wasArmed) schedulePhaseTick(activeSession)
         if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED && secondsRemaining > 0) beepPlayer.play()
+        if (secondsRemaining > 0) {
+            if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) beepPlayer.playTick {}
+            voiceSpeaker.speak("Mantén")
+        }
     }
 
     private fun schedulePhaseTick(activeSession: Long) {
@@ -685,9 +698,10 @@ class TrainingEngine(
         if (workout.phase != TrainingPhase.ISOMETRIC) return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
         if (exercise.isometricPauseMode == IsometricPauseMode.SHORTENED) {
-            startEccentricPhase(activeSession, plannedStartMillis)
-        } else {
-            finishPhysicalRepetition(activeSession, plannedStartMillis)
+            beepPlayer.play()
+            announceCountedRepetition(activeSession, plannedStartMillis)
+        } else if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
+            startConcentricPhase(activeSession, plannedStartMillis = plannedStartMillis)
         }
     }
 
@@ -698,24 +712,24 @@ class TrainingEngine(
         val workout = activeWorkout(activeSession) ?: return
         if (workout.phase != TrainingPhase.ECCENTRIC) return
 
-        val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (exercise.isometricPauseMode == IsometricPauseMode.STRETCHED) {
-            startIsometricPhase(activeSession, plannedStartMillis)
-            return
-        }
         finishPhysicalRepetition(activeSession, plannedStartMillis)
     }
 
     private fun finishPhysicalRepetition(activeSession: Long, plannedStartMillis: Long) {
+        activeWorkout(activeSession) ?: return
+        prepareNextRepetition(activeSession, plannedStartMillis)
+    }
+
+    private fun announceCountedRepetition(activeSession: Long, plannedStartMillis: Long) {
         val workout = activeWorkout(activeSession) ?: return
         val exercise = workout.routine.exercises[workout.exerciseIndex]
-        if (workout.repetitionNumber < exercise.repetitions) {
-            prepareNextRepetition(activeSession, plannedStartMillis)
-            return
+        voiceSpeaker.speak(workout.repetitionNumber.toString())
+        if (workout.repetitionNumber >= exercise.repetitions) {
+            completeExecution(activeSession, plannedStartMillis)
+            announceExecutionDestination()
+        } else {
+            startEccentricPhase(activeSession, plannedStartMillis)
         }
-
-        completeExecution(activeSession, plannedStartMillis)
-        announceExecutionDestination()
     }
 
     private fun announceExecutionDestination() {
@@ -736,11 +750,22 @@ class TrainingEngine(
 
     private fun prepareNextRepetition(activeSession: Long, plannedStartMillis: Long) {
         val workout = activeWorkout(activeSession) ?: return
-        startConcentricPhase(
-            activeSession,
-            repetitionNumber = workout.repetitionNumber + 1,
-            plannedStartMillis = plannedStartMillis
-        )
+        val nextRepetitionNumber = workout.repetitionNumber + 1
+        if (workout.routine.exercises[workout.exerciseIndex].isometricPauseMode ==
+            IsometricPauseMode.STRETCHED
+        ) {
+            startIsometricPhase(
+                activeSession,
+                repetitionNumber = nextRepetitionNumber,
+                plannedStartMillis = plannedStartMillis
+            )
+        } else {
+            startConcentricPhase(
+                activeSession,
+                repetitionNumber = nextRepetitionNumber,
+                plannedStartMillis = plannedStartMillis
+            )
+        }
     }
 
     private fun completeExecution(activeSession: Long, plannedStartMillis: Long) {

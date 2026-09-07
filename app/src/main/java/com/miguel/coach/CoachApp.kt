@@ -2462,7 +2462,7 @@ private fun TrainingTimer(
             drawArc(
                 color = progressColor,
                 startAngle = -90f,
-                sweepAngle = 360f * progress,
+                sweepAngle = -360f * progress,
                 useCenter = false,
                 style = progressStroke
             )
