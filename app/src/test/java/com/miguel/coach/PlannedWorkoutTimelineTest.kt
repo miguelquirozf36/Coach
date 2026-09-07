@@ -9,7 +9,7 @@ class PlannedWorkoutTimelineTest {
     @Test
     fun builtInRoundedDurationsRemainStableWhileUsingExactTimelines() {
         assertEquals(
-            listOf(50, 54, 50, 54, 44, 46, 18),
+            listOf(40, 44, 40, 44, 34, 36, 8),
             Routines.all.map(Routine::estimatedDurationMinutes)
         )
     }

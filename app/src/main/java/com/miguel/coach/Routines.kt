@@ -204,7 +204,7 @@ fun RoutineDraft.validate(isCustom: Boolean): RoutineDraftValidation {
 }
 
 const val MAX_EXERCISE_NOTES_LENGTH = 300
-const val DEFAULT_WARMUP_SECONDS = 600
+const val DEFAULT_WARMUP_SECONDS = 0
 const val DEFAULT_ROUTINE_REST_SECONDS = 180
 const val DEFAULT_ECCENTRIC_SECONDS = 2
 const val DEFAULT_SERIES_REST_SECONDS = 120
@@ -336,8 +336,7 @@ object Routines {
                     repetitions = 15,
                     restSeconds = 60
                 )
-            ),
-            warmupSeconds = 10 * 60
+            )
         )
     )
 

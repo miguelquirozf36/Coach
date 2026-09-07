@@ -127,6 +127,7 @@ class TrainingProgramRepository(
     }
 
     private companion object {
+        const val LEGACY_DEFAULT_WARMUP_SECONDS = 600
         const val WEIDER_DAY1_MIGRATION_V18 = "weider_day1_template_migration_v18"
         const val WEIDER_DAY1_MIGRATION_V19 = "weider_day1_machine_flyes_migration_v19"
         const val WEIDER_SCHEDULE_MIGRATION_V20 = "weider_schedule_migration_v20"
@@ -144,7 +145,7 @@ class TrainingProgramRepository(
                 Exercise("extension-triceps-polea-alta", "Extensión de tríceps polea alta", 4, 10, 1, 2, 120)
             ),
             restBetweenExercisesSeconds = 180,
-            warmupSeconds = 600
+            warmupSeconds = LEGACY_DEFAULT_WARMUP_SECONDS
         )
         val PREVIOUS_WEIDER_DAY1_TEMPLATE = Routine(
             id = WEIDER_DAY1_ID,
@@ -158,7 +159,7 @@ class TrainingProgramRepository(
                 Exercise("extension-triceps-polea-alta", "Extensión de tríceps en polea alta", 3, 12, 1, 2, 120)
             ),
             restBetweenExercisesSeconds = 180,
-            warmupSeconds = 600
+            warmupSeconds = LEGACY_DEFAULT_WARMUP_SECONDS
         )
         val PREVIOUS_WEIDER_TEMPLATE = listOf(
             previousRoutine("day-1-chest-triceps", "DÍA 1 — PECHO Y TRÍCEPS",
@@ -189,7 +190,7 @@ class TrainingProgramRepository(
         )
 
         private fun previousRoutine(id: String, name: String, vararg exercises: Exercise) = Routine(
-            id, name, false, exercises.toList(), DEFAULT_ROUTINE_REST_SECONDS, DEFAULT_WARMUP_SECONDS
+            id, name, false, exercises.toList(), DEFAULT_ROUTINE_REST_SECONDS, LEGACY_DEFAULT_WARMUP_SECONDS
         )
 
         private fun previousExercise(id: String, name: String, sets: Int, reps: Int, eccentric: Int = 2) =
@@ -278,7 +279,7 @@ object OfficialTrainingPrograms {
             )
         },
         restBetweenExercisesSeconds = 180,
-        warmupSeconds = 600
+        warmupSeconds = DEFAULT_WARMUP_SECONDS
     )
 }
 

@@ -16,6 +16,7 @@ class TrainingProgramTest {
         assertEquals(listOf("full-body", "push-pull-legs", "upper-lower", "weider"), programs.map(TrainingProgram::id))
         assertEquals(listOf(3, 6, 4, 7), programs.map { it.routines.size })
         assertTrue(programs.all(TrainingProgram::builtIn))
+        assertTrue(programs.flatMap(TrainingProgram::routines).all { it.warmupSeconds == 0 })
         assertEquals(Routines.all, programs.single { it.id == "weider" }.routines)
         assertEquals("Weider / Grupos musculares", programDisplayName(programs.single { it.id == "weider" }))
     }

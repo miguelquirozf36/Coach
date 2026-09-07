@@ -330,7 +330,7 @@ class TrainingEngineTest {
         Routines.all.forEach { routine ->
             assertEquals(false, routine.isCustom)
             assertEquals(180, routine.restBetweenExercisesSeconds)
-            assertEquals(600, routine.warmupSeconds)
+            assertEquals(0, routine.warmupSeconds)
             routine.exercises.forEach { exercise ->
                 assertEquals(1, exercise.concentricSeconds)
                 assertEquals(2, exercise.eccentricSeconds)
@@ -2062,6 +2062,22 @@ class TrainingEngineTest {
 
         fixture.assertWorkout(TrainingPhase.COUNTDOWN, 10, 0, 1, 1, false)
         assertEquals("Comenzamos en diez segundos.", fixture.voice.phrases.single())
+    }
+
+    @Test
+    fun routineUsingTheDefaultWarmupStartsInCountdownInsteadOfWarmup() {
+        val fixture = Fixture(seriesExercise(sets = 1, repetitions = 1, restSeconds = 1))
+        val routineUsingDefault = Routine(
+            id = "default-warmup",
+            name = "Sin calentamiento predeterminado",
+            isCustom = true,
+            exercises = fixture.routine.exercises,
+            restBetweenExercisesSeconds = 0
+        )
+
+        fixture.engine.start(routineUsingDefault)
+
+        fixture.assertWorkout(TrainingPhase.COUNTDOWN, 10, 0, 1, 1, false)
     }
 
     @Test

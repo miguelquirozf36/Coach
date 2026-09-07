@@ -33,7 +33,7 @@ class RoutineRepositoryTest {
         }
         assertEquals("DÍA 4 — HOMBRO Y PANTORRILLAS", day4.name)
         assertEquals("DÍA 7 — PANTORRILLAS", day7.name)
-        assertEquals(600, day7.warmupSeconds)
+        assertEquals(0, day7.warmupSeconds)
         assertEquals(1, day7.exercises.size)
         with(day7.exercises.single()) {
             assertEquals("Pantorrillas", name)
@@ -109,7 +109,7 @@ class RoutineRepositoryTest {
 
         assertEquals(1, loaded.size)
         assertEquals("", loaded.single().exercises.single().notes)
-        assertEquals(600, loaded.single().warmupSeconds)
+        assertEquals(0, loaded.single().warmupSeconds)
         assertEquals(180, loaded.single().restBetweenExercisesSeconds)
         assertEquals(2, loaded.single().exercises.single().eccentricSeconds)
         assertEquals(120, loaded.single().exercises.single().restSeconds)
@@ -219,7 +219,7 @@ class RoutineRepositoryTest {
     }
 
     @Test
-    fun v15DefaultsMigrationRunsOnceAndPreservesOtherFields() {
+    fun v15DefaultsMigrationPreservesStoredWarmupAndUpdatesOtherLegacyDefaults() {
         val storage = InMemoryStorage()
         val original = Routines.all.first().copy(
             name = "Nombre conservado",
@@ -240,7 +240,7 @@ class RoutineRepositoryTest {
 
         val migrated = RoutineRepository(storage, listOf(original)).load().single()
 
-        assertEquals(600, migrated.warmupSeconds)
+        assertEquals(15, migrated.warmupSeconds)
         assertEquals(180, migrated.restBetweenExercisesSeconds)
         assertTrue(migrated.exercises.all { it.eccentricSeconds == 2 && it.restSeconds == 120 })
         assertEquals(original.id, migrated.id)
@@ -264,6 +264,8 @@ class RoutineRepositoryTest {
         val routine = emptyCustomRoutine("new-empty")
 
         assertTrue(routine.exercises.isEmpty())
+        assertEquals(0, routine.warmupSeconds)
+        assertEquals("0", routine.toDraft().warmupMinutes)
         assertNull(routine.toDraft().validate(true).routine)
         assertTrue(routine.toDraft().validate(true).message.orEmpty().contains("al menos un ejercicio"))
     }

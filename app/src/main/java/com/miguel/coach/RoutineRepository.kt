@@ -73,7 +73,6 @@ class RoutineRepository(
         if (storage.read(DEFAULTS_MIGRATION_V15_STAGE1) == "complete") return routines
         val migrated = routines.map { routine ->
             routine.copy(
-                warmupSeconds = DEFAULT_WARMUP_SECONDS,
                 restBetweenExercisesSeconds = DEFAULT_ROUTINE_REST_SECONDS,
                 exercises = routine.exercises.map { exercise ->
                     exercise.copy(
