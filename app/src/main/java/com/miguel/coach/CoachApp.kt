@@ -73,7 +73,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.geometry.Offset
@@ -84,6 +87,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
@@ -576,6 +581,7 @@ fun CoachApp(
                     onRestartStage = trainingEngine::restartStage,
                     onPreviousStage = trainingEngine::previousStage,
                     onNextStage = trainingEngine::nextStage,
+                    onStartFromExercise = onStartWorkoutFromExercise,
                     onFinish = onFinishWorkout
                 )
 
@@ -969,26 +975,15 @@ private fun RoutineDetailScreen(
     var pendingStartExerciseIndex by rememberSaveable(routine.id) { mutableStateOf<Int?>(null) }
 
     pendingStartExerciseIndex?.let { exerciseIndex ->
-        val exercise = routine.exercises.getOrNull(exerciseIndex)
-        if (exercise == null) {
-            pendingStartExerciseIndex = null
-        } else {
-            AlertDialog(
-                onDismissRequest = { pendingStartExerciseIndex = null },
-                containerColor = LocalDialogContainerColor.current,
-                title = { Text(startFromExerciseDialogTitle(exercise.name)) },
-                text = { Text(START_FROM_EXERCISE_DIALOG_MESSAGE) },
-                dismissButton = {
-                    TextButton(onClick = { pendingStartExerciseIndex = null }) { Text("CANCELAR") }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        pendingStartExerciseIndex = null
-                        onStartFromExercise(routine, exerciseIndex)
-                    }) { Text("INICIAR") }
-                }
-            )
-        }
+        StartFromExerciseConfirmationDialog(
+            routine = routine,
+            exerciseIndex = exerciseIndex,
+            onDismiss = { pendingStartExerciseIndex = null },
+            onConfirm = {
+                pendingStartExerciseIndex = null
+                onStartFromExercise(routine, exerciseIndex)
+            }
+        )
     }
 
     startValidationMessage?.let { message ->
@@ -1123,6 +1118,28 @@ const val START_FROM_EXERCISE_DIALOG_MESSAGE =
 internal fun startFromExerciseDialogTitle(exerciseName: String) = "¿Iniciar desde $exerciseName?"
 
 internal fun startFromExerciseContentDescription(exerciseName: String) = "Iniciar desde $exerciseName"
+
+@Composable
+private fun StartFromExerciseConfirmationDialog(
+    routine: Routine,
+    exerciseIndex: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val exercise = routine.exercises.getOrNull(exerciseIndex)
+    if (exercise == null) {
+        onDismiss()
+        return
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LocalDialogContainerColor.current,
+        title = { Text(startFromExerciseDialogTitle(exercise.name)) },
+        text = { Text(START_FROM_EXERCISE_DIALOG_MESSAGE) },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCELAR") } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("INICIAR") } }
+    )
+}
 
 private val StartWorkoutPlayIcon: ImageVector = ImageVector.Builder(
     name = "PlayArrow",
@@ -1723,10 +1740,12 @@ fun WorkoutScreen(
     onRestartStage: () -> Unit,
     onPreviousStage: () -> Unit,
     onNextStage: () -> Unit,
+    onStartFromExercise: (Routine, Int) -> Unit,
     onFinish: () -> Unit
 ) {
     val exercise = state.routine.exercises[state.exerciseIndex]
     var showFinishConfirmation by rememberSaveable { mutableStateOf(false) }
+    var pendingStartExerciseIndex by rememberSaveable(state.routine.id) { mutableStateOf<Int?>(null) }
     var frameTimeMillis by remember(
         state.phaseStartedAtMillis,
         state.phasePausedAtMillis,
@@ -1759,11 +1778,27 @@ fun WorkoutScreen(
     val overallProgress = workoutOverallProgress(state, effectiveTimeMillis)
 
     RegisterSystemBackAction {
-        when (workoutSystemBackOutcome(showFinishConfirmation)) {
-            SystemBackOutcome.CLOSE_DIALOG -> showFinishConfirmation = false
-            SystemBackOutcome.SHOW_CONFIRMATION -> showFinishConfirmation = true
-            SystemBackOutcome.NAVIGATE_BACK -> Unit
+        if (pendingStartExerciseIndex != null) {
+            pendingStartExerciseIndex = null
+        } else {
+            when (workoutSystemBackOutcome(showFinishConfirmation)) {
+                SystemBackOutcome.CLOSE_DIALOG -> showFinishConfirmation = false
+                SystemBackOutcome.SHOW_CONFIRMATION -> showFinishConfirmation = true
+                SystemBackOutcome.NAVIGATE_BACK -> Unit
+            }
         }
+    }
+
+    pendingStartExerciseIndex?.let { exerciseIndex ->
+        StartFromExerciseConfirmationDialog(
+            routine = state.routine,
+            exerciseIndex = exerciseIndex,
+            onDismiss = { pendingStartExerciseIndex = null },
+            onConfirm = {
+                pendingStartExerciseIndex = null
+                onStartFromExercise(state.routine, exerciseIndex)
+            }
+        )
     }
 
     if (showFinishConfirmation) {
@@ -1813,6 +1848,7 @@ fun WorkoutScreen(
                 onRestartStage = onRestartStage,
                 onPreviousStage = onPreviousStage,
                 onNextStage = onNextStage,
+                onStartFromExercise = { exerciseIndex -> pendingStartExerciseIndex = exerciseIndex },
                 onRequestFinish = { showFinishConfirmation = true }
             )
             WorkoutLayout.LANDSCAPE -> WorkoutLandscapeLayout(
@@ -1851,6 +1887,7 @@ private fun WorkoutPortraitLayout(
     onRestartStage: () -> Unit,
     onPreviousStage: () -> Unit,
     onNextStage: () -> Unit,
+    onStartFromExercise: (Int) -> Unit,
     onRequestFinish: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -1863,23 +1900,185 @@ private fun WorkoutPortraitLayout(
         ) {
             WorkoutHeader(state, exercise, nameMaxLines = Int.MAX_VALUE, overallProgress = overallProgress)
             if (state.phase != TrainingPhase.WARMUP) WorkoutMetricsCard(metrics)
+            workoutNoteBelowMetrics(state.phase, state.currentExerciseNotes)?.let { note ->
+                WorkoutNote(note)
+            }
         }
         Box(modifier = Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
             TrainingTimer(state, ringDiameter, frameTimeMillis)
         }
-        WorkoutControls(
-            state = state,
-            compact = false,
-            onPause = onPause,
-            onResume = onResume,
-            onRestartStage = onRestartStage,
-            onPreviousStage = onPreviousStage,
-            onNextStage = onNextStage,
-            onRequestFinish = onRequestFinish,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp)
-        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(33.dp)
+        ) {
+            WorkoutExerciseList(
+                exercises = state.routine.exercises,
+                currentExerciseIndex = state.exerciseIndex,
+                onStartFromExercise = onStartFromExercise
+            )
+            WorkoutControls(
+                state = state,
+                compact = false,
+                onPause = onPause,
+                onResume = onResume,
+                onRestartStage = onRestartStage,
+                onPreviousStage = onPreviousStage,
+                onNextStage = onNextStage,
+                onRequestFinish = onRequestFinish,
+                showNote = false
+            )
+        }
     }
 }
+
+internal data class WorkoutExerciseListItemPresentation(
+    val exerciseIndex: Int,
+    val number: Int,
+    val name: String,
+    val isActive: Boolean
+)
+
+internal fun workoutExerciseListItemPresentation(
+    exercise: Exercise,
+    index: Int,
+    currentExerciseIndex: Int
+) = WorkoutExerciseListItemPresentation(
+    exerciseIndex = index,
+    number = index + 1,
+    name = exercise.name,
+    isActive = index == currentExerciseIndex
+)
+
+internal fun workoutExerciseListShowsDivider(index: Int, exerciseCount: Int): Boolean =
+    index < exerciseCount - 1
+
+internal fun workoutNoteBelowMetrics(phase: TrainingPhase, notes: String): String? =
+    workoutNoteText(notes)?.takeIf { phase != TrainingPhase.WARMUP }
+
+internal fun workoutExerciseListScrollTarget(currentExerciseIndex: Int): Int =
+    currentExerciseIndex.coerceAtLeast(0)
+
+internal fun workoutExerciseListFullyVisibleItemCount(): Int =
+    ((WORKOUT_EXERCISE_LIST_VIEWPORT_HEIGHT - WORKOUT_EXERCISE_LIST_CONTENT_EDGE_INSET * 2) /
+        WORKOUT_EXERCISE_LIST_ITEM_HEIGHT).toInt()
+
+internal fun workoutExerciseListFadeStops(): List<Pair<Float, Float>> = listOf(
+    0f to 0f,
+    WORKOUT_EXERCISE_LIST_FADE_FRACTION to 1f,
+    1f - WORKOUT_EXERCISE_LIST_FADE_FRACTION to 1f,
+    1f to 0f
+)
+
+@Composable
+private fun WorkoutExerciseList(
+    exercises: List<Exercise>,
+    currentExerciseIndex: Int,
+    onStartFromExercise: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val listState = rememberLazyListState()
+    val fadeStops = workoutExerciseListFadeStops()
+    LaunchedEffect(currentExerciseIndex) {
+        listState.animateScrollToItem(workoutExerciseListScrollTarget(currentExerciseIndex))
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(WORKOUT_EXERCISE_LIST_VIEWPORT_HEIGHT)
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colorStops = fadeStops.map { (stop, alpha) -> stop to Color.Black.copy(alpha = alpha) }
+                            .toTypedArray()
+                    ),
+                    blendMode = BlendMode.DstIn
+                )
+            },
+        contentPadding = PaddingValues(vertical = WORKOUT_EXERCISE_LIST_CONTENT_EDGE_INSET)
+    ) {
+        itemsIndexed(exercises, key = { _, exercise -> exercise.id }) { index, exercise ->
+            WorkoutExerciseListItem(
+                presentation = workoutExerciseListItemPresentation(exercise, index, currentExerciseIndex),
+                showDivider = workoutExerciseListShowsDivider(index, exercises.size),
+                onStartFromHere = { onStartFromExercise(index) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkoutExerciseListItem(
+    presentation: WorkoutExerciseListItemPresentation,
+    showDivider: Boolean,
+    onStartFromHere: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val contentColor = if (presentation.isActive) colors.primary else colors.onSurfaceVariant.copy(alpha = 0.58f)
+    val dividerColor = colors.outlineVariant.copy(alpha = 0.55f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(WORKOUT_EXERCISE_LIST_ITEM_HEIGHT)
+            .drawBehind {
+                if (presentation.isActive) {
+                    drawRoundRect(
+                        color = colors.primary,
+                        topLeft = Offset.Zero,
+                        size = size.copy(width = WORKOUT_EXERCISE_LIST_ACTIVE_ACCENT_WIDTH.toPx()),
+                        cornerRadius = CornerRadius(WORKOUT_EXERCISE_LIST_ACTIVE_ACCENT_WIDTH.toPx())
+                    )
+                }
+                if (showDivider) {
+                    val inset = WORKOUT_EXERCISE_LIST_DIVIDER_HORIZONTAL_INSET.toPx()
+                    drawLine(
+                        color = dividerColor,
+                        start = Offset(inset, size.height - 0.5.dp.toPx()),
+                        end = Offset(size.width - inset, size.height - 0.5.dp.toPx()),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+            }
+            .padding(start = 16.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = presentation.number.toString(),
+            modifier = Modifier.width(24.dp),
+            color = contentColor,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+        )
+        Text(
+            text = presentation.name,
+            modifier = Modifier.weight(1f),
+            color = contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+        )
+        IconButton(onClick = onStartFromHere) {
+            Icon(
+                imageVector = StartWorkoutPlayIcon,
+                contentDescription = startFromExerciseContentDescription(presentation.name),
+                tint = contentColor
+            )
+        }
+    }
+}
+
+internal val WORKOUT_EXERCISE_LIST_VIEWPORT_HEIGHT = 64.dp
+internal val WORKOUT_EXERCISE_LIST_ITEM_HEIGHT = 52.dp
+internal val WORKOUT_EXERCISE_LIST_CONTENT_EDGE_INSET = 6.dp
+internal const val WORKOUT_EXERCISE_LIST_FADE_FRACTION = 0.18f
+internal val WORKOUT_EXERCISE_LIST_ACTIVE_ACCENT_WIDTH = 4.dp
+internal val WORKOUT_EXERCISE_LIST_DIVIDER_HORIZONTAL_INSET = 16.dp
 
 @Composable
 private fun WorkoutLandscapeLayout(
@@ -1935,6 +2134,7 @@ private fun WorkoutLandscapeLayout(
             onPreviousStage = onPreviousStage,
             onNextStage = onNextStage,
             onRequestFinish = onRequestFinish,
+            showNote = workoutControlsShowsNote(WorkoutLayout.LANDSCAPE),
             modifier = Modifier.align(Alignment.CenterEnd).width(sideWidth)
         )
     }
@@ -2078,6 +2278,7 @@ private fun WorkoutControls(
     onPreviousStage: () -> Unit,
     onNextStage: () -> Unit,
     onRequestFinish: () -> Unit,
+    showNote: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val buttonHeight = if (compact) 44.dp else 56.dp
@@ -2104,7 +2305,7 @@ private fun WorkoutControls(
         onDispose(previousTapResolver::dispose)
     }
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 8.dp)) {
-        if (state.phase != TrainingPhase.WARMUP) {
+        if (showNote && state.phase != TrainingPhase.WARMUP) {
             workoutNoteText(state.currentExerciseNotes)?.let { note ->
                 WorkoutNote(note)
             }
@@ -2150,6 +2351,9 @@ private fun WorkoutControls(
         ) { WorkoutButtonContent(StopIcon, stringResource(R.string.finish_workout)) }
     }
 }
+
+internal fun workoutControlsShowsNote(layout: WorkoutLayout): Boolean =
+    layout == WorkoutLayout.LANDSCAPE
 
 private val WorkoutPreviousIcon = coachIcon("FastRewind") {
     path(fill = SolidColor(Color.Black)) {

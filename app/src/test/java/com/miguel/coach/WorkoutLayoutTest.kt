@@ -70,6 +70,76 @@ class WorkoutLayoutTest {
     }
 
     @Test
+    fun workoutExerciseListShowsOnlyTheCurrentExerciseAsActive() {
+        val current = workoutExerciseListItemPresentation(
+            Exercise("current", "Press de banca", 1, 1, 1, 1, 0),
+            index = 1,
+            currentExerciseIndex = 1
+        )
+        val inactive = workoutExerciseListItemPresentation(
+            Exercise("other", "Aperturas", 1, 1, 1, 1, 0),
+            index = 0,
+            currentExerciseIndex = 1
+        )
+
+        assertEquals(2, current.number)
+        assertEquals("Press de banca", current.name)
+        assertEquals(1, current.exerciseIndex)
+        assertEquals(true, current.isActive)
+        assertEquals(false, inactive.isActive)
+    }
+
+    @Test
+    fun workoutExerciseListUsesTheExactExerciseIndexForTheRightSidePlayAction() {
+        val presentation = workoutExerciseListItemPresentation(
+            Exercise("press", "Press inclinado", 4, 10, 1, 2, 60),
+            index = 2,
+            currentExerciseIndex = 0
+        )
+
+        assertEquals(2, presentation.exerciseIndex)
+        assertEquals("Press inclinado", presentation.name)
+        assertEquals("Iniciar desde Press inclinado", startFromExerciseContentDescription(presentation.name))
+    }
+
+    @Test
+    fun workoutExerciseListAddsDividersOnlyBetweenRows() {
+        assertEquals(true, workoutExerciseListShowsDivider(index = 0, exerciseCount = 2))
+        assertEquals(false, workoutExerciseListShowsDivider(index = 1, exerciseCount = 2))
+        assertEquals(false, workoutExerciseListShowsDivider(index = 0, exerciseCount = 1))
+    }
+
+    @Test
+    fun workoutNoteAppearsOnlyBelowMetricsForNonWarmupExercises() {
+        assertEquals("Mantén la espalda recta", workoutNoteBelowMetrics(TrainingPhase.CONCENTRIC, "mantén la espalda recta"))
+        assertEquals(null, workoutNoteBelowMetrics(TrainingPhase.WARMUP, "mantén la espalda recta"))
+        assertEquals(null, workoutNoteBelowMetrics(TrainingPhase.CONCENTRIC, "  \n"))
+    }
+
+    @Test
+    fun landscapeShowsNotesOnlyInsideItsCenteredControlsBlock() {
+        assertEquals(false, workoutControlsShowsNote(WorkoutLayout.PORTRAIT))
+        assertEquals(true, workoutControlsShowsNote(WorkoutLayout.LANDSCAPE))
+    }
+
+    @Test
+    fun workoutExerciseListViewportFitsExactlyOneCompleteRow() {
+        assertEquals(1, workoutExerciseListFullyVisibleItemCount())
+        assertEquals(64.dp, WORKOUT_EXERCISE_LIST_VIEWPORT_HEIGHT)
+        assertEquals(52.dp, WORKOUT_EXERCISE_LIST_ITEM_HEIGHT)
+    }
+
+    @Test
+    fun workoutExerciseListTracksTheCurrentExerciseAndUsesBothFadeEdges() {
+        assertEquals(2, workoutExerciseListScrollTarget(2))
+        assertEquals(0, workoutExerciseListScrollTarget(-1))
+        assertEquals(
+            listOf(0f to 0f, 0.18f to 1f, 0.82f to 1f, 1f to 0f),
+            workoutExerciseListFadeStops()
+        )
+    }
+
+    @Test
     fun repetitionCounterChangesAtTheSameBoundaryAsTheVoice() {
         assertEquals(0, workoutState(TrainingPhase.CONCENTRIC, repetitionNumber = 1).completedRepetitions)
         assertEquals(1, workoutState(TrainingPhase.REPETITION_ANNOUNCEMENT, repetitionNumber = 1).completedRepetitions)
